@@ -1,4 +1,10 @@
-import { pgTable, uuid, varchar, timestamp, primaryKey } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  timestamp,
+  primaryKey,
+} from 'drizzle-orm/pg-core';
 import { usuarios } from './usuario';
 // TODO(GOL-35): trocar para import { organizations } from './organization.schema'
 // quando a GOL-34 for mesclada em develop.

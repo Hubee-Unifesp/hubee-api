@@ -5,10 +5,12 @@ import { OrganizacaoUsuariosService } from './organizacao-usuarios.service';
 
 describe('OrganizacaoUsuariosController', () => {
   let controller: OrganizacaoUsuariosController;
-    let service: {
+  let service: {
     create: jest.Mock<(orgId: string, dto: any) => Promise<any>>;
     findAll: jest.Mock<(orgId: string) => Promise<any>>;
-    update: jest.Mock<(orgId: string, userId: string, dto: any) => Promise<any>>;
+    update: jest.Mock<
+      (orgId: string, userId: string, dto: any) => Promise<any>
+    >;
     remove: jest.Mock<(orgId: string, userId: string) => Promise<any>>;
   };
 
@@ -16,18 +18,17 @@ describe('OrganizacaoUsuariosController', () => {
   const userId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 
   beforeEach(async () => {
-        service = {
+    service = {
       create: jest.fn<(orgId: string, dto: any) => Promise<any>>(),
       findAll: jest.fn<(orgId: string) => Promise<any>>(),
-      update: jest.fn<(orgId: string, userId: string, dto: any) => Promise<any>>(),
+      update:
+        jest.fn<(orgId: string, userId: string, dto: any) => Promise<any>>(),
       remove: jest.fn<(orgId: string, userId: string) => Promise<any>>(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [OrganizacaoUsuariosController],
-      providers: [
-        { provide: OrganizacaoUsuariosService, useValue: service },
-      ],
+      providers: [{ provide: OrganizacaoUsuariosService, useValue: service }],
     }).compile();
 
     controller = module.get<OrganizacaoUsuariosController>(
