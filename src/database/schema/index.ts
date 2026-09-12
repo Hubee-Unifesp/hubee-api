@@ -10,3 +10,4 @@
 export * from './usuario';
 export * from './address.schema';
 export * from './venue.schema';
+export * from './organizacao-usuario.schema';
