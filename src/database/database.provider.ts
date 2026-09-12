@@ -1,6 +1,11 @@
 import { Logger, Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { ExtractTablesWithRelations } from 'drizzle-orm';
+import {
+  drizzle,
+  NodePgDatabase,
+  NodePgTransaction,
+} from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { EnvironmentVariables } from '../config/env.validation';
 import { DRIZZLE, PG_POOL } from './database.constants';
@@ -8,6 +13,15 @@ import * as schema from './schema';
 
 /** Tipo do client Drizzle usado em toda a aplicação. */
 export type DrizzleDatabase = NodePgDatabase<typeof schema>;
+
+/** Tipo do client dentro de um `db.transaction(async (tx) => ...)`. */
+export type DrizzleTransaction = NodePgTransaction<
+  typeof schema,
+  ExtractTablesWithRelations<typeof schema>
+>;
+
+/** O que um repository deve aceitar: o client normal OU uma transaction em andamento. */
+export type DbExecutor = DrizzleDatabase | DrizzleTransaction;
 
 export const pgPoolProvider: Provider = {
   provide: PG_POOL,

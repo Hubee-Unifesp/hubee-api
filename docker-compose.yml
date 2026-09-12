@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hubee-api-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hubee
+      POSTGRES_PASSWORD: hubee
+      POSTGRES_DB: hubee
+    ports:
+      - '5433:5432'
+    volumes:
+      - hubee-api-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  hubee-api-postgres-data:

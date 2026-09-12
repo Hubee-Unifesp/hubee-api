@@ -7,4 +7,6 @@
  *
  * Ainda não há tabelas: elas chegam nas tasks de modelagem de dados.
  */
-export {};
+export * from './usuario';
+export * from './address.schema';
+export * from './venue.schema';
