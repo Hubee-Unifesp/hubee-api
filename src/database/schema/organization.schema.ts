@@ -1,10 +1,15 @@
 import { pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { usuarios } from './usuario';
 
 export const organizations = pgTable('organizations', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: varchar('name', { length: 255 }).notNull(),
   description: text('description'),
-  representativeId: uuid('representative_id'), // FK for users, to be added in a future task
+  // Opcional: a organização pode existir sem representante, e se o usuário
+  // for removido a organização continua, apenas sem representante.
+  representativeId: uuid('representative_id').references(() => usuarios.id, {
+    onDelete: 'set null',
+  }),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

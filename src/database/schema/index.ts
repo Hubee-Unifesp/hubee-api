@@ -5,6 +5,7 @@
  * aqui. O `drizzle-kit` lê este arquivo para gerar as migrations, e o client
  * usa o mesmo objeto para tipar as queries.
  */
+export * from './usuario';
 export * from './address.schema';
 export * from './venue.schema';
 export * from './organization.schema';
