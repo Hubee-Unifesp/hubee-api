@@ -1,9 +1,5 @@
 {
-<<<<<<< HEAD
-  "id": "ac77cb84-7113-496d-9764-ae40a6851e4b",
-=======
   "id": "e86164b6-63cc-4836-b7cc-ab9fa27e0f13",
->>>>>>> 1efee14f419cdac4e997500976fb17d3378e1570
   "prevId": "83efcce5-0fcc-477b-b063-676f442c6d48",
   "version": "7",
   "dialect": "postgresql",
@@ -274,8 +270,6 @@
     },
     "public.suppliers": {
       "name": "suppliers",
-    "public.organizations": {
-      "name": "organizations",
       "schema": "",
       "columns": {
         "id": {
@@ -285,8 +279,6 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "company_name": {
-          "name": "company_name",
         "name": {
           "name": "name",
           "type": "varchar(255)",
@@ -314,21 +306,17 @@
         "category": {
           "name": "category",
           "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "description": {
           "name": "description",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "representative_id": {
-          "name": "representative_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
@@ -336,7 +324,7 @@
         },
         "updated_at": {
           "name": "updated_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -367,10 +355,88 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.organizations": {
+      "name": "organizations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "company_name": {
+          "name": "company_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cnpj_cpf": {
+          "name": "cnpj_cpf",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone": {
+          "name": "phone",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "representative_id": {
+          "name": "representative_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
