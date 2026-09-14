@@ -14,7 +14,7 @@ export const organizacaoUsuarios = pgTable(
     orgId: uuid('organization_id')
       .notNull()
       .references(() => organizations.id), // <-- 2. Referência (FK) adicionada aqui
-      
+
     userId: uuid('user_id')
       .notNull()
       .references(() => usuarios.id),
