@@ -61,7 +61,7 @@ describe('OrganizacaoUsuariosService', () => {
         orgId,
         userId,
         role: 'admin',
-        permissao: 'total',
+        permission: 'total',
       });
     });
 
