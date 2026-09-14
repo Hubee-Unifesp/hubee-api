@@ -1,25 +1,25 @@
 import { IsEnum, IsOptional } from 'class-validator';
 import {
-  PapelOrganizacao,
-  PermissaoOrganizacao,
+  OrganizationRole,
+  OrganizationPermission,
 } from './create-organizacao-usuario.dto';
 
-export enum StatusConvite {
-  PENDENTE = 'pendente',
-  ACEITO = 'aceito',
-  RECUSADO = 'recusado',
+export enum InviteStatus {
+  PENDING = 'pending',
+  ACCEPTED = 'accepted',
+  DECLINED = 'declined',
 }
 
 export class UpdateOrganizacaoUsuarioDto {
   @IsOptional()
-  @IsEnum(PapelOrganizacao)
-  papel?: PapelOrganizacao;
+  @IsEnum(OrganizationRole)
+  role?: OrganizationRole;
 
   @IsOptional()
-  @IsEnum(PermissaoOrganizacao)
-  permissao?: PermissaoOrganizacao;
+  @IsEnum(OrganizationPermission)
+  permission?: OrganizationPermission;
 
   @IsOptional()
-  @IsEnum(StatusConvite)
-  statusConvite?: StatusConvite;
+  @IsEnum(InviteStatus)
+  inviteStatus?: InviteStatus;
 }

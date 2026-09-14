@@ -1,23 +1,23 @@
 import { IsUUID, IsEnum } from 'class-validator';
 
-export enum PapelOrganizacao {
+export enum OrganizationRole {
   ADMIN = 'admin',
-  MEMBRO = 'membro',
+  MEMBER = 'member',
 }
 
-export enum PermissaoOrganizacao {
-  TOTAL = 'total',
-  EDICAO = 'edicao',
-  LEITURA = 'leitura',
+export enum OrganizationPermission {
+  FULL = 'full',
+  EDIT = 'edit',
+  READ = 'read',
 }
 
 export class CreateOrganizacaoUsuarioDto {
   @IsUUID()
   userId: string;
 
-  @IsEnum(PapelOrganizacao)
-  papel: PapelOrganizacao;
+  @IsEnum(OrganizationRole)
+  role: OrganizationRole;
 
-  @IsEnum(PermissaoOrganizacao)
-  permissao: PermissaoOrganizacao;
+  @IsEnum(OrganizationPermission)
+  permission: OrganizationPermission;
 }

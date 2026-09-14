@@ -48,19 +48,19 @@ describe('OrganizacaoUsuariosService', () => {
     it('cria o vínculo quando ele ainda não existe', async () => {
       db.where.mockResolvedValueOnce([]); // findVinculo: nao existe
       db.returning.mockResolvedValueOnce([
-        { orgId, userId, papel: 'admin', permissao: 'total' },
+        { orgId, userId, role: 'admin', permission: 'total' },
       ]);
 
       const resultado = await service.create(orgId, {
         userId,
-        papel: 'admin' as any,
-        permissao: 'total' as any,
+        role: 'admin' as any,
+        permission: 'total' as any,
       });
 
       expect(resultado).toEqual({
         orgId,
         userId,
-        papel: 'admin',
+        role: 'admin',
         permissao: 'total',
       });
     });
@@ -71,8 +71,8 @@ describe('OrganizacaoUsuariosService', () => {
       await expect(
         service.create(orgId, {
           userId,
-          papel: 'admin' as any,
-          permissao: 'total' as any,
+          role: 'admin' as any,
+          permission: 'total' as any,
         }),
       ).rejects.toThrow(ConflictException);
     });
@@ -80,7 +80,7 @@ describe('OrganizacaoUsuariosService', () => {
 
   describe('findAll', () => {
     it('retorna a lista de vínculos da organização', async () => {
-      const listaFalsa = [{ orgId, userId, papel: 'membro' }];
+      const listaFalsa = [{ orgId, userId, role: 'membro' }];
       db.where.mockResolvedValueOnce(listaFalsa);
 
       const resultado = await service.findAll(orgId);
@@ -93,21 +93,21 @@ describe('OrganizacaoUsuariosService', () => {
     it('atualiza o vínculo quando ele existe', async () => {
       db.where.mockResolvedValueOnce([{ orgId, userId }]); // findVinculo: existe
       db.returning.mockResolvedValueOnce([
-        { orgId, userId, statusConvite: 'aceito' },
+        { orgId, userId, inviteStatus: 'aceito' },
       ]);
 
       const resultado = await service.update(orgId, userId, {
-        statusConvite: 'aceito' as any,
+        inviteStatus: 'aceito' as any,
       });
 
-      expect(resultado).toEqual({ orgId, userId, statusConvite: 'aceito' });
+      expect(resultado).toEqual({ orgId, userId, inviteStatus: 'aceito' });
     });
 
     it('lança NotFoundException quando o vínculo não existe', async () => {
       db.where.mockResolvedValueOnce([]); // findVinculo: nao existe
 
       await expect(
-        service.update(orgId, userId, { statusConvite: 'aceito' as any }),
+        service.update(orgId, userId, { inviteStatus: 'aceito' as any }),
       ).rejects.toThrow(NotFoundException);
     });
   });

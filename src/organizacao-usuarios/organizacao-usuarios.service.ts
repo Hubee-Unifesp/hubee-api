@@ -5,7 +5,7 @@ import {
   Inject,
 } from '@nestjs/common';
 import { eq, and } from 'drizzle-orm';
-import { organizacaoUsuarios } from '../database/schema';
+import { organizationUsers } from '../database/schema';
 import { CreateOrganizacaoUsuarioDto } from './dto/create-organizacao-usuario.dto';
 import { UpdateOrganizacaoUsuarioDto } from './dto/update-organizacao-usuario.dto';
 import { DRIZZLE } from '../database/database.constants';
@@ -17,11 +17,11 @@ export class OrganizacaoUsuariosService {
   private async findVinculo(orgId: string, userId: string) {
     const [vinculo] = await this.db
       .select()
-      .from(organizacaoUsuarios)
+      .from(organizationUsers)
       .where(
         and(
-          eq(organizacaoUsuarios.orgId, orgId),
-          eq(organizacaoUsuarios.userId, userId),
+          eq(organizationUsers.orgId, orgId),
+          eq(organizationUsers.userId, userId),
         ),
       );
     return vinculo;
@@ -35,24 +35,24 @@ export class OrganizacaoUsuariosService {
       );
     }
 
-    const [novoVinculo] = await this.db
-      .insert(organizacaoUsuarios)
-      .values({
-        orgId,
-        userId: dto.userId,
-        papel: dto.papel,
-        permissao: dto.permissao,
-      })
-      .returning();
+  const [newOrganizationUser] = await this.db
+    .insert(organizationUsers)
+    .values({
+      orgId,
+      userId: dto.userId,
+      role: dto.role,
+      permission: dto.permission,
+    })
+    .returning();
 
-    return novoVinculo;
-  }
+return newOrganizationUser;
+}
 
   async findAll(orgId: string) {
     return this.db
       .select()
-      .from(organizacaoUsuarios)
-      .where(eq(organizacaoUsuarios.orgId, orgId));
+      .from(organizationUsers)
+      .where(eq(organizationUsers.orgId, orgId));
   }
 
   async update(
@@ -68,12 +68,12 @@ export class OrganizacaoUsuariosService {
     }
 
     const [vinculoAtualizado] = await this.db
-      .update(organizacaoUsuarios)
+      .update(organizationUsers)
       .set(dto)
       .where(
         and(
-          eq(organizacaoUsuarios.orgId, orgId),
-          eq(organizacaoUsuarios.userId, userId),
+          eq(organizationUsers.orgId, orgId),
+          eq(organizationUsers.userId, userId),
         ),
       )
       .returning();
@@ -90,11 +90,11 @@ export class OrganizacaoUsuariosService {
     }
 
     await this.db
-      .delete(organizacaoUsuarios)
+      .delete(organizationUsers)
       .where(
         and(
-          eq(organizacaoUsuarios.orgId, orgId),
-          eq(organizacaoUsuarios.userId, userId),
+          eq(organizationUsers.orgId, orgId),
+          eq(organizationUsers.userId, userId),
         ),
       );
 

@@ -8,7 +8,7 @@ import {
 import { usuarios } from './user';
 import { organizations } from './organization.schema'; // <-- 1. Nova importação adicionada
 
-export const organizacaoUsuarios = pgTable(
+export const organizationUsers = pgTable(
   'organization_users',
   {
     orgId: uuid('organization_id')
