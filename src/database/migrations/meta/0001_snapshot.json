@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
   "id": "daf8f986-c9d7-4ac9-bba2-92de84949f2a",
+=======
+  "id": "e86164b6-63cc-4836-b7cc-ab9fa27e0f13",
+>>>>>>> develop
   "prevId": "83efcce5-0fcc-477b-b063-676f442c6d48",
   "version": "7",
   "dialect": "postgresql",
@@ -268,6 +272,7 @@
       },
       "isRLSEnabled": false
     },
+<<<<<<< HEAD
     "public.organization_users": {
       "name": "organization_users",
       "schema": "",
@@ -308,28 +313,80 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false,
+=======
+    "public.organizations": {
+      "name": "organizations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "representative_id": {
+          "name": "representative_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+>>>>>>> develop
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
+<<<<<<< HEAD
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false,
+=======
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+>>>>>>> develop
           "default": "now()"
         }
       },
       "indexes": {},
       "foreignKeys": {
+<<<<<<< HEAD
         "organization_users_user_id_users_id_fk": {
           "name": "organization_users_user_id_users_id_fk",
           "tableFrom": "organization_users",
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
+=======
+        "organizations_representative_id_users_id_fk": {
+          "name": "organizations_representative_id_users_id_fk",
+          "tableFrom": "organizations",
+          "tableTo": "users",
+          "columnsFrom": [
+            "representative_id"
+>>>>>>> develop
           ],
           "columnsTo": [
             "id"
           ],
+<<<<<<< HEAD
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -343,6 +400,13 @@
           ]
         }
       },
+=======
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+>>>>>>> develop
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
