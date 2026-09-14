@@ -11,31 +11,31 @@ import {
 export class CreateUsuarioDto {
   @IsString()
   @IsNotEmpty({ message: 'O primeiro nome é obrigatório' })
-  primeiroNome: string;
+  firstName: string;
 
   @IsString()
   @IsNotEmpty({ message: 'O sobrenome é obrigatório' })
-  sobrenome: string;
+  lastName: string;
 
   @IsEmail({}, { message: 'Forneça um e-mail válido' })
   email: string;
 
   @IsOptional()
   @IsNumberString({}, { message: 'O telefone deve conter apenas números' })
-  telefone?: string;
+  phone?: string;
 
   @IsString()
   @Length(6, 20, { message: 'A senha deve ter entre 6 e 20 caracteres' })
-  senha: string;
+  password: string;
 
   @IsNumberString({}, { message: 'O CPF deve conter apenas números' })
   @Length(11, 11, { message: 'O CPF deve ter 11 dígitos' })
   cpf: string;
 
   @IsDateString({}, { message: 'Data de nascimento inválida' })
-  dataNascimento: string;
+  birthDate: string;
 
   @IsString()
   @IsNotEmpty({ message: 'O tipo de perfil é obrigatório' })
-  tipoPerfil: string;
+  profileType: string;
 }
