@@ -69,7 +69,7 @@ export class OrganizacaoUsuariosService {
 
     const [vinculoAtualizado] = await this.db
       .update(organizacaoUsuarios)
-      .set({ ...dto, dataModificacao: new Date() })
+      .set(dto)
       .where(
         and(
           eq(organizacaoUsuarios.orgId, orgId),
