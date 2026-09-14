@@ -35,18 +35,18 @@ export class OrganizacaoUsuariosService {
       );
     }
 
-  const [newOrganizationUser] = await this.db
-    .insert(organizationUsers)
-    .values({
-      orgId,
-      userId: dto.userId,
-      role: dto.role,
-      permission: dto.permission,
-    })
-    .returning();
+    const [newOrganizationUser] = await this.db
+      .insert(organizationUsers)
+      .values({
+        orgId,
+        userId: dto.userId,
+        role: dto.role,
+        permission: dto.permission,
+      })
+      .returning();
 
-return newOrganizationUser;
-}
+    return newOrganizationUser;
+  }
 
   async findAll(orgId: string) {
     return this.db
