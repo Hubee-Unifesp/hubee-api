@@ -9,6 +9,7 @@ import { OrganizacaoUsuariosModule } from './organizacao-usuarios/organizacao-us
 import { OrganizationModule } from './organization/organization.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { VenueModule } from './venue/venue.module';
+import { FornecedoresModule } from './fornecedores/fornecedores.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { VenueModule } from './venue/venue.module';
     OrganizationModule,
     UsuariosModule,
     VenueModule,
+    FornecedoresModule,
   ],
   controllers: [AppController],
   providers: [AppService],

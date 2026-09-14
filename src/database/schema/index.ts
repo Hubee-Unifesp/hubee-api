@@ -9,4 +9,5 @@ export * from './user';
 export * from './address.schema';
 export * from './venue.schema';
 export * from './organization-user';
+export * from './fornecedor';
 export * from './organization.schema';

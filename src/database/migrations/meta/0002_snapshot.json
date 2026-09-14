@@ -1,5 +1,5 @@
 {
-  "id": "6061616e-1e57-4695-9747-4d37f8a80046",
+  "id": "e86164b6-63cc-4836-b7cc-ab9fa27e0f13",
   "prevId": "83efcce5-0fcc-477b-b063-676f442c6d48",
   "version": "7",
   "dialect": "postgresql",
@@ -268,95 +268,93 @@
       },
       "isRLSEnabled": false
     },
-    "public.organization_users": {
-      "name": "organization_users",
+    "public.suppliers": {
+      "name": "suppliers",
       "schema": "",
       "columns": {
-        "organization_id": {
-          "name": "organization_id",
+        "id": {
+          "name": "id",
           "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "role": {
-          "name": "role",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "permission": {
-          "name": "permission",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "invite_status": {
-          "name": "invite_status",
-          "type": "varchar(20)",
-          "primaryKey": false,
+          "primaryKey": true,
           "notNull": true,
-          "default": "'pendente'"
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cnpj_cpf": {
+          "name": "cnpj_cpf",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone": {
+          "name": "phone",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
-          "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "default": "now()"
         },
         "updated_at": {
           "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
           "type": "timestamp",
           "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
+          "notNull": false
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "organization_users_organization_id_organizations_id_fk": {
-          "name": "organization_users_organization_id_organizations_id_fk",
-          "tableFrom": "organization_users",
-          "tableTo": "organizations",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "organization_users_user_id_users_id_fk": {
-          "name": "organization_users_user_id_users_id_fk",
-          "tableFrom": "organization_users",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "organization_users_organization_id_user_id_pk": {
-          "name": "organization_users_organization_id_user_id_pk",
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "suppliers_cnpj_cpf_unique": {
+          "name": "suppliers_cnpj_cpf_unique",
+          "nullsNotDistinct": false,
           "columns": [
-            "organization_id",
-            "user_id"
+            "cnpj_cpf"
+          ]
+        },
+        "suppliers_email_unique": {
+          "name": "suppliers_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
           ]
         }
       },
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -372,11 +370,41 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
+        "company_name": {
+          "name": "company_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
         "name": {
           "name": "name",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
+        },
+        "cnpj_cpf": {
+          "name": "cnpj_cpf",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone": {
+          "name": "phone",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
         },
         "description": {
           "name": "description",
@@ -403,6 +431,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},

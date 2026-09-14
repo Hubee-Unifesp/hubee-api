@@ -29,17 +29,16 @@ export class UsuariosService {
     if (existingUser.length > 0) {
       throw new ConflictException('E-mail ou CPF já cadastrados.');
     }
-    const hashedPassword = await bcrypt.hash(data.senha, 10);
+    const hashedPassword = await bcrypt.hash(data.password, 10);
     const [newUser] = await this.db
       .insert(usuarios)
       .values({
         ...data,
-        senha: hashedPassword,
-        dataNascimento: new Date(data.dataNascimento)
-          .toISOString()
-          .split('T')[0],
+        password: hashedPassword,
+        birthDate: new Date(data.birthDate).toISOString().split('T')[0],
       })
       .returning();
+
     return this.excludePassword(newUser);
   }
 
@@ -48,13 +47,16 @@ export class UsuariosService {
       .select()
       .from(usuarios)
       .where(isNull(usuarios.deletedAt));
+
     return allUsers.map((user: any) => this.excludePassword(user));
   }
+
   async findOne(id: string) {
     const [user] = await this.db
       .select()
       .from(usuarios)
       .where(and(eq(usuarios.id, id), isNull(usuarios.deletedAt)));
+
     if (!user) throw new NotFoundException('Usuário não encontrado.');
 
     return this.excludePassword(user);
@@ -63,13 +65,13 @@ export class UsuariosService {
   async update(id: string, data: UpdateUsuarioDto) {
     await this.findOne(id);
 
-    const updateData: any = { ...data, dataModificacao: new Date() };
+    const updateData: any = { ...data, updatedAt: new Date() };
 
-    if (data.senha) {
-      updateData.senha = await bcrypt.hash(data.senha, 10);
+    if (data.password) {
+      updateData.password = await bcrypt.hash(data.password, 10);
     }
-    if (data.dataNascimento) {
-      updateData.dataNascimento = new Date(data.dataNascimento)
+    if (data.birthDate) {
+      updateData.birthDate = new Date(data.birthDate)
         .toISOString()
         .split('T')[0];
     }
@@ -86,7 +88,7 @@ export class UsuariosService {
     await this.findOne(id);
     await this.db
       .update(usuarios)
-      .set({ deletedAt: new Date(), status: 'INATIVO' })
+      .set({ deletedAt: new Date(), status: 'INACTIVE' })
       .where(eq(usuarios.id, id));
 
     return { message: 'Usuário removido com sucesso.' };
