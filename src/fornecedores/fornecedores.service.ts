@@ -11,7 +11,7 @@ import { fornecedores } from '../database/schema';
 
 @Injectable()
 export class FornecedoresService {
-  constructor(@Inject('DB_CONNECTION') private db: any) {}
+  constructor(@Inject('DRIZZLE') private db: any) {}
 
   async create(createFornecedorDto: CreateFornecedorDto) {
     const conditions = [eq(fornecedores.cnpjCpf, createFornecedorDto.cnpjCpf)];

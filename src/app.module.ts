@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
+import { OrganizacaoUsuariosModule } from './organizacao-usuarios/organizacao-usuarios.module';
 import { OrganizationModule } from './organization/organization.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { VenueModule } from './venue/venue.module';
@@ -19,6 +20,7 @@ import { FornecedoresModule } from './fornecedores/fornecedores.module';
     }),
     DatabaseModule,
     HealthModule,
+    OrganizacaoUsuariosModule,
     OrganizationModule,
     UsuariosModule,
     VenueModule,
