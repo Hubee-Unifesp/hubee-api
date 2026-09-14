@@ -6,6 +6,7 @@
  * usa o mesmo objeto para tipar as queries.
  */
 export * from './usuario';
+export * from './order.schema';
 export * from './address.schema';
 export * from './venue.schema';
 export * from './organization.schema';
