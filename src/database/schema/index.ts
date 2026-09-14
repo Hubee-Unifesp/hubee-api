@@ -8,5 +8,5 @@
 export * from './usuario';
 export * from './address.schema';
 export * from './venue.schema';
-export * from './organizacao-usuario.schema';
+export * from './organization-user';
 export * from './organization.schema';
