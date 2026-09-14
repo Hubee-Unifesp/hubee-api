@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
   "id": "ac77cb84-7113-496d-9764-ae40a6851e4b",
+=======
+  "id": "e86164b6-63cc-4836-b7cc-ab9fa27e0f13",
+>>>>>>> 1efee14f419cdac4e997500976fb17d3378e1570
   "prevId": "83efcce5-0fcc-477b-b063-676f442c6d48",
   "version": "7",
   "dialect": "postgresql",
@@ -270,6 +274,8 @@
     },
     "public.suppliers": {
       "name": "suppliers",
+    "public.organizations": {
+      "name": "organizations",
       "schema": "",
       "columns": {
         "id": {
@@ -281,6 +287,8 @@
         },
         "company_name": {
           "name": "company_name",
+        "name": {
+          "name": "name",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
@@ -306,12 +314,22 @@
         "category": {
           "name": "category",
           "type": "varchar(100)",
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "representative_id": {
+          "name": "representative_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
@@ -349,6 +367,30 @@
           ]
         }
       },
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "organizations_representative_id_users_id_fk": {
+          "name": "organizations_representative_id_users_id_fk",
+          "tableFrom": "organizations",
+          "tableTo": "users",
+          "columnsFrom": [
+            "representative_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
