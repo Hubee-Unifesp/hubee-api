@@ -4,7 +4,7 @@ import {
   NotFoundException,
   Inject,
 } from '@nestjs/common';
-import { eq, or, and, isNull } from 'drizzle-orm';
+import { eq, or, and, isNull, ne } from 'drizzle-orm';
 import { usuarios } from '../database/schema';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
@@ -24,7 +24,12 @@ export class UsuariosService {
     const existingUser = await this.db
       .select()
       .from(usuarios)
-      .where(or(eq(usuarios.email, data.email), eq(usuarios.cpf, data.cpf)));
+      .where(
+        and(
+          or(eq(usuarios.email, data.email), eq(usuarios.cpf, data.cpf)),
+          isNull(usuarios.deletedAt),
+        ),
+      );
 
     if (existingUser.length > 0) {
       throw new ConflictException('E-mail ou CPF já cadastrados.');
@@ -64,6 +69,28 @@ export class UsuariosService {
 
   async update(id: string, data: UpdateUsuarioDto) {
     await this.findOne(id);
+
+    if (data.email || data.cpf) {
+      const conflictConditions = [
+        data.email ? eq(usuarios.email, data.email) : undefined,
+        data.cpf ? eq(usuarios.cpf, data.cpf) : undefined,
+      ].filter((c) => c !== undefined);
+
+      const conflictingUser = await this.db
+        .select()
+        .from(usuarios)
+        .where(
+          and(
+            or(...conflictConditions),
+            isNull(usuarios.deletedAt),
+            ne(usuarios.id, id),
+          ),
+        );
+
+      if (conflictingUser.length > 0) {
+        throw new ConflictException('E-mail ou CPF já cadastrados.');
+      }
+    }
 
     const updateData: any = { ...data, updatedAt: new Date() };
 
