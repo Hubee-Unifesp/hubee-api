@@ -6,13 +6,19 @@ import {
 } from '@nestjs/common';
 import { eq, and } from 'drizzle-orm';
 import { organizationUsers } from '../database/schema';
+import { OrganizationService } from '../organization/organization.service';
+import { UsuariosService } from '../usuarios/usuarios.service';
 import { CreateOrganizacaoUsuarioDto } from './dto/create-organizacao-usuario.dto';
 import { UpdateOrganizacaoUsuarioDto } from './dto/update-organizacao-usuario.dto';
 import { DRIZZLE } from '../database/database.constants';
 
 @Injectable()
 export class OrganizacaoUsuariosService {
-  constructor(@Inject(DRIZZLE) private readonly db: any) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: any,
+    private readonly organizationService: OrganizationService,
+    private readonly usuariosService: UsuariosService,
+  ) {}
 
   private async findVinculo(orgId: string, userId: string) {
     const [vinculo] = await this.db
@@ -28,6 +34,9 @@ export class OrganizacaoUsuariosService {
   }
 
   async create(orgId: string, dto: CreateOrganizacaoUsuarioDto) {
+    await this.organizationService.findOne(orgId);
+    await this.usuariosService.findOne(dto.userId);
+
     const existente = await this.findVinculo(orgId, dto.userId);
     if (existente) {
       throw new ConflictException(
