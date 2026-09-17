@@ -39,6 +39,16 @@ export class VenueService {
   async create(dto: CreateVenueDto) {
     return this.db.transaction(async (tx) => {
       const addressId = await this.resolveAddressForCreate(dto, tx);
+      const existing = await this.venueRepository.findByNameCapacityAndAddress(
+        dto.name,
+        dto.maxCapacity,
+        addressId,
+        tx,
+      );
+
+      if (existing) {
+        return existing;
+      }
 
       return this.venueRepository.create(
         { name: dto.name, maxCapacity: dto.maxCapacity, addressId },
@@ -88,17 +98,17 @@ export class VenueService {
     dto: CreateVenueDto,
     tx: DrizzleTransaction,
   ): Promise<string> {
+    if (dto.address) {
+      const created = await this.addressService.create(dto.address, tx);
+      return created.id;
+    }
+
     if (dto.addressId) {
       const existing = await this.addressService.findById(dto.addressId, tx);
       if (!existing) {
         throw new NotFoundException(`Endereço ${dto.addressId} não encontrado`);
       }
       return dto.addressId;
-    }
-
-    if (dto.address) {
-      const created = await this.addressService.create(dto.address, tx);
-      return created.id;
     }
 
     throw new BadRequestException(
