@@ -10,6 +10,7 @@
     "deploy": "nest deploy",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:test": "node --test test/migrations.test.cjs",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
