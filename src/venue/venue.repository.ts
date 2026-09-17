@@ -50,7 +50,6 @@ export class VenueRepository {
         eq(venues.maxCapacity, maxCapacity),
         eq(venues.addressId, addressId),
       ),
-      with: { address: true },
     });
   }
 
