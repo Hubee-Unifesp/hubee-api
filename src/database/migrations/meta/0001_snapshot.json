@@ -1,6 +1,6 @@
 {
-  "id": "2c1f4208-a0bd-449e-83b9-b64c4e76557c",
-  "prevId": "b5d8b373-4f81-4b3a-bd1c-061e660d3d49",
+  "id": "b5d8b373-4f81-4b3a-bd1c-061e660d3d49",
+  "prevId": "83efcce5-0fcc-477b-b063-676f442c6d48",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -349,72 +349,6 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.organizations": {
-      "name": "organizations",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "representative_id": {
-          "name": "representative_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "organizations_representative_id_users_id_fk": {
-          "name": "organizations_representative_id_users_id_fk",
-          "tableFrom": "organizations",
-          "tableTo": "users",
-          "columnsFrom": [
-            "representative_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

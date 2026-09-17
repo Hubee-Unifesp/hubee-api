@@ -1,6 +1,6 @@
 {
-  "id": "2c1f4208-a0bd-449e-83b9-b64c4e76557c",
-  "prevId": "b5d8b373-4f81-4b3a-bd1c-061e660d3d49",
+  "id": "c6a86c8d-be53-4bbd-a872-b5e04513847e",
+  "prevId": "1e031364-cb29-4803-9e9f-2d7e9bad4c08",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -68,7 +68,7 @@
           "type": "varchar(20)",
           "primaryKey": false,
           "notNull": false,
-          "default": "'ATIVO'"
+          "default": "'ACTIVE'"
         },
         "created_at": {
           "name": "created_at",
@@ -91,25 +91,43 @@
           "notNull": false
         }
       },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
+      "indexes": {
         "users_email_unique": {
           "name": "users_email_unique",
-          "nullsNotDistinct": false,
           "columns": [
-            "email"
-          ]
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"users\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         },
         "users_cpf_unique": {
           "name": "users_cpf_unique",
-          "nullsNotDistinct": false,
           "columns": [
-            "cpf"
-          ]
+            {
+              "expression": "cpf",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"users\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -268,6 +286,99 @@
       },
       "isRLSEnabled": false
     },
+    "public.organization_users": {
+      "name": "organization_users",
+      "schema": "",
+      "columns": {
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permission": {
+          "name": "permission",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invite_status": {
+          "name": "invite_status",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "organization_users_organization_id_organizations_id_fk": {
+          "name": "organization_users_organization_id_organizations_id_fk",
+          "tableFrom": "organization_users",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "organization_users_user_id_users_id_fk": {
+          "name": "organization_users_user_id_users_id_fk",
+          "tableFrom": "organization_users",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "organization_users_organization_id_user_id_pk": {
+          "name": "organization_users_organization_id_user_id_pk",
+          "columns": [
+            "organization_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.suppliers": {
       "name": "suppliers",
       "schema": "",
@@ -330,25 +441,43 @@
           "notNull": false
         }
       },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
+      "indexes": {
         "suppliers_cnpj_cpf_unique": {
           "name": "suppliers_cnpj_cpf_unique",
-          "nullsNotDistinct": false,
           "columns": [
-            "cnpj_cpf"
-          ]
+            {
+              "expression": "cnpj_cpf",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"suppliers\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         },
         "suppliers_email_unique": {
           "name": "suppliers_email_unique",
-          "nullsNotDistinct": false,
           "columns": [
-            "email"
-          ]
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"suppliers\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
