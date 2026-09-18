@@ -1,6 +1,6 @@
 # Hubee API
 
-API do Hubee, uma plataforma para planejamento e venda de eventos online.
+API do Hubee, uma plataforma para planejamento e venda de eventos online. Desenvolvido por alunos da unifesp.
 
 Este é um projeto acadêmico desenvolvido para a disciplina de **Engenharia de Software**. A proposta é permitir que organizadores criem e gerenciem eventos, enquanto participantes encontram eventos e compram ingressos pela plataforma.
 
