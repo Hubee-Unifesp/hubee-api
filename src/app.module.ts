@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
+import { EventModule } from './event/event.module';
 import { HealthModule } from './health/health.module';
 import { OrderModule } from './order/order.module';
 import { OrganizacaoUsuariosModule } from './organizacao-usuarios/organizacao-usuarios.module';
@@ -20,6 +21,7 @@ import { FornecedoresModule } from './fornecedores/fornecedores.module';
       validate: validateEnv,
     }),
     DatabaseModule,
+    EventModule,
     HealthModule,
     OrderModule,
     OrganizacaoUsuariosModule,

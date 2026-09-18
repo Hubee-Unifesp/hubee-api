@@ -12,8 +12,6 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1789243167197,
-      "tag": "0001_fast_pete_wisdom",
       "when": 1789341191937,
       "tag": "0001_handy_rick_jones",
       "breakpoints": true
@@ -23,6 +21,13 @@
       "version": "7",
       "when": 1789400994992,
       "tag": "0002_productive_blazing_skull",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789687629973,
+      "tag": "0003_gorgeous_leper_queen",
       "breakpoints": true
     }
   ]
