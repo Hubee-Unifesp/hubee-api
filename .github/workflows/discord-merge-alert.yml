@@ -1,0 +1,20 @@
+name: Avisar PR mergeado
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  notify:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar alerta no Discord
+        run: |
+          PAYLOAD=$(jq -n \
+            --arg title "${{ github.event.pull_request.title }}" \
+            --arg author "${{ github.event.pull_request.user.login }}" \
+            --arg base "${{ github.event.pull_request.base.ref }}" \
+            --arg url "${{ github.event.pull_request.html_url }}" \
+            '{content: ("✅ **PR mergeado!**\n**" + $title + "**\nAutor: " + $author + " → branch `" + $base + "`\n" + $url)}')
+          curl -s -H "Content-Type: application/json" -d "$PAYLOAD" "${{ secrets.DISCORD_WEBHOOK }}"
