@@ -10,11 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Enviar alerta no Discord
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          URL: ${{ github.event.pull_request.html_url }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           PAYLOAD=$(jq -n \
-            --arg title "${{ github.event.pull_request.title }}" \
-            --arg author "${{ github.event.pull_request.user.login }}" \
-            --arg base "${{ github.event.pull_request.base.ref }}" \
-            --arg url "${{ github.event.pull_request.html_url }}" \
-            '{content: ("✅ **PR mergeado!**\n**" + $title + "**\nAutor: " + $author + " → branch `" + $base + "`\n" + $url)}')
-          curl -s -H "Content-Type: application/json" -d "$PAYLOAD" "${{ secrets.DISCORD_WEBHOOK }}"
+            --arg repo "$REPO" \
+            --arg title "$TITLE" \
+            --arg author "$AUTHOR" \
+            --arg base "$BASE" \
+            --arg url "$URL" \
+            '{content: ("✅ **PR mergeado!**\n**" + $title + "**\nRepositório: " + $repo + "\nAutor: " + $author + " → branch `" + $base + "`\n" + $url)}')
+          curl -s -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK"
