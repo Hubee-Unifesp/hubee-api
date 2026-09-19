@@ -2,6 +2,11 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrganizacaoUsuariosController } from './organizacao-usuarios.controller';
 import { OrganizacaoUsuariosService } from './organizacao-usuarios.service';
+import {
+  InviteStatus,
+  OrganizationPermission,
+  OrganizationRole,
+} from './dto/create-organizacao-usuario.dto';
 
 describe('OrganizacaoUsuariosController', () => {
   let controller: OrganizacaoUsuariosController;
@@ -41,7 +46,11 @@ describe('OrganizacaoUsuariosController', () => {
   });
 
   it('create() repassa orgId e dto pro service', async () => {
-    const dto = { userId, papel: 'admin', permissao: 'total' } as any;
+    const dto = {
+      userId,
+      role: OrganizationRole.ADMIN,
+      permission: OrganizationPermission.FULL,
+    };
     const respostaFalsa = { orgId, ...dto };
     service.create.mockResolvedValueOnce(respostaFalsa);
 
@@ -62,7 +71,7 @@ describe('OrganizacaoUsuariosController', () => {
   });
 
   it('update() repassa orgId, userId e dto pro service', async () => {
-    const dto = { statusConvite: 'aceito' } as any;
+    const dto = { inviteStatus: InviteStatus.ACCEPTED };
     const respostaFalsa = { orgId, userId, ...dto };
     service.update.mockResolvedValueOnce(respostaFalsa);
 
