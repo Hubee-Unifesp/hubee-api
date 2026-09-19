@@ -10,8 +10,10 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { CreateAddressDto } from '../../address/dto/create-address.dto';
+import { TrimString } from '../../common/validation/update-validation';
 
 export class CreateVenueDto {
+  @TrimString()
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)

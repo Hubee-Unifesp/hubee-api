@@ -1,15 +1,38 @@
-import { OmitType, PartialType } from '@nestjs/mapped-types';
-import { CreateVenueDto } from './create-venue.dto';
-import { ValidateNested } from 'class-validator';
+import {
+    IsInt,
+    IsNotEmpty,
+    IsPositive,
+    IsUUID,
+    MaxLength,
+    ValidateNested,
+    IsString,
+} from 'class-validator';
 import { UpdateAddressDto } from '../../address/dto/update-address.dto';
 import { Type } from 'class-transformer';
+import {
+    IsOptionalUpdate,
+    TrimString,
+} from '../../common/validation/update-validation';
 
+export class UpdateVenueDto {
+    @TrimString()
+    @IsOptionalUpdate()
+    @IsString()
+    @IsNotEmpty()
+    @MaxLength(255)
+    name?: string;
 
-export class UpdateVenueDto extends PartialType(
-    OmitType(CreateVenueDto, ['address'] as const),
-) {
+    @IsOptionalUpdate()
+    @IsInt()
+    @IsPositive()
+    maxCapacity?: number;
+
+    @IsOptionalUpdate()
+    @IsUUID()
+    addressId?: string;
+
+    @IsOptionalUpdate()
     @ValidateNested()
     @Type(() => UpdateAddressDto)
     address?: UpdateAddressDto;
-    
 }

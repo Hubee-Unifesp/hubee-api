@@ -7,16 +7,20 @@ import {
   IsDateString,
   IsNumberString,
 } from 'class-validator';
+import { TrimString } from '../../common/validation/update-validation';
 
 export class CreateUsuarioDto {
+  @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'O primeiro nome é obrigatório' })
   firstName: string;
 
+  @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'O sobrenome é obrigatório' })
   lastName: string;
 
+  @TrimString()
   @IsEmail({}, { message: 'Forneça um e-mail válido' })
   email: string;
 
@@ -24,7 +28,9 @@ export class CreateUsuarioDto {
   @IsNumberString({}, { message: 'O telefone deve conter apenas números' })
   phone?: string;
 
+  @TrimString()
   @IsString()
+  @IsNotEmpty()
   @Length(6, 20, { message: 'A senha deve ter entre 6 e 20 caracteres' })
   password: string;
 
@@ -35,6 +41,7 @@ export class CreateUsuarioDto {
   @IsDateString({}, { message: 'Data de nascimento inválida' })
   birthDate: string;
 
+  @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'O tipo de perfil é obrigatório' })
   profileType: string;
