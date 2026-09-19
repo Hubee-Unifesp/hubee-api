@@ -12,9 +12,7 @@
  * ATENÇÃO: os inserts de organização e usuário abaixo são um esqueleto —
  * ajuste os campos para o que organizations e usuarios realmente exigem.
  */
-import { describe, it, expect, beforeAll, beforeEach } from '@jest/globals';
-// @ts-expect-error Optional integration-test dependency may not be included in
-// the main TypeScript project configuration.
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from '@jest/globals';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { pushSchema } from 'drizzle-kit/api';
@@ -29,13 +27,15 @@ import {
 
 describe('OrganizacaoUsuariosService (banco real)', () => {
   let db: any;
+  let pglite: PGlite;
   let service: OrganizacaoUsuariosService;
 
   let orgId: string;
   let userId: string;
 
   beforeAll(async () => {
-    db = drizzle(new PGlite(), { schema });
+    pglite = new PGlite();
+    db = drizzle(pglite, { schema });
 
     const { apply } = await pushSchema(schema as any, db);
     await apply();
@@ -47,6 +47,10 @@ describe('OrganizacaoUsuariosService (banco real)', () => {
       { findOne: async () => ({}) } as any,
       { findOne: async () => ({}) } as any,
     );
+  });
+
+  afterAll(async () => {
+    await pglite.close();
   });
 
   beforeEach(async () => {
