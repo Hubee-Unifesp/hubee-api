@@ -39,9 +39,8 @@ describe('AddressService', () => {
     repository = {
       create: jest.fn<AddressRepository['create']>(),
       findById: jest.fn<AddressRepository['findById']>(),
-      findByZipCodeNumberAndComplement: jest.fn<
-        AddressRepository['findByZipCodeNumberAndComplement']
-      >(),
+      findByZipCodeNumberAndComplement:
+        jest.fn<AddressRepository['findByZipCodeNumberAndComplement']>(),
       update: jest.fn<AddressRepository['update']>(),
     };
 
@@ -63,9 +62,12 @@ describe('AddressService', () => {
 
     const result = await service.create(dto);
 
-    expect(
-      repository.findByZipCodeNumberAndComplement,
-    ).toHaveBeenCalledWith(undefined, undefined, null, undefined);
+    expect(repository.findByZipCodeNumberAndComplement).toHaveBeenCalledWith(
+      undefined,
+      undefined,
+      null,
+      undefined,
+    );
     expect(repository.create).toHaveBeenCalledWith(dto, undefined);
     expect(result).toEqual(address);
   });
@@ -81,9 +83,12 @@ describe('AddressService', () => {
 
     const result = await service.create(dto);
 
-    expect(
-      repository.findByZipCodeNumberAndComplement,
-    ).toHaveBeenCalledWith('50000-000', '100', 'Sala 2', undefined);
+    expect(repository.findByZipCodeNumberAndComplement).toHaveBeenCalledWith(
+      '50000-000',
+      '100',
+      'Sala 2',
+      undefined,
+    );
     expect(repository.create).not.toHaveBeenCalled();
     expect(result).toEqual(address);
   });

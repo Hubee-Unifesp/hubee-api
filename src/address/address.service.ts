@@ -9,12 +9,13 @@ export class AddressService {
   constructor(private readonly addressRepository: AddressRepository) {}
 
   async create(dto: CreateAddressDto, executor?: DbExecutor) {
-    const existing = await this.addressRepository.findByZipCodeNumberAndComplement(
-      dto.zipCode,
-      dto.number,
-      dto.complement ?? null,
-      executor,
-    );
+    const existing =
+      await this.addressRepository.findByZipCodeNumberAndComplement(
+        dto.zipCode,
+        dto.number,
+        dto.complement ?? null,
+        executor,
+      );
 
     if (existing) {
       return existing;
