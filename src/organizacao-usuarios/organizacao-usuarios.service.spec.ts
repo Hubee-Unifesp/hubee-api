@@ -3,9 +3,13 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { OrganizacaoUsuariosService } from './organizacao-usuarios.service';
 import { DRIZZLE } from '../database/database.constants';
+import { OrganizationService } from '../organization/organization.service';
+import { UsuariosService } from '../usuarios/usuarios.service';
 
 describe('OrganizacaoUsuariosService', () => {
   let service: OrganizacaoUsuariosService;
+  const organizationService = { findOne: jest.fn(async () => ({})) };
+  const usuariosService = { findOne: jest.fn(async () => ({})) };
 
   // "Banco falso": cada método da cadeia por padrão devolve o próprio objeto
   // (pra permitir encadear .select().from().where()...), e a gente sobrescreve
@@ -32,6 +36,8 @@ describe('OrganizacaoUsuariosService', () => {
       providers: [
         OrganizacaoUsuariosService,
         { provide: DRIZZLE, useValue: db },
+        { provide: OrganizationService, useValue: organizationService },
+        { provide: UsuariosService, useValue: usuariosService },
       ],
     }).compile();
 
@@ -75,6 +81,36 @@ describe('OrganizacaoUsuariosService', () => {
           permission: 'total' as any,
         }),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('propaga NotFoundException quando a organização não existe', async () => {
+      organizationService.findOne.mockRejectedValueOnce(
+        new NotFoundException(),
+      );
+
+      await expect(
+        service.create(orgId, {
+          userId,
+          role: 'admin' as any,
+          permission: 'total' as any,
+        }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it('propaga NotFoundException quando o usuário não existe', async () => {
+      usuariosService.findOne.mockRejectedValueOnce(new NotFoundException());
+
+      await expect(
+        service.create(orgId, {
+          userId,
+          role: 'admin' as any,
+          permission: 'total' as any,
+        }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(db.insert).not.toHaveBeenCalled();
     });
   });
 

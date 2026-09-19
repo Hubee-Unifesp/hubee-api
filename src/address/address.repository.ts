@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
@@ -21,6 +21,25 @@ export class AddressRepository {
 
   async findById(id: string, executor: DbExecutor = this.db) {
     return executor.query.addresses.findFirst({ where: eq(addresses.id, id) });
+  }
+
+  async findByZipCodeNumberAndComplement(
+    zipCode: string,
+    number: string,
+    complement: string | null,
+    executor: DbExecutor = this.db,
+  ) {
+    const complementCondition = complement
+      ? eq(addresses.complement, complement)
+      : isNull(addresses.complement);
+
+    return executor.query.addresses.findFirst({
+      where: and(
+        eq(addresses.zipCode, zipCode),
+        eq(addresses.number, number),
+        complementCondition,
+      ),
+    });
   }
 
   async update(

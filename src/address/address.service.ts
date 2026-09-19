@@ -8,7 +8,19 @@ import { UpdateAddressDto } from './dto/update-address.dto';
 export class AddressService {
   constructor(private readonly addressRepository: AddressRepository) {}
 
-  create(dto: CreateAddressDto, executor?: DbExecutor) {
+  async create(dto: CreateAddressDto, executor?: DbExecutor) {
+    const existing =
+      await this.addressRepository.findByZipCodeNumberAndComplement(
+        dto.zipCode,
+        dto.number,
+        dto.complement ?? null,
+        executor,
+      );
+
+    if (existing) {
+      return existing;
+    }
+
     return this.addressRepository.create(dto, executor);
   }
 

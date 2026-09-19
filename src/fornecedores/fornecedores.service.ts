@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { CreateFornecedorDto } from './dto/create-fornecedor.dto';
 import { UpdateFornecedorDto } from './dto/update-fornecedor.dto';
-import { eq, or, isNull } from 'drizzle-orm';
+import { eq, or, isNull, and, ne } from 'drizzle-orm';
 import { fornecedores } from '../database/schema';
 
 @Injectable()
@@ -23,7 +23,7 @@ export class FornecedoresService {
     const fornecedorExistente = await this.db
       .select()
       .from(fornecedores)
-      .where(or(...conditions))
+      .where(and(or(...conditions), isNull(fornecedores.deletedAt)))
       .limit(1);
 
     if (fornecedorExistente.length > 0) {
@@ -62,6 +62,35 @@ export class FornecedoresService {
 
   async update(id: string, updateFornecedorDto: UpdateFornecedorDto) {
     await this.findOne(id);
+
+    if (updateFornecedorDto.cnpjCpf || updateFornecedorDto.email) {
+      const conflictConditions = [
+        updateFornecedorDto.cnpjCpf
+          ? eq(fornecedores.cnpjCpf, updateFornecedorDto.cnpjCpf)
+          : undefined,
+        updateFornecedorDto.email
+          ? eq(fornecedores.email, updateFornecedorDto.email)
+          : undefined,
+      ].filter((c) => c !== undefined);
+
+      const fornecedorConflitante = await this.db
+        .select()
+        .from(fornecedores)
+        .where(
+          and(
+            or(...conflictConditions),
+            isNull(fornecedores.deletedAt),
+            ne(fornecedores.id, id),
+          ),
+        )
+        .limit(1);
+
+      if (fornecedorConflitante.length > 0) {
+        throw new ConflictException(
+          'Já existe um fornecedor com este CNPJ/CPF ou E-mail.',
+        );
+      }
+    }
 
     const [fornecedorAtualizado] = await this.db
       .update(fornecedores)

@@ -1,8 +1,9 @@
-import { IsEnum, IsOptional } from 'class-validator';
+import { IsEnum } from 'class-validator';
 import {
   OrganizationRole,
   OrganizationPermission,
 } from './create-organizacao-usuario.dto';
+import { IsOptionalUpdate } from '../../common/validation/update-validation';
 
 export enum InviteStatus {
   PENDING = 'pending',
@@ -11,15 +12,15 @@ export enum InviteStatus {
 }
 
 export class UpdateOrganizacaoUsuarioDto {
-  @IsOptional()
+  @IsOptionalUpdate()
   @IsEnum(OrganizationRole)
   role?: OrganizationRole;
 
-  @IsOptional()
+  @IsOptionalUpdate()
   @IsEnum(OrganizationPermission)
   permission?: OrganizationPermission;
 
-  @IsOptional()
+  @IsOptionalUpdate()
   @IsEnum(InviteStatus)
   inviteStatus?: InviteStatus;
 }

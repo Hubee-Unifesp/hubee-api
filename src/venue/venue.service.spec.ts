@@ -49,6 +49,9 @@ describe('VenueService', () => {
   let venueRepository: {
     findAll: jest.Mock<VenueRepository['findAll']>;
     findById: jest.Mock<VenueRepository['findById']>;
+    findByNameCapacityAndAddress: jest.Mock<
+      VenueRepository['findByNameCapacityAndAddress']
+    >;
     create: jest.Mock<VenueRepository['create']>;
     update: jest.Mock<VenueRepository['update']>;
     delete: jest.Mock<VenueRepository['delete']>;
@@ -66,6 +69,8 @@ describe('VenueService', () => {
     venueRepository = {
       findAll: jest.fn<VenueRepository['findAll']>(),
       findById: jest.fn<VenueRepository['findById']>(),
+      findByNameCapacityAndAddress:
+        jest.fn<VenueRepository['findByNameCapacityAndAddress']>(),
       create: jest.fn<VenueRepository['create']>(),
       update: jest.fn<VenueRepository['update']>(),
       delete: jest.fn<VenueRepository['delete']>(),
@@ -98,6 +103,7 @@ describe('VenueService', () => {
 
     it('cria o local usando um addressId existente', async () => {
       addressService.findById.mockResolvedValue(makeAddress());
+      venueRepository.findByNameCapacityAndAddress.mockResolvedValue(undefined);
       const venue = makeVenue();
       venueRepository.create.mockResolvedValue(venue);
 
@@ -111,8 +117,29 @@ describe('VenueService', () => {
       expect(result).toEqual(venue);
     });
 
+    it('retorna a venue existente com os mesmos dados', async () => {
+      addressService.findById.mockResolvedValue(makeAddress());
+      const venue = makeVenue();
+      venueRepository.findByNameCapacityAndAddress.mockResolvedValue(venue);
+
+      const result = await service.create({
+        ...baseDto,
+        addressId: 'addr-1',
+      });
+
+      expect(venueRepository.findByNameCapacityAndAddress).toHaveBeenCalledWith(
+        'Auditório A',
+        100,
+        'addr-1',
+        tx,
+      );
+      expect(venueRepository.create).not.toHaveBeenCalled();
+      expect(result).toEqual(venue);
+    });
+
     it('cria o endereço junto quando "address" é informado', async () => {
       addressService.create.mockResolvedValue(makeAddress({ id: 'addr-novo' }));
+      venueRepository.findByNameCapacityAndAddress.mockResolvedValue(undefined);
       venueRepository.create.mockResolvedValue(
         makeVenue({ addressId: 'addr-novo' }),
       );
@@ -126,6 +153,30 @@ describe('VenueService', () => {
         { city: 'Recife' },
         tx,
       );
+      expect(venueRepository.create).toHaveBeenCalledWith(
+        { name: 'Auditório A', maxCapacity: 100, addressId: 'addr-novo' },
+        tx,
+      );
+    });
+
+    it('prioriza "address" quando addressId e address são informados', async () => {
+      addressService.create.mockResolvedValue(makeAddress({ id: 'addr-novo' }));
+      venueRepository.findByNameCapacityAndAddress.mockResolvedValue(undefined);
+      venueRepository.create.mockResolvedValue(
+        makeVenue({ addressId: 'addr-novo' }),
+      );
+
+      await service.create({
+        ...baseDto,
+        addressId: 'addr-existente',
+        address: { city: 'Recife' } as never,
+      });
+
+      expect(addressService.create).toHaveBeenCalledWith(
+        { city: 'Recife' },
+        tx,
+      );
+      expect(addressService.findById).not.toHaveBeenCalled();
       expect(venueRepository.create).toHaveBeenCalledWith(
         { name: 'Auditório A', maxCapacity: 100, addressId: 'addr-novo' },
         tx,

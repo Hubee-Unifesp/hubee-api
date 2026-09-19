@@ -38,6 +38,21 @@ export class VenueRepository {
     });
   }
 
+  async findByNameCapacityAndAddress(
+    name: string,
+    maxCapacity: number,
+    addressId: string,
+    executor: DbExecutor = this.db,
+  ) {
+    return executor.query.venues.findFirst({
+      where: and(
+        eq(venues.name, name),
+        eq(venues.maxCapacity, maxCapacity),
+        eq(venues.addressId, addressId),
+      ),
+    });
+  }
+
   async create(
     data: typeof venues.$inferInsert,
     executor: DbExecutor = this.db,
