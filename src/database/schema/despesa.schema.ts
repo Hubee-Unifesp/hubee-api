@@ -57,7 +57,5 @@ export const despesas = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [
-    check('expenses_amount_non_negative', sql`${table.amount} >= 0`),
-  ],
+  (table) => [check('expenses_amount_non_negative', sql`${table.amount} >= 0`)],
 );

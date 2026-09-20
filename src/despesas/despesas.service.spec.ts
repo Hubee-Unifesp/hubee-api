@@ -104,9 +104,9 @@ describe('DespesasService', () => {
       const despesa = makeDespesa();
       despesasRepository.findById.mockResolvedValue(despesa);
 
-      await expect(
-        service.findOne(EVENT_ID, 'despesa-1'),
-      ).resolves.toEqual(despesa);
+      await expect(service.findOne(EVENT_ID, 'despesa-1')).resolves.toEqual(
+        despesa,
+      );
     });
 
     it('lança NotFound quando a despesa não existe', async () => {
@@ -144,9 +144,7 @@ describe('DespesasService', () => {
       const result = await service.create(EVENT_ID, dto);
 
       expect(eventService.findOne).toHaveBeenCalledWith(EVENT_ID);
-      expect(fornecedoresService.findOne).toHaveBeenCalledWith(
-        FORNECEDOR_ID,
-      );
+      expect(fornecedoresService.findOne).toHaveBeenCalledWith(FORNECEDOR_ID);
       expect(despesasRepository.create).toHaveBeenCalledWith({
         ...dto,
         eventId: EVENT_ID,
