@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   pgEnum,
   pgTable,
@@ -51,6 +52,7 @@ export const events = pgTable(
     category: varchar('category', { length: 100 }),
     edition: varchar('edition', { length: 100 }),
     photoUrl: varchar('photo_url', { length: 2048 }),
+    featured: boolean('featured').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -7,6 +7,7 @@ import {
   IsUrl,
   IsUUID,
   MaxLength,
+  IsBoolean,
 } from 'class-validator';
 import { eventAgeRating } from '../../database/schema';
 import type { EventAgeRating } from '../../database/schema';
@@ -57,4 +58,8 @@ export class CreateEventDto {
   @IsUrl()
   @MaxLength(2048)
   photoUrl?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  featured?: boolean;
 }
