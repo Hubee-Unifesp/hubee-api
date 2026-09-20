@@ -7,8 +7,10 @@
  */
 export * from './user';
 export * from './order.schema';
+export * from './event.schema';
 export * from './address.schema';
 export * from './venue.schema';
 export * from './organization-user';
 export * from './fornecedor';
 export * from './organization.schema';
+export * from './despesa.schema';
