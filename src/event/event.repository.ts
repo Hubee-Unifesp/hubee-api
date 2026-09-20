@@ -25,8 +25,8 @@ export class EventRepository {
         : undefined,
       filters.venueId ? eq(events.venueId, filters.venueId) : undefined,
       filters.status ? eq(events.status, filters.status) : undefined,
-      filters.featured !== undefined 
-        ? eq(events.featured, filters.featured) 
+      filters.featured !== undefined
+        ? eq(events.featured, filters.featured)
         : undefined,
     ].filter((condition) => condition !== undefined);
 
