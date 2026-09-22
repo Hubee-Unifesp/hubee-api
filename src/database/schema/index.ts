@@ -12,5 +12,6 @@ export * from './task.schema';
 export * from './address.schema';
 export * from './venue.schema';
 export * from './organization-user';
+export * from './organization-event.schema';
 export * from './fornecedor';
 export * from './organization.schema';
