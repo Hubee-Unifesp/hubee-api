@@ -15,3 +15,4 @@ export * from './organization-user';
 export * from './organization-event.schema';
 export * from './fornecedor';
 export * from './organization.schema';
+export * from './despesa.schema';
