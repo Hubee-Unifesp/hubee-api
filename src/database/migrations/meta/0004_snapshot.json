@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
   "id": "e1ff7f79-c5ae-4fa9-a89c-70ab7cb8a693",
+=======
+  "id": "68768c2e-5e23-4f91-8f8a-5a79b7b404d7",
+>>>>>>> origin/develop
   "prevId": "129e5dd0-5714-4fe3-9fdf-08ed36073d9b",
   "version": "7",
   "dialect": "postgresql",
@@ -291,6 +295,7 @@
           "primaryKey": false,
           "notNull": false
         },
+<<<<<<< HEAD
         "featured": {
           "name": "featured",
           "type": "boolean",
@@ -298,6 +303,8 @@
           "notNull": true,
           "default": false
         },
+=======
+>>>>>>> origin/develop
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -357,6 +364,139 @@
       },
       "isRLSEnabled": false
     },
+<<<<<<< HEAD
+=======
+    "public.tasks": {
+      "name": "tasks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "responsible_user_id": {
+          "name": "responsible_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "task_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "tasks_event_id_idx": {
+          "name": "tasks_event_id_idx",
+          "columns": [
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tasks_responsible_user_id_idx": {
+          "name": "tasks_responsible_user_id_idx",
+          "columns": [
+            {
+              "expression": "responsible_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "tasks_event_id_events_id_fk": {
+          "name": "tasks_event_id_events_id_fk",
+          "tableFrom": "tasks",
+          "tableTo": "events",
+          "columnsFrom": [
+            "event_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tasks_responsible_user_id_users_id_fk": {
+          "name": "tasks_responsible_user_id_users_id_fk",
+          "tableFrom": "tasks",
+          "tableTo": "users",
+          "columnsFrom": [
+            "responsible_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+>>>>>>> origin/develop
     "public.addresses": {
       "name": "addresses",
       "schema": "",
@@ -805,6 +945,18 @@
         "finished",
         "cancelled"
       ]
+<<<<<<< HEAD
+=======
+    },
+    "public.task_status": {
+      "name": "task_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "in_progress",
+        "done"
+      ]
+>>>>>>> origin/develop
     }
   },
   "schemas": {},
