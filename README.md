@@ -3,7 +3,7 @@
 API do Hubee, uma plataforma para planejamento e venda de eventos online.
 
 Este é um projeto acadêmico desenvolvido para a disciplina de **Engenharia de Software**. A proposta é permitir que organizadores criem e gerenciem eventos, enquanto participantes encontram eventos e compram ingressos pela plataforma.
-
+   
 ## Funcionalidades previstas
 
 - Cadastro e gerenciamento de eventos
@@ -106,6 +106,44 @@ constructor(@Inject(DRIZZLE) private readonly db: DrizzleDatabase) {}
 | `npm run db:push`     | Sincroniza o schema direto no banco (só em dev) |
 | `npm run db:studio`   | Abre o Drizzle Studio para inspecionar os dados |
 
+
+ ## Consolidando o histórico de migrations (squash)
+
+⚠️ **Operação avançada e destrutiva — não faz parte do fluxo comum de
+desenvolvimento.** Só deve ser feita combinada com o time inteiro, já que
+apaga o histórico de migrations do repositório (não só os dados do banco) e
+exige que **todas as pessoas resetem o próprio banco de dev** depois do
+merge (ver seção acima).
+
+Use apenas quando o histórico de migrations ficar corrompido ou grande
+demais para valer a pena manter, e enquanto o projeto ainda não tiver dados
+em produção.
+
+- Garanta que está numa branch nova, partindo da `develop` atualizada.
+
+-  Apague a pasta de migrations inteira (Windows/PowerShell):
+   Remove-Item -Recurse -Force src\database\migrations
+   Em Linux/Mac, o equivalente é:
+   rm -rf src/database/migrations
+
+-Gere uma migration única a partir do schema atual:
+   npm run db:generate
+
+-Confira o `.sql` gerado — deve conter um `CREATE TABLE` para cada
+   entidade existente em `src/database/schema/`, nem mais nem menos.
+   
+-Reset o seu banco (ver seção "Resetando o banco (dev)" acima) e aplique a
+   migration única:
+   npm run db:migrate
+   
+-Rode a suite de testes completa antes de abrir o PR:
+   npm run test
+   npm run build
+   
+-Deixe bem visível na descrição do PR que essa mudança exige reset do
+   banco de dev de cada pessoa do time após o merge
+
+   
 ## Testes
 
 ```bash
