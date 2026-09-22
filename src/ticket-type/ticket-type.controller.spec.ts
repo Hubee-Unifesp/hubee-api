@@ -70,7 +70,11 @@ describe('TicketTypeController', () => {
 
     const result = await controller.update('event-1', 'ticket-type-1', dto);
 
-    expect(service.update).toHaveBeenCalledWith('event-1', 'ticket-type-1', dto);
+    expect(service.update).toHaveBeenCalledWith(
+      'event-1',
+      'ticket-type-1',
+      dto,
+    );
     expect(result).toEqual(updated);
   });
 

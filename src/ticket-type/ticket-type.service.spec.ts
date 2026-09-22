@@ -109,9 +109,9 @@ describe('TicketTypeService', () => {
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeRepository.findById.mockResolvedValue(ticketType);
 
-      await expect(service.findOne('event-1', 'ticket-type-1')).resolves.toEqual(
-        ticketType,
-      );
+      await expect(
+        service.findOne('event-1', 'ticket-type-1'),
+      ).resolves.toEqual(ticketType);
       expect(ticketTypeRepository.findById).toHaveBeenCalledWith(
         'event-1',
         'ticket-type-1',
