@@ -82,6 +82,7 @@ CREATE TABLE "venues" (
 	"address_id" uuid NOT NULL,
 	"name" varchar(255) NOT NULL,
 	"max_capacity" integer NOT NULL,
+	"active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "venues_max_capacity_positive" CHECK ("venues"."max_capacity" > 0)

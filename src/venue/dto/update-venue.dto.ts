@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsInt,
   IsNotEmpty,
   IsPositive,
@@ -35,4 +36,8 @@ export class UpdateVenueDto {
   @ValidateNested()
   @Type(() => UpdateAddressDto)
   address?: UpdateAddressDto;
+
+  @IsOptionalUpdate()
+  @IsBoolean()
+  active?: boolean;
 }

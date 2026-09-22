@@ -23,21 +23,24 @@ export class AddressRepository {
     return executor.query.addresses.findFirst({ where: eq(addresses.id, id) });
   }
 
-  async findByZipCodeNumberAndComplement(
-    zipCode: string,
-    number: string,
-    complement: string | null,
+  async findByFullAddress(
+    data: typeof addresses.$inferInsert,
     executor: DbExecutor = this.db,
   ) {
-    const complementCondition = complement
-      ? eq(addresses.complement, complement)
+    const complementCondition = data.complement
+      ? eq(addresses.complement, data.complement)
       : isNull(addresses.complement);
 
     return executor.query.addresses.findFirst({
       where: and(
-        eq(addresses.zipCode, zipCode),
-        eq(addresses.number, number),
+        eq(addresses.zipCode, data.zipCode),
+        eq(addresses.street, data.street),
+        eq(addresses.number, data.number),
         complementCondition,
+        eq(addresses.neighborhood, data.neighborhood),
+        eq(addresses.city, data.city),
+        eq(addresses.state, data.state),
+        eq(addresses.country, data.country ?? 'Brasil'),
       ),
     });
   }

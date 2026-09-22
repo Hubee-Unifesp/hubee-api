@@ -49,6 +49,7 @@ export class VenueRepository {
         eq(venues.name, name),
         eq(venues.maxCapacity, maxCapacity),
         eq(venues.addressId, addressId),
+        eq(venues.active, true),
       ),
     });
   }

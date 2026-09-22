@@ -29,9 +29,7 @@ describe('AddressService', () => {
   let repository: {
     create: jest.Mock<AddressRepository['create']>;
     findById: jest.Mock<AddressRepository['findById']>;
-    findByZipCodeNumberAndComplement: jest.Mock<
-      AddressRepository['findByZipCodeNumberAndComplement']
-    >;
+    findByFullAddress: jest.Mock<AddressRepository['findByFullAddress']>;
     update: jest.Mock<AddressRepository['update']>;
   };
 
@@ -39,8 +37,7 @@ describe('AddressService', () => {
     repository = {
       create: jest.fn<AddressRepository['create']>(),
       findById: jest.fn<AddressRepository['findById']>(),
-      findByZipCodeNumberAndComplement:
-        jest.fn<AddressRepository['findByZipCodeNumberAndComplement']>(),
+      findByFullAddress: jest.fn<AddressRepository['findByFullAddress']>(),
       update: jest.fn<AddressRepository['update']>(),
     };
 
@@ -57,17 +54,12 @@ describe('AddressService', () => {
   it('repassa create() para o repository', async () => {
     const dto = { city: 'Recife' } as CreateAddressDto;
     const address = makeAddress();
-    repository.findByZipCodeNumberAndComplement.mockResolvedValue(undefined);
+    repository.findByFullAddress.mockResolvedValue(undefined);
     repository.create.mockResolvedValue(address);
 
     const result = await service.create(dto);
 
-    expect(repository.findByZipCodeNumberAndComplement).toHaveBeenCalledWith(
-      undefined,
-      undefined,
-      null,
-      undefined,
-    );
+    expect(repository.findByFullAddress).toHaveBeenCalledWith(dto, undefined);
     expect(repository.create).toHaveBeenCalledWith(dto, undefined);
     expect(result).toEqual(address);
   });
@@ -75,20 +67,20 @@ describe('AddressService', () => {
   it('retorna o endereço existente sem criar outro', async () => {
     const dto: CreateAddressDto = {
       zipCode: '50000-000',
+      street: 'Rua Teste',
       number: '100',
+      neighborhood: 'Centro',
+      city: 'Recife',
+      state: 'PE',
+      country: 'Brasil',
       complement: 'Sala 2',
-    } as CreateAddressDto;
+    };
     const address = makeAddress({ complement: 'Sala 2' });
-    repository.findByZipCodeNumberAndComplement.mockResolvedValue(address);
+    repository.findByFullAddress.mockResolvedValue(address);
 
     const result = await service.create(dto);
 
-    expect(repository.findByZipCodeNumberAndComplement).toHaveBeenCalledWith(
-      '50000-000',
-      '100',
-      'Sala 2',
-      undefined,
-    );
+    expect(repository.findByFullAddress).toHaveBeenCalledWith(dto, undefined);
     expect(repository.create).not.toHaveBeenCalled();
     expect(result).toEqual(address);
   });

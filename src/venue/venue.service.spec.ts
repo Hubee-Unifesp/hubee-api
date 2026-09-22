@@ -38,6 +38,7 @@ function makeVenue(overrides: Partial<Venue> = {}): Venue {
     addressId: 'addr-1',
     name: 'Auditório A',
     maxCapacity: 100,
+    active: true,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -197,6 +198,69 @@ describe('VenueService', () => {
       await expect(service.create(baseDto)).rejects.toThrow(
         BadRequestException,
       );
+      expect(venueRepository.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update', () => {
+    it('desativa a venue atual e cria uma nova quando o endereço muda', async () => {
+      const currentVenue = makeVenue();
+      const newAddress = makeAddress({ id: 'addr-2' });
+      const nextVenue = makeVenue({ id: 'venue-2', addressId: 'addr-2', active: true });
+
+      venueRepository.findById.mockResolvedValue({
+        ...currentVenue,
+        address: makeAddress(),
+      });
+      addressService.findById.mockResolvedValue(newAddress);
+      venueRepository.findByNameCapacityAndAddress.mockResolvedValue(
+        undefined,
+      );
+      venueRepository.create.mockResolvedValue(nextVenue);
+      venueRepository.update.mockResolvedValue({ ...currentVenue, active: false });
+
+      const result = await service.update('venue-1', { addressId: 'addr-2' });
+
+      expect(addressService.findById).toHaveBeenCalledWith('addr-2', tx);
+      expect(venueRepository.create).toHaveBeenCalledWith(
+        {
+          name: 'Auditório A',
+          maxCapacity: 100,
+          addressId: 'addr-2',
+          active: true,
+        },
+        tx,
+      );
+      expect(venueRepository.update).toHaveBeenCalledWith(
+        'venue-1',
+        { active: false },
+        tx,
+      );
+      expect(result).toEqual(nextVenue);
+    });
+
+    it('lança mensagem quando faltam campos do novo endereço', async () => {
+      venueRepository.findById.mockResolvedValue({
+        ...makeVenue(),
+        address: makeAddress(),
+      });
+
+      await expect(
+        service.update('venue-1', {
+          address: {
+            zipCode: '50740-100',
+            street: 'Rua da Bosta',
+            number: '45',
+            neighborhood: 'Boa Viagem',
+            city: 'Recife',
+            state: 'PE',
+          },
+        }),
+      ).rejects.toThrow(
+        'Para criar um novo endereço, informe todos os campos: zipCode, street, number, complement, neighborhood, city, state e country.',
+      );
+
+      expect(addressService.create).not.toHaveBeenCalled();
       expect(venueRepository.create).not.toHaveBeenCalled();
     });
   });

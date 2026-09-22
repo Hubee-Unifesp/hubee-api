@@ -64,17 +64,71 @@ export class VenueService {
         throw new NotFoundException(`Local ${id} não encontrado`);
       }
 
-      const addressId = await this.resolveAddressForUpdate(
-        venue.addressId,
-        dto,
+      const hasAddressChange =
+        dto.addressId !== undefined || dto.address !== undefined;
+
+      if (hasAddressChange) {
+        const addressId = await this.resolveAddressForUpdate(
+          venue.addressId,
+          dto,
+          tx,
+        );
+
+        const existing =
+          await this.venueRepository.findByNameCapacityAndAddress(
+            dto.name ?? venue.name,
+            dto.maxCapacity ?? venue.maxCapacity,
+            addressId,
+            tx,
+          );
+
+        if (existing && existing.id !== id) {
+          await this.venueRepository.update(id, { active: false }, tx);
+          return existing;
+        }
+
+        if (addressId === venue.addressId) {
+          return this.venueRepository.update(
+            id,
+            {
+              name: dto.name,
+              maxCapacity: dto.maxCapacity,
+              active: dto.active,
+            },
+            tx,
+          );
+        }
+
+        const newVenue = await this.venueRepository.create(
+          {
+            name: dto.name ?? venue.name,
+            maxCapacity: dto.maxCapacity ?? venue.maxCapacity,
+            addressId,
+            active: true,
+          },
+          tx,
+        );
+
+        await this.venueRepository.update(
+          id,
+          { active: false },
+          tx,
+        );
+
+        return newVenue;
+      }
+
+      const updatedVenue = await this.venueRepository.update(
+        id,
+        {
+          name: dto.name,
+          maxCapacity: dto.maxCapacity,
+          active: dto.active,
+        },
         tx,
       );
 
-      return this.venueRepository.update(
-        id,
-        { name: dto.name, maxCapacity: dto.maxCapacity, addressId },
-        tx,
-      );
+      return updatedVenue;
     });
   }
 
@@ -130,7 +184,47 @@ export class VenueService {
     }
 
     if (dto.address) {
-      await this.addressService.update(currentAddressId, dto.address, tx);
+      const {
+        zipCode,
+        street,
+        number,
+        complement,
+        neighborhood,
+        city,
+        state,
+        country,
+      } = dto.address;
+
+      if (
+        !zipCode ||
+        !street ||
+        !number ||
+        !complement ||
+        !neighborhood ||
+        !city ||
+        !state ||
+        !country
+      ) {
+        throw new BadRequestException(
+          'Para criar um novo endereço, informe todos os campos: zipCode, street, number, complement, neighborhood, city, state e country.',
+        );
+      }
+
+      const created = await this.addressService.create(
+        {
+          zipCode,
+          street,
+          number,
+          complement,
+          neighborhood,
+          city,
+          state,
+          country,
+        },
+        tx,
+      );
+
+      return created.id;
     }
 
     return currentAddressId;
