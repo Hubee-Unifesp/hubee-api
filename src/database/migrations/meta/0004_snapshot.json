@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
+  "id": "e1ff7f79-c5ae-4fa9-a89c-70ab7cb8a693",
+=======
   "id": "68768c2e-5e23-4f91-8f8a-5a79b7b404d7",
+>>>>>>> origin/develop
   "prevId": "129e5dd0-5714-4fe3-9fdf-08ed36073d9b",
   "version": "7",
   "dialect": "postgresql",
@@ -291,6 +295,16 @@
           "primaryKey": false,
           "notNull": false
         },
+<<<<<<< HEAD
+        "featured": {
+          "name": "featured",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+=======
+>>>>>>> origin/develop
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -350,6 +364,8 @@
       },
       "isRLSEnabled": false
     },
+<<<<<<< HEAD
+=======
     "public.tasks": {
       "name": "tasks",
       "schema": "",
@@ -480,6 +496,7 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+>>>>>>> origin/develop
     "public.addresses": {
       "name": "addresses",
       "schema": "",
@@ -928,6 +945,8 @@
         "finished",
         "cancelled"
       ]
+<<<<<<< HEAD
+=======
     },
     "public.task_status": {
       "name": "task_status",
@@ -937,6 +956,7 @@
         "in_progress",
         "done"
       ]
+>>>>>>> origin/develop
     }
   },
   "schemas": {},
