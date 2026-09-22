@@ -109,11 +109,7 @@ export class VenueService {
           tx,
         );
 
-        await this.venueRepository.update(
-          id,
-          { active: false },
-          tx,
-        );
+        await this.venueRepository.update(id, { active: false }, tx);
 
         return newVenue;
       }

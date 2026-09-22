@@ -206,18 +206,23 @@ describe('VenueService', () => {
     it('desativa a venue atual e cria uma nova quando o endereço muda', async () => {
       const currentVenue = makeVenue();
       const newAddress = makeAddress({ id: 'addr-2' });
-      const nextVenue = makeVenue({ id: 'venue-2', addressId: 'addr-2', active: true });
+      const nextVenue = makeVenue({
+        id: 'venue-2',
+        addressId: 'addr-2',
+        active: true,
+      });
 
       venueRepository.findById.mockResolvedValue({
         ...currentVenue,
         address: makeAddress(),
       });
       addressService.findById.mockResolvedValue(newAddress);
-      venueRepository.findByNameCapacityAndAddress.mockResolvedValue(
-        undefined,
-      );
+      venueRepository.findByNameCapacityAndAddress.mockResolvedValue(undefined);
       venueRepository.create.mockResolvedValue(nextVenue);
-      venueRepository.update.mockResolvedValue({ ...currentVenue, active: false });
+      venueRepository.update.mockResolvedValue({
+        ...currentVenue,
+        active: false,
+      });
 
       const result = await service.update('venue-1', { addressId: 'addr-2' });
 
