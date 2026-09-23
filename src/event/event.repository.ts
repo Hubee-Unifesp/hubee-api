@@ -11,6 +11,7 @@ export interface FindAllEventsFilters {
   organizerId?: string;
   venueId?: string;
   status?: EventStatus;
+  featured?: boolean;
 }
 
 @Injectable()
@@ -24,6 +25,9 @@ export class EventRepository {
         : undefined,
       filters.venueId ? eq(events.venueId, filters.venueId) : undefined,
       filters.status ? eq(events.status, filters.status) : undefined,
+      filters.featured !== undefined
+        ? eq(events.featured, filters.featured)
+        : undefined,
     ].filter((condition) => condition !== undefined);
 
     return executor

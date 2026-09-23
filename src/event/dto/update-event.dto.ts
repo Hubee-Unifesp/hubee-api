@@ -7,6 +7,7 @@ import {
   IsUrl,
   IsUUID,
   MaxLength,
+  IsBoolean,
 } from 'class-validator';
 import { eventAgeRating, eventStatus } from '../../database/schema';
 import type { EventAgeRating, EventStatus } from '../../database/schema';
@@ -62,4 +63,8 @@ export class UpdateEventDto {
   @IsUrl()
   @MaxLength(2048)
   photoUrl?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  featured?: boolean;
 }
