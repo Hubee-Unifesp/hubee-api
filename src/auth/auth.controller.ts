@@ -6,7 +6,7 @@ import { LoginDto } from './dto/login.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @HttpCode(HttpStatus.OK) // Retorna 200 em vez de 201 (padrão do POST) pois é só uma consulta/autenticação
+  @HttpCode(HttpStatus.OK)
   @Post('login')
   login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto.email, loginDto.password);
