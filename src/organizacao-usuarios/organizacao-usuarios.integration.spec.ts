@@ -12,7 +12,14 @@
  * ATENÇÃO: os inserts de organização e usuário abaixo são um esqueleto —
  * ajuste os campos para o que organizations e usuarios realmente exigem.
  */
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from '@jest/globals';
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterAll,
+} from '@jest/globals';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { pushSchema } from 'drizzle-kit/api';
