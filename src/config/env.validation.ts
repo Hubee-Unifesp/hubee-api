@@ -6,6 +6,7 @@ export interface EnvironmentVariables {
   DB_PASSWORD: string;
   DB_NAME: string;
   DB_SSL: boolean;
+  JWT_SECRET: string; // <-- Adicionado aqui
 }
 
 function requireString(
@@ -78,5 +79,6 @@ export function validateEnv(
     DB_PASSWORD: requireString(config, 'DB_PASSWORD'),
     DB_NAME: requireString(config, 'DB_NAME'),
     DB_SSL: optionalBoolean(config, 'DB_SSL', false),
+    JWT_SECRET: requireString(config, 'JWT_SECRET'), 
   };
 }
