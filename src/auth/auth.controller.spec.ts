@@ -12,7 +12,7 @@ describe('AuthController', () => {
         {
           provide: AuthService,
           useValue: {
-            login: () => {}, 
+            login: () => {},
           },
         },
       ],

@@ -79,6 +79,6 @@ export function validateEnv(
     DB_PASSWORD: requireString(config, 'DB_PASSWORD'),
     DB_NAME: requireString(config, 'DB_NAME'),
     DB_SSL: optionalBoolean(config, 'DB_SSL', false),
-    JWT_SECRET: requireString(config, 'JWT_SECRET'), 
+    JWT_SECRET: requireString(config, 'JWT_SECRET'),
   };
 }

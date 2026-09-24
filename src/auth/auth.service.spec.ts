@@ -13,13 +13,13 @@ describe('AuthService', () => {
         {
           provide: UsuariosService,
           useValue: {
-            findByEmail: () => {}, 
+            findByEmail: () => {},
           },
         },
         {
           provide: JwtService,
           useValue: {
-            signAsync: () => {}, 
+            signAsync: () => {},
           },
         },
       ],
