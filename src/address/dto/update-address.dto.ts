@@ -35,7 +35,7 @@ export class UpdateAddressDto {
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  complement?: string;
+  complement?: string | null;
 
   @TrimString()
   @IsOptionalUpdate()

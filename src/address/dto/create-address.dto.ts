@@ -27,7 +27,7 @@ export class CreateAddressDto {
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  complement?: string;
+  complement?: string | null;
 
   @IsString()
   @IsNotEmpty()

@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AddressService } from '../address/address.service';
+import type { addresses } from '../database/schema';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DrizzleDatabase,
@@ -69,7 +70,7 @@ export class VenueService {
 
       if (hasAddressChange) {
         const addressId = await this.resolveAddressForUpdate(
-          venue.addressId,
+          venue.address,
           dto,
           tx,
         );
@@ -167,7 +168,7 @@ export class VenueService {
   }
 
   private async resolveAddressForUpdate(
-    currentAddressId: string,
+    currentAddress: typeof addresses.$inferSelect,
     dto: UpdateVenueDto,
     tx: DrizzleTransaction,
   ): Promise<string> {
@@ -180,50 +181,35 @@ export class VenueService {
     }
 
     if (dto.address) {
-      const {
-        zipCode,
-        street,
-        number,
-        complement,
-        neighborhood,
-        city,
-        state,
-        country,
-      } = dto.address;
+      const changes = dto.address;
+      const data = {
+        zipCode: changes.zipCode ?? currentAddress.zipCode,
+        street: changes.street ?? currentAddress.street,
+        number: changes.number ?? currentAddress.number,
+        complement:
+          changes.complement === undefined
+            ? currentAddress.complement
+            : changes.complement,
+        neighborhood: changes.neighborhood ?? currentAddress.neighborhood,
+        city: changes.city ?? currentAddress.city,
+        state: changes.state ?? currentAddress.state,
+        country: changes.country ?? currentAddress.country,
+      };
 
       if (
-        !zipCode ||
-        !street ||
-        !number ||
-        !complement ||
-        !neighborhood ||
-        !city ||
-        !state ||
-        !country
+        (Object.keys(data) as Array<keyof typeof data>).every(
+          (key) => data[key] === currentAddress[key],
+        )
       ) {
-        throw new BadRequestException(
-          'Para criar um novo endereço, informe todos os campos: zipCode, street, number, complement, neighborhood, city, state e country.',
-        );
+        return currentAddress.id;
       }
 
-      const created = await this.addressService.create(
-        {
-          zipCode,
-          street,
-          number,
-          complement,
-          neighborhood,
-          city,
-          state,
-          country,
-        },
-        tx,
-      );
+      const created = await this.addressService.create(data, tx);
 
       return created.id;
     }
 
-    return currentAddressId;
+    return currentAddress.id;
   }
 
   // TODO: substituir por consulta real assim que a entidade Evento

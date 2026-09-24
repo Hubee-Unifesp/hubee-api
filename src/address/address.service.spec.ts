@@ -52,7 +52,7 @@ describe('AddressService', () => {
   });
 
   it('repassa create() para o repository', async () => {
-    const dto = { city: 'Recife' } as CreateAddressDto;
+    const dto = { city: 'Recife', country: 'Brasil' } as CreateAddressDto;
     const address = makeAddress();
     repository.findByFullAddress.mockResolvedValue(undefined);
     repository.create.mockResolvedValue(address);
@@ -84,6 +84,30 @@ describe('AddressService', () => {
     expect(repository.create).not.toHaveBeenCalled();
     expect(result).toEqual(address);
   });
+
+  it.each([undefined, 'Portugal'])(
+    'cria sem complemento e usa Brasil somente se country for omitido: %j',
+    async (country) => {
+      const dto: CreateAddressDto = {
+        zipCode: '50000-000',
+        street: 'Rua Teste',
+        number: '100',
+        neighborhood: 'Centro',
+        city: 'Recife',
+        state: 'PE',
+        country,
+      };
+      const executor = {} as never;
+      repository.create.mockResolvedValue(makeAddress());
+      await service.create(dto, executor);
+      const expected = { ...dto, country: country ?? 'Brasil' };
+      expect(repository.findByFullAddress).toHaveBeenCalledWith(
+        expected,
+        executor,
+      );
+      expect(repository.create).toHaveBeenCalledWith(expected, executor);
+    },
+  );
 
   it('repassa findById() para o repository, incluindo o executor', async () => {
     const executor = {} as never;

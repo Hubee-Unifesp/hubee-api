@@ -9,8 +9,9 @@ export class AddressService {
   constructor(private readonly addressRepository: AddressRepository) {}
 
   async create(dto: CreateAddressDto, executor?: DbExecutor) {
+    const data = { ...dto, country: dto.country ?? 'Brasil' };
     const existing = await this.addressRepository.findByFullAddress(
-      dto,
+      data,
       executor,
     );
 
@@ -18,7 +19,7 @@ export class AddressService {
       return existing;
     }
 
-    return this.addressRepository.create(dto, executor);
+    return this.addressRepository.create(data, executor);
   }
 
   findById(id: string, executor?: DbExecutor) {

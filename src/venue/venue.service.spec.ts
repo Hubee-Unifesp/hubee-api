@@ -295,30 +295,99 @@ describe('VenueService', () => {
       expect(result).toEqual(nextVenue);
     });
 
-    it('lança mensagem quando faltam campos do novo endereço', async () => {
+    it.each([undefined, null, '', 'Sala 3'])(
+      'completa atualização parcial e preserva o endereço original (complement: %j)',
+      async (complement) => {
+        const currentAddress = makeAddress({
+          complement: 'Sala 2',
+          country: 'Portugal',
+        });
+        const original = { ...currentAddress };
+        venueRepository.findById.mockResolvedValue({
+          ...makeVenue(),
+          address: currentAddress,
+        });
+        addressService.create.mockResolvedValue(makeAddress({ id: 'addr-2' }));
+        const nextVenue = makeVenue({ id: 'venue-2', addressId: 'addr-2' });
+        venueRepository.create.mockResolvedValue(nextVenue);
+
+        const result = await service.update('venue-1', {
+          address: { city: 'Olinda', complement },
+        });
+
+        expect(addressService.create).toHaveBeenCalledWith(
+          {
+            zipCode: '50000-000',
+            street: 'Rua Teste',
+            number: '100',
+            complement: complement === undefined ? 'Sala 2' : complement,
+            neighborhood: 'Centro',
+            city: 'Olinda',
+            state: 'PE',
+            country: 'Portugal',
+          },
+          tx,
+        );
+        expect(currentAddress).toEqual(original);
+        expect(addressService.update).not.toHaveBeenCalled();
+        expect(venueRepository.update).toHaveBeenCalledWith(
+          'venue-1',
+          { active: false },
+          tx,
+        );
+        expect(result).toEqual(nextVenue);
+      },
+    );
+
+    it('atualiza endereço sem complemento e reutiliza um local equivalente', async () => {
       venueRepository.findById.mockResolvedValue({
         ...makeVenue(),
         address: makeAddress(),
       });
+      addressService.create.mockResolvedValue(
+        makeAddress({ id: 'addr-2', city: 'Olinda' }),
+      );
+      const existing = makeVenue({ id: 'venue-2', addressId: 'addr-2' });
+      venueRepository.findByNameCapacityAndAddress.mockResolvedValue(existing);
 
       await expect(
-        service.update('venue-1', {
-          address: {
-            zipCode: '50740-100',
-            street: 'Rua da Bosta',
-            number: '45',
-            neighborhood: 'Boa Viagem',
-            city: 'Recife',
-            state: 'PE',
-          },
-        }),
-      ).rejects.toThrow(
-        'Para criar um novo endereço, informe todos os campos: zipCode, street, number, complement, neighborhood, city, state e country.',
+        service.update('venue-1', { address: { city: 'Olinda' } }),
+      ).resolves.toEqual(existing);
+      expect(addressService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ complement: null, country: 'Brasil' }),
+        tx,
       );
-
-      expect(addressService.create).not.toHaveBeenCalled();
       expect(venueRepository.create).not.toHaveBeenCalled();
+      expect(venueRepository.update).toHaveBeenCalledWith(
+        'venue-1',
+        { active: false },
+        tx,
+      );
     });
+
+    it.each([{}, { city: 'Recife' }])(
+      'mantém o local quando o endereço não muda: %j',
+      async (address) => {
+        const current = makeVenue();
+        venueRepository.findById.mockResolvedValue({
+          ...current,
+          address: makeAddress(),
+        });
+        venueRepository.update.mockResolvedValue(current);
+
+        await expect(service.update('venue-1', { address })).resolves.toEqual(
+          current,
+        );
+        expect(addressService.create).not.toHaveBeenCalled();
+        expect(addressService.update).not.toHaveBeenCalled();
+        expect(venueRepository.create).not.toHaveBeenCalled();
+        expect(venueRepository.update).not.toHaveBeenCalledWith(
+          'venue-1',
+          { active: false },
+          tx,
+        );
+      },
+    );
   });
 
   describe('findOne', () => {
