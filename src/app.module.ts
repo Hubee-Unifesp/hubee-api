@@ -15,6 +15,7 @@ import { TaskModule } from './task/task.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { VenueModule } from './venue/venue.module';
 import { FornecedoresModule } from './fornecedores/fornecedores.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { FornecedoresModule } from './fornecedores/fornecedores.module';
     UsuariosModule,
     VenueModule,
     FornecedoresModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
