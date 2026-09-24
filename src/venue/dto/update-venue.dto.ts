@@ -2,6 +2,7 @@ import {
   IsBoolean,
   IsInt,
   IsNotEmpty,
+  IsObject,
   IsPositive,
   IsUUID,
   MaxLength,
@@ -33,6 +34,7 @@ export class UpdateVenueDto {
   addressId?: string;
 
   @IsOptionalUpdate()
+  @IsObject()
   @ValidateNested()
   @Type(() => UpdateAddressDto)
   address?: UpdateAddressDto;

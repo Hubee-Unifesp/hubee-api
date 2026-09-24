@@ -203,6 +203,57 @@ describe('VenueService', () => {
   });
 
   describe('update', () => {
+    it.each([false, true])(
+      'respeita active=false na troca de endereço (local equivalente existente: %s)',
+      async (hasExisting) => {
+        const currentVenue = makeVenue();
+        const nextVenue = makeVenue({
+          id: 'venue-2',
+          addressId: 'addr-2',
+          active: false,
+        });
+        venueRepository.findById.mockResolvedValue({
+          ...currentVenue,
+          address: makeAddress(),
+        });
+        addressService.findById.mockResolvedValue(
+          makeAddress({ id: 'addr-2' }),
+        );
+        venueRepository.findByNameCapacityAndAddress.mockResolvedValue(
+          hasExisting
+            ? makeVenue({ id: 'venue-3', addressId: 'addr-2' })
+            : undefined,
+        );
+        venueRepository.create.mockResolvedValue(nextVenue);
+        venueRepository.update.mockResolvedValue({
+          ...currentVenue,
+          active: false,
+        });
+
+        const result = await service.update('venue-1', {
+          addressId: 'addr-2',
+          active: false,
+        });
+
+        expect(result).toEqual(nextVenue);
+        expect(venueRepository.create).toHaveBeenCalledWith(
+          {
+            name: currentVenue.name,
+            maxCapacity: currentVenue.maxCapacity,
+            addressId: 'addr-2',
+            active: false,
+          },
+          tx,
+        );
+        expect(venueRepository.update).toHaveBeenCalledWith(
+          'venue-1',
+          { active: false },
+          tx,
+        );
+        expect(venueRepository.update).toHaveBeenCalledTimes(1);
+      },
+    );
+
     it('desativa a venue atual e cria uma nova quando o endereço muda', async () => {
       const currentVenue = makeVenue();
       const newAddress = makeAddress({ id: 'addr-2' });

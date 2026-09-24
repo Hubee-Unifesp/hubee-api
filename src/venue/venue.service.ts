@@ -82,7 +82,7 @@ export class VenueService {
             tx,
           );
 
-        if (existing && existing.id !== id) {
+        if (existing && existing.id !== id && dto.active !== false) {
           await this.venueRepository.update(id, { active: false }, tx);
           return existing;
         }
@@ -104,7 +104,7 @@ export class VenueService {
             name: dto.name ?? venue.name,
             maxCapacity: dto.maxCapacity ?? venue.maxCapacity,
             addressId,
-            active: true,
+            active: dto.active ?? true,
           },
           tx,
         );

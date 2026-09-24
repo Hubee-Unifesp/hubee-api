@@ -27,9 +27,10 @@ export class AddressRepository {
     data: typeof addresses.$inferInsert,
     executor: DbExecutor = this.db,
   ) {
-    const complementCondition = data.complement
-      ? eq(addresses.complement, data.complement)
-      : isNull(addresses.complement);
+    const complementCondition =
+      data.complement != null
+        ? eq(addresses.complement, data.complement)
+        : isNull(addresses.complement);
 
     return executor.query.addresses.findFirst({
       where: and(

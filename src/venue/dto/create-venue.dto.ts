@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsInt,
   IsNotEmpty,
+  IsObject,
   IsPositive,
   IsString,
   IsUUID,
@@ -27,7 +28,10 @@ export class CreateVenueDto {
   @IsUUID()
   addressId?: string;
 
-  @ValidateIf((dto: CreateVenueDto) => !dto.addressId)
+  @ValidateIf(
+    (dto: CreateVenueDto) => dto.address !== undefined || !dto.addressId,
+  )
+  @IsObject()
   @ValidateNested()
   @Type(() => CreateAddressDto)
   address?: CreateAddressDto;
