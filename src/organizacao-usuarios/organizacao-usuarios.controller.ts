@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -19,6 +21,7 @@ export class OrganizacaoUsuariosController {
   ) {}
 
   @Post()
+  @HttpCode(HttpStatus.CREATED)
   create(
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Body() dto: CreateOrganizacaoUsuarioDto,
