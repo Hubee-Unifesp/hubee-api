@@ -1,10 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsDate, IsIn, IsNumber, IsOptional, Min } from 'class-validator';
 import { pagamentoMetodo, pagamentoStatus } from '../../database/schema';
-import type {
-  PagamentoMetodo,
-  PagamentoStatus,
-} from '../../database/schema';
+import type { PagamentoMetodo, PagamentoStatus } from '../../database/schema';
 
 export class CreatePagamentoDto {
   @IsIn(pagamentoMetodo.enumValues)

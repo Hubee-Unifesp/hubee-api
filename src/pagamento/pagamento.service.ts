@@ -18,8 +18,7 @@ export class PagamentoService {
   async findOne(pedidoId: string) {
     await this.ensureOrderExists(pedidoId);
 
-    const pagamento =
-      await this.pagamentoRepository.findByOrderId(pedidoId);
+    const pagamento = await this.pagamentoRepository.findByOrderId(pedidoId);
     if (!pagamento) {
       throw new NotFoundException(
         `Pagamento do pedido ${pedidoId} não encontrado`,
@@ -34,8 +33,7 @@ export class PagamentoService {
 
     // Garante a relação 1:1 no nível de aplicação, além da constraint UNIQUE
     // do banco: assim o erro sobe como 409 legível em vez de 500 do Postgres.
-    const existing =
-      await this.pagamentoRepository.findByOrderId(pedidoId);
+    const existing = await this.pagamentoRepository.findByOrderId(pedidoId);
     if (existing) {
       throw new ConflictException(
         `Pedido ${pedidoId} já possui um pagamento registrado`,
