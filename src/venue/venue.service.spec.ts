@@ -56,6 +56,7 @@ describe('VenueService', () => {
     create: jest.Mock<VenueRepository['create']>;
     update: jest.Mock<VenueRepository['update']>;
     delete: jest.Mock<VenueRepository['delete']>;
+    hasUpcomingEvents: jest.Mock<VenueRepository['hasUpcomingEvents']>;
   };
   let addressService: {
     create: jest.Mock<AddressService['create']>;
@@ -75,6 +76,9 @@ describe('VenueService', () => {
       create: jest.fn<VenueRepository['create']>(),
       update: jest.fn<VenueRepository['update']>(),
       delete: jest.fn<VenueRepository['delete']>(),
+      hasUpcomingEvents: jest
+        .fn<VenueRepository['hasUpcomingEvents']>()
+        .mockResolvedValue(false),
     };
     addressService = {
       create: jest.fn<AddressService['create']>(),
@@ -418,6 +422,7 @@ describe('VenueService', () => {
 
       await service.remove('venue-1');
 
+      expect(venueRepository.hasUpcomingEvents).toHaveBeenCalledWith('venue-1');
       expect(venueRepository.delete).toHaveBeenCalledWith('venue-1');
     });
 
@@ -435,12 +440,7 @@ describe('VenueService', () => {
         ...makeVenue(),
         address: makeAddress(),
       });
-      jest
-        .spyOn(
-          service as unknown as { checkUpcomingEvents: () => Promise<boolean> },
-          'checkUpcomingEvents',
-        )
-        .mockResolvedValue(true);
+      venueRepository.hasUpcomingEvents.mockResolvedValue(true);
 
       await expect(service.remove('venue-1')).rejects.toThrow(
         ConflictException,

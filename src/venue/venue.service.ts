@@ -135,7 +135,7 @@ export class VenueService {
       throw new NotFoundException(`Local ${id} não encontrado`);
     }
 
-    const hasUpcomingEvents = await this.checkUpcomingEvents(id);
+    const hasUpcomingEvents = await this.venueRepository.hasUpcomingEvents(id);
     if (hasUpcomingEvents) {
       throw new ConflictException(
         'Local possui eventos futuros vinculados e não pode ser excluído',
@@ -210,11 +210,5 @@ export class VenueService {
     }
 
     return currentAddress.id;
-  }
-
-  // TODO: substituir por consulta real assim que a entidade Evento
-  // existir (ex: SELECT 1 FROM events WHERE venue_id = :id AND starts_at > now()).
-  private async checkUpcomingEvents(_venueId: string): Promise<boolean> {
-    return false;
   }
 }
