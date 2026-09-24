@@ -9,7 +9,9 @@ import { EventModule } from './event/event.module';
 import { HealthModule } from './health/health.module';
 import { OrderModule } from './order/order.module';
 import { OrganizacaoUsuariosModule } from './organizacao-usuarios/organizacao-usuarios.module';
+import { OrganizationEventModule } from './organization-event/organization-event.module';
 import { OrganizationModule } from './organization/organization.module';
+import { TaskModule } from './task/task.module';
 import { PagamentoModule } from './pagamento/pagamento.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { VenueModule } from './venue/venue.module';
@@ -28,7 +30,9 @@ import { FornecedoresModule } from './fornecedores/fornecedores.module';
     HealthModule,
     OrderModule,
     OrganizacaoUsuariosModule,
+    OrganizationEventModule,
     OrganizationModule,
+    TaskModule,
     PagamentoModule,
     UsuariosModule,
     VenueModule,
