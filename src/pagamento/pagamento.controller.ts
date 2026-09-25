@@ -13,29 +13,29 @@ import { CreatePagamentoDto } from './dto/create-pagamento.dto';
 import { UpdatePagamentoDto } from './dto/update-pagamento.dto';
 import { PagamentoService } from './pagamento.service';
 
-@Controller('pedidos/:pedidoId/pagamento')
+@Controller('orders/:orderId/payments')
 export class PagamentoController {
   constructor(private readonly pagamentoService: PagamentoService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(
-    @Param('pedidoId', ParseUUIDPipe) pedidoId: string,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: CreatePagamentoDto,
   ) {
-    return this.pagamentoService.create(pedidoId, dto);
+    return this.pagamentoService.create(orderId, dto);
   }
 
   @Get()
-  findOne(@Param('pedidoId', ParseUUIDPipe) pedidoId: string) {
-    return this.pagamentoService.findOne(pedidoId);
+  findOne(@Param('orderId', ParseUUIDPipe) orderId: string) {
+    return this.pagamentoService.findOne(orderId);
   }
 
   @Patch()
   update(
-    @Param('pedidoId', ParseUUIDPipe) pedidoId: string,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: UpdatePagamentoDto,
   ) {
-    return this.pagamentoService.update(pedidoId, dto);
+    return this.pagamentoService.update(orderId, dto);
   }
 }

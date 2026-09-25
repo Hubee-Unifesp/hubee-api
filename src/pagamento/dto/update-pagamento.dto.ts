@@ -5,7 +5,7 @@ import type { PagamentoStatus } from '../../database/schema';
 
 /**
  * PATCH permite atualizar status e valor pago (ex: confirmação assíncrona
- * do gateway). `metodoPagamento` não é atualizável: o método com que o
+ * do gateway). `paymentMethod` não é atualizável: o método com que o
  * pagamento foi iniciado é imutável para fins de auditoria.
  */
 export class UpdatePagamentoDto {
@@ -16,10 +16,10 @@ export class UpdatePagamentoDto {
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  valorPago?: number;
+  amount?: number;
 
   @IsOptional()
   @Type(() => Date)
   @IsDate()
-  dataPagamento?: Date;
+  paidAt?: Date;
 }

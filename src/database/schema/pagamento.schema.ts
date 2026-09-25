@@ -9,8 +9,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { orders } from './order.schema';
 
-/** Métodos de pagamento aceitos pelo sistema. */
-export const pagamentoMetodo = pgEnum('pagamento_metodo', [
+export const pagamentoMetodo = pgEnum('payment_method', [
   'cartao_credito',
   'cartao_debito',
   'pix',
@@ -20,8 +19,7 @@ export const pagamentoMetodo = pgEnum('pagamento_metodo', [
 
 export type PagamentoMetodo = (typeof pagamentoMetodo.enumValues)[number];
 
-/** Situações possíveis de um pagamento no fluxo de confirmação. */
-export const pagamentoStatus = pgEnum('pagamento_status', [
+export const pagamentoStatus = pgEnum('payment_status', [
   'pendente',
   'confirmado',
   'recusado',
@@ -34,23 +32,18 @@ export const pagamentos = pgTable(
   'pagamentos',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    // `unique` garante a relação 1:1 com o pedido: um pedido só pode ter um
-    // pagamento. `restrict` mantém o registro financeiro auditável mesmo que
-    // o pedido seja cancelado.
     orderId: uuid('order_id')
       .notNull()
       .unique()
       .references(() => orders.id, { onDelete: 'restrict' }),
-    metodoPagamento: pagamentoMetodo('metodo_pagamento').notNull(),
+    paymentMethod: pagamentoMetodo('payment_method').notNull(),
     status: pagamentoStatus('status').notNull().default('pendente'),
-    // `numeric` em vez de float: valor monetário não tolera o erro de
-    // arredondamento binário (0.1 + 0.2 !== 0.3).
-    valorPago: numeric('valor_pago', {
+    amount: numeric('amount', {
       precision: 12,
       scale: 2,
       mode: 'number',
     }).notNull(),
-    dataPagamento: timestamp('data_pagamento', { withTimezone: true }),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -59,6 +52,6 @@ export const pagamentos = pgTable(
       .defaultNow(),
   },
   (table) => [
-    check('pagamentos_valor_pago_non_negative', sql`${table.valorPago} >= 0`),
+    check('pagamentos_amount_non_negative', sql`${table.amount} >= 0`),
   ],
 );
