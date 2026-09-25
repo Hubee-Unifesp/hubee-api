@@ -57,7 +57,8 @@ export class PagamentoService {
 
     // Validação de transição de status
     if (dto.status && dto.status !== pagamento.status) {
-      const allowedTransitions = VALID_STATUS_TRANSITIONS[pagamento.status] ?? [];
+      const allowedTransitions =
+        VALID_STATUS_TRANSITIONS[pagamento.status] ?? [];
 
       if (!allowedTransitions.includes(dto.status)) {
         throw new BadRequestException(
