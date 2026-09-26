@@ -4,6 +4,8 @@ CREATE TYPE "public"."event_status" AS ENUM('draft', 'published', 'finished', 'c
 CREATE TYPE "public"."task_status" AS ENUM('pending', 'in_progress', 'done');--> statement-breakpoint
 CREATE TYPE "public"."organization_event_role" AS ENUM('main', 'co_organizer', 'supporter');--> statement-breakpoint
 CREATE TYPE "public"."despesa_payment_status" AS ENUM('pendente', 'pago', 'atrasado', 'cancelado');--> statement-breakpoint
+CREATE TYPE "public"."payment_method" AS ENUM('cartao_credito', 'cartao_debito', 'pix', 'boleto', 'transferencia');--> statement-breakpoint
+CREATE TYPE "public"."payment_status" AS ENUM('pendente', 'confirmado', 'recusado', 'estornado');--> statement-breakpoint
 CREATE TABLE "users" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"first_name" varchar(100) NOT NULL,
@@ -61,6 +63,16 @@ CREATE TABLE "tasks" (
 	"status" "task_status" DEFAULT 'pending' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "ticket_types" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"event_id" uuid NOT NULL,
+	"batch" varchar(100) NOT NULL,
+	"price" numeric(12, 2) NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "ticket_types_price_positive" CHECK ("ticket_types"."price" > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "addresses" (
@@ -143,11 +155,25 @@ CREATE TABLE "expenses" (
 	CONSTRAINT "expenses_amount_non_negative" CHECK ("expenses"."amount" >= 0)
 );
 --> statement-breakpoint
+CREATE TABLE "pagamentos" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"order_id" uuid NOT NULL,
+	"payment_method" "payment_method" NOT NULL,
+	"status" "payment_status" DEFAULT 'pendente' NOT NULL,
+	"amount" numeric(12, 2) NOT NULL,
+	"paid_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "pagamentos_order_id_unique" UNIQUE("order_id"),
+	CONSTRAINT "pagamentos_amount_non_negative" CHECK ("pagamentos"."amount" >= 0)
+);
+--> statement-breakpoint
 ALTER TABLE "orders" ADD CONSTRAINT "orders_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "events" ADD CONSTRAINT "events_organizer_id_organizations_id_fk" FOREIGN KEY ("organizer_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "events" ADD CONSTRAINT "events_venue_id_venues_id_fk" FOREIGN KEY ("venue_id") REFERENCES "public"."venues"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tasks" ADD CONSTRAINT "tasks_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tasks" ADD CONSTRAINT "tasks_responsible_user_id_users_id_fk" FOREIGN KEY ("responsible_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ticket_types" ADD CONSTRAINT "ticket_types_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "venues" ADD CONSTRAINT "venues_address_id_addresses_id_fk" FOREIGN KEY ("address_id") REFERENCES "public"."addresses"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization_users" ADD CONSTRAINT "organization_users_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization_users" ADD CONSTRAINT "organization_users_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -156,10 +182,12 @@ ALTER TABLE "organization_events" ADD CONSTRAINT "organization_events_event_id_e
 ALTER TABLE "organizations" ADD CONSTRAINT "organizations_representative_id_users_id_fk" FOREIGN KEY ("representative_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "expenses" ADD CONSTRAINT "expenses_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "expenses" ADD CONSTRAINT "expenses_fornecedor_id_suppliers_id_fk" FOREIGN KEY ("fornecedor_id") REFERENCES "public"."suppliers"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pagamentos" ADD CONSTRAINT "pagamentos_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "users_email_unique" ON "users" USING btree ("email") WHERE "users"."deleted_at" is null;--> statement-breakpoint
 CREATE UNIQUE INDEX "users_cpf_unique" ON "users" USING btree ("cpf") WHERE "users"."deleted_at" is null;--> statement-breakpoint
 CREATE INDEX "tasks_event_id_idx" ON "tasks" USING btree ("event_id");--> statement-breakpoint
 CREATE INDEX "tasks_responsible_user_id_idx" ON "tasks" USING btree ("responsible_user_id");--> statement-breakpoint
+CREATE INDEX "ticket_types_event_id_idx" ON "ticket_types" USING btree ("event_id");--> statement-breakpoint
 CREATE INDEX "organization_events_event_id_idx" ON "organization_events" USING btree ("event_id");--> statement-breakpoint
 CREATE INDEX "organization_events_organization_id_idx" ON "organization_events" USING btree ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "suppliers_cnpj_cpf_unique" ON "suppliers" USING btree ("cnpj_cpf") WHERE "suppliers"."deleted_at" is null;--> statement-breakpoint

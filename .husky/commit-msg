@@ -1,1 +1,13 @@
-npx --no -- commitlint --edit "$1" 
+#!/usr/bin/env sh
+# filepath: c:\Users\Matheus\Documents\GitHub\hubee-api\.husky\commit-msg
+
+commit_msg_file="$1"
+commit_msg="$(head -n 1 "$commit_msg_file")"
+
+if ! printf '%s\n' "$commit_msg" | grep -Eq '^[^()[:space:]][^()]*\(GOL-[0-9]+\): [^[:space:]].*$'; then
+  echo "Mensagem de commit inválida."
+  echo "Formato esperado: nome tarefa(GOL-123): descrição do commit"
+  exit 1
+fi
+
+npx --no -- commitlint --edit "$commit_msg_file"

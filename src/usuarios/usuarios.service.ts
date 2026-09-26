@@ -67,6 +67,14 @@ export class UsuariosService {
     return this.excludePassword(user);
   }
 
+  async findByEmail(email: string) {
+    const [user] = await this.db
+      .select()
+      .from(usuarios)
+      .where(and(eq(usuarios.email, email), isNull(usuarios.deletedAt)));
+    return user;
+  }
+
   async update(id: string, data: UpdateUsuarioDto) {
     await this.findOne(id);
 

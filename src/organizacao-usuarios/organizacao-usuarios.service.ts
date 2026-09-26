@@ -1,5 +1,6 @@
 import {
   Injectable,
+  BadRequestException,
   ConflictException,
   NotFoundException,
   Inject,
@@ -20,16 +21,18 @@ export class OrganizacaoUsuariosService {
     private readonly usuariosService: UsuariosService,
   ) {}
 
+  private vinculoWhere(orgId: string, userId: string) {
+    return and(
+      eq(organizationUsers.orgId, orgId),
+      eq(organizationUsers.userId, userId),
+    );
+  }
+
   private async findVinculo(orgId: string, userId: string) {
     const [vinculo] = await this.db
       .select()
       .from(organizationUsers)
-      .where(
-        and(
-          eq(organizationUsers.orgId, orgId),
-          eq(organizationUsers.userId, userId),
-        ),
-      );
+      .where(this.vinculoWhere(orgId, userId));
     return vinculo;
   }
 
@@ -51,6 +54,8 @@ export class OrganizacaoUsuariosService {
         userId: dto.userId,
         role: dto.role,
         permission: dto.permission,
+        // undefined faz o Drizzle omitir a coluna e o default 'pending' valer
+        inviteStatus: dto.inviteStatus,
       })
       .returning();
 
@@ -58,6 +63,8 @@ export class OrganizacaoUsuariosService {
   }
 
   async findAll(orgId: string) {
+    await this.organizationService.findOne(orgId);
+
     return this.db
       .select()
       .from(organizationUsers)
@@ -76,15 +83,24 @@ export class OrganizacaoUsuariosService {
       );
     }
 
+    const { role, permission, inviteStatus } = dto;
+    if (
+      role === undefined &&
+      permission === undefined &&
+      inviteStatus === undefined
+    ) {
+      throw new BadRequestException(
+        'Informe ao menos um campo para atualizar: role, permission ou inviteStatus.',
+      );
+    }
+
     const [vinculoAtualizado] = await this.db
       .update(organizationUsers)
-      .set(dto)
-      .where(
-        and(
-          eq(organizationUsers.orgId, orgId),
-          eq(organizationUsers.userId, userId),
-        ),
-      )
+      // Campos undefined são ignorados pelo Drizzle, então um PATCH parcial
+      // não sobrescreve o que não foi enviado.
+      // updatedAt não entra aqui: o schema já tem $onUpdate.
+      .set({ role, permission, inviteStatus })
+      .where(this.vinculoWhere(orgId, userId))
       .returning();
 
     return vinculoAtualizado;
@@ -100,12 +116,7 @@ export class OrganizacaoUsuariosService {
 
     await this.db
       .delete(organizationUsers)
-      .where(
-        and(
-          eq(organizationUsers.orgId, orgId),
-          eq(organizationUsers.userId, userId),
-        ),
-      );
+      .where(this.vinculoWhere(orgId, userId));
 
     return { message: 'Vínculo removido com sucesso.' };
   }
