@@ -13,9 +13,11 @@ import { OrganizationEventModule } from './organization-event/organization-event
 import { OrganizationModule } from './organization/organization.module';
 import { TaskModule } from './task/task.module';
 import { PagamentoModule } from './pagamento/pagamento.module';
+import { TicketTypeModule } from './ticket-type/ticket-type.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { VenueModule } from './venue/venue.module';
 import { FornecedoresModule } from './fornecedores/fornecedores.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -34,9 +36,11 @@ import { FornecedoresModule } from './fornecedores/fornecedores.module';
     OrganizationModule,
     TaskModule,
     PagamentoModule,
+    TicketTypeModule,
     UsuariosModule,
     VenueModule,
     FornecedoresModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
