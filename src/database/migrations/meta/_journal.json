@@ -43,6 +43,13 @@
       "when": 1790074551213,
       "tag": "0005_create_ticket_types",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790435186333,
+      "tag": "0006_create_tickets",
+      "breakpoints": true
     }
   ]
 }

@@ -10,6 +10,7 @@ export * from './order.schema';
 export * from './event.schema';
 export * from './task.schema';
 export * from './ticket-type.schema';
+export * from './ticket.schema';
 export * from './address.schema';
 export * from './venue.schema';
 export * from './organization-user';
