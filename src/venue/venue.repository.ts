@@ -1,11 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, ilike } from 'drizzle-orm';
+import { and, eq, gt, ilike, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
   DrizzleDatabase,
 } from '../database/database.provider';
-import { addresses, venues } from '../database/schema';
+import { addresses, events, venues } from '../database/schema';
 
 export interface FindAllVenuesFilters {
   city?: string;
@@ -38,6 +38,22 @@ export class VenueRepository {
     });
   }
 
+  async findByNameCapacityAndAddress(
+    name: string,
+    maxCapacity: number,
+    addressId: string,
+    executor: DbExecutor = this.db,
+  ) {
+    return executor.query.venues.findFirst({
+      where: and(
+        eq(venues.name, name),
+        eq(venues.maxCapacity, maxCapacity),
+        eq(venues.addressId, addressId),
+        eq(venues.active, true),
+      ),
+    });
+  }
+
   async create(
     data: typeof venues.$inferInsert,
     executor: DbExecutor = this.db,
@@ -57,6 +73,17 @@ export class VenueRepository {
       .where(eq(venues.id, id))
       .returning();
     return venue;
+  }
+
+  async hasUpcomingEvents(
+    venueId: string,
+    executor: DbExecutor = this.db,
+  ): Promise<boolean> {
+    const event = await executor.query.events.findFirst({
+      columns: { id: true },
+      where: and(eq(events.venueId, venueId), gt(events.startDate, sql`now()`)),
+    });
+    return event !== undefined;
   }
 
   async delete(id: string, executor: DbExecutor = this.db): Promise<void> {

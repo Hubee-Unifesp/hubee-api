@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   integer,
   pgTable,
@@ -19,6 +20,7 @@ export const venues = pgTable(
       .references(() => addresses.id, { onDelete: 'restrict' }),
     name: varchar('name', { length: 255 }).notNull(),
     maxCapacity: integer('max_capacity').notNull(),
+    active: boolean('active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

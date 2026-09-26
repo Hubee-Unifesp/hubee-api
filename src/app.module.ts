@@ -12,6 +12,7 @@ import { OrganizacaoUsuariosModule } from './organizacao-usuarios/organizacao-us
 import { OrganizationEventModule } from './organization-event/organization-event.module';
 import { OrganizationModule } from './organization/organization.module';
 import { TaskModule } from './task/task.module';
+import { PagamentoModule } from './pagamento/pagamento.module';
 import { TicketModule } from './ticket/ticket.module';
 import { TicketTypeModule } from './ticket-type/ticket-type.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
@@ -35,6 +36,7 @@ import { AuthModule } from './auth/auth.module';
     OrganizationEventModule,
     OrganizationModule,
     TaskModule,
+    PagamentoModule,
     TicketModule,
     TicketTypeModule,
     UsuariosModule,
