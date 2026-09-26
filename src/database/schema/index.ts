@@ -17,3 +17,4 @@ export * from './organization-event.schema';
 export * from './fornecedor';
 export * from './organization.schema';
 export * from './despesa.schema';
+export * from './pagamento.schema';
