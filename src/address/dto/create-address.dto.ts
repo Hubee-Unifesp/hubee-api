@@ -6,8 +6,10 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
+import { TrimString } from '../../common/validation/update-validation';
 
 export class CreateAddressDto {
+  @TrimString()
   @IsString()
   @Matches(/^\d{5}-?\d{3}$/, { message: 'CEP inválido' })
   zipCode: string;
@@ -25,7 +27,7 @@ export class CreateAddressDto {
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  complement?: string;
+  complement?: string | null;
 
   @IsString()
   @IsNotEmpty()

@@ -29,6 +29,7 @@ describe('AddressService', () => {
   let repository: {
     create: jest.Mock<AddressRepository['create']>;
     findById: jest.Mock<AddressRepository['findById']>;
+    findByFullAddress: jest.Mock<AddressRepository['findByFullAddress']>;
     update: jest.Mock<AddressRepository['update']>;
   };
 
@@ -36,6 +37,7 @@ describe('AddressService', () => {
     repository = {
       create: jest.fn<AddressRepository['create']>(),
       findById: jest.fn<AddressRepository['findById']>(),
+      findByFullAddress: jest.fn<AddressRepository['findByFullAddress']>(),
       update: jest.fn<AddressRepository['update']>(),
     };
 
@@ -50,15 +52,62 @@ describe('AddressService', () => {
   });
 
   it('repassa create() para o repository', async () => {
-    const dto = { city: 'Recife' } as CreateAddressDto;
+    const dto = { city: 'Recife', country: 'Brasil' } as CreateAddressDto;
     const address = makeAddress();
+    repository.findByFullAddress.mockResolvedValue(undefined);
     repository.create.mockResolvedValue(address);
 
     const result = await service.create(dto);
 
+    expect(repository.findByFullAddress).toHaveBeenCalledWith(dto, undefined);
     expect(repository.create).toHaveBeenCalledWith(dto, undefined);
     expect(result).toEqual(address);
   });
+
+  it('retorna o endereço existente sem criar outro', async () => {
+    const dto: CreateAddressDto = {
+      zipCode: '50000-000',
+      street: 'Rua Teste',
+      number: '100',
+      neighborhood: 'Centro',
+      city: 'Recife',
+      state: 'PE',
+      country: 'Brasil',
+      complement: 'Sala 2',
+    };
+    const address = makeAddress({ complement: 'Sala 2' });
+    repository.findByFullAddress.mockResolvedValue(address);
+
+    const result = await service.create(dto);
+
+    expect(repository.findByFullAddress).toHaveBeenCalledWith(dto, undefined);
+    expect(repository.create).not.toHaveBeenCalled();
+    expect(result).toEqual(address);
+  });
+
+  it.each([undefined, 'Portugal'])(
+    'cria sem complemento e usa Brasil somente se country for omitido: %j',
+    async (country) => {
+      const dto: CreateAddressDto = {
+        zipCode: '50000-000',
+        street: 'Rua Teste',
+        number: '100',
+        neighborhood: 'Centro',
+        city: 'Recife',
+        state: 'PE',
+        country,
+      };
+      const executor = {} as never;
+      repository.create.mockResolvedValue(makeAddress());
+      await service.create(dto, executor);
+      const expected = { ...dto, country: country ?? 'Brasil' };
+      expect(repository.findByFullAddress).toHaveBeenCalledWith(
+        expected,
+        executor,
+      );
+      expect(repository.create).toHaveBeenCalledWith(expected, executor);
+    },
+  );
 
   it('repassa findById() para o repository, incluindo o executor', async () => {
     const executor = {} as never;

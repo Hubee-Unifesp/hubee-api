@@ -6,12 +6,15 @@ import {
   IsString,
   Length,
 } from 'class-validator';
+import { TrimString } from '../../common/validation/update-validation';
 
 export class CreateFornecedorDto {
+  @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'O nome da empresa é obrigatório.' })
   companyName: string;
 
+  @TrimString()
   @IsString()
   @IsNotEmpty({ message: 'O CNPJ ou CPF é obrigatório.' })
   @IsNumberString({}, { message: 'O documento deve conter apenas números.' })
