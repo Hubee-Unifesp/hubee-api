@@ -34,7 +34,6 @@ export class UpdateUsuarioDto {
   @IsNumberString({}, { message: 'O telefone deve conter apenas números' })
   phone?: string;
 
-  @TrimString()
   @IsOptionalUpdate()
   @IsString()
   @IsNotEmpty()

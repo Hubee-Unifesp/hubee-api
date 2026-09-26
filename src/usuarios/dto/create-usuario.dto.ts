@@ -28,12 +28,12 @@ export class CreateUsuarioDto {
   @IsNumberString({}, { message: 'O telefone deve conter apenas números' })
   phone?: string;
 
-  @TrimString()
   @IsString()
   @IsNotEmpty()
   @Length(6, 20, { message: 'A senha deve ter entre 6 e 20 caracteres' })
   password: string;
 
+  @TrimString()
   @IsNumberString({}, { message: 'O CPF deve conter apenas números' })
   @Length(11, 11, { message: 'O CPF deve ter 11 dígitos' })
   cpf: string;
