@@ -7,7 +7,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { usuarios } from './user';
+import { users } from './user';
 
 /** Situações possíveis de um pedido no fluxo de compra. */
 export const orderStatus = pgEnum('order_status', [
@@ -26,7 +26,7 @@ export const orders = pgTable(
     // com o usuário. A exclusão de usuário no sistema é lógica (deleted_at).
     userId: uuid('user_id')
       .notNull()
-      .references(() => usuarios.id, { onDelete: 'restrict' }),
+      .references(() => users.id, { onDelete: 'restrict' }),
     status: orderStatus('status').notNull().default('pendente'),
     // `numeric` em vez de float: valor monetário não tolera o erro de
     // arredondamento binário (0.1 + 0.2 !== 0.3).

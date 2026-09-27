@@ -15,33 +15,33 @@ import { TicketService } from './ticket.service';
 
 /**
  * Sem prefixo no `@Controller`: a emissão e a listagem são sub-recursos do
- * pedido (`/pedidos/:pedidoId/ingressos`), mas a consulta e a mudança de status
- * usam o ingresso direto (`/ingressos/:id`), que é o que a portaria lê.
+ * pedido (`/orders/:orderId/tickets`), mas a consulta e a mudança de status
+ * usam o ingresso direto (`/tickets/:id`), que é o que a portaria lê.
  */
 @Controller()
 export class TicketController {
   constructor(private readonly ticketService: TicketService) {}
 
-  @Post('pedidos/:pedidoId/ingressos')
+  @Post('orders/:orderId/tickets')
   @HttpCode(HttpStatus.CREATED)
   create(
-    @Param('pedidoId', ParseUUIDPipe) orderId: string,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: CreateTicketsDto,
   ) {
     return this.ticketService.create(orderId, dto);
   }
 
-  @Get('pedidos/:pedidoId/ingressos')
-  findAllByOrder(@Param('pedidoId', ParseUUIDPipe) orderId: string) {
+  @Get('orders/:orderId/tickets')
+  findAllByOrder(@Param('orderId', ParseUUIDPipe) orderId: string) {
     return this.ticketService.findAllByOrder(orderId);
   }
 
-  @Get('ingressos/:id')
+  @Get('tickets/:id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.ticketService.findOne(id);
   }
 
-  @Patch('ingressos/:id')
+  @Patch('tickets/:id')
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateTicketDto) {
     return this.ticketService.update(id, dto);
   }

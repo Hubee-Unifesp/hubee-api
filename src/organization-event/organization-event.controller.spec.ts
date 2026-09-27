@@ -27,7 +27,7 @@ describe('OrganizationEventController', () => {
     controller = module.get(OrganizationEventController);
   });
 
-  it('POST /eventos/:eventId/organizacoes delega para o service', async () => {
+  it('POST /events/:eventId/organizations delega para o service', async () => {
     const dto: CreateOrganizationEventDto = {
       organizationId: 'org-1',
       role: 'co_organizer',
@@ -41,7 +41,7 @@ describe('OrganizationEventController', () => {
     expect(result).toEqual(created);
   });
 
-  it('GET /eventos/:eventId/organizacoes delega para o service', async () => {
+  it('GET /events/:eventId/organizations delega para o service', async () => {
     const list = [{ organizationId: 'org-1' }] as never;
     service.findAll.mockResolvedValue(list);
 
@@ -51,7 +51,7 @@ describe('OrganizationEventController', () => {
     expect(result).toEqual(list);
   });
 
-  it('DELETE /eventos/:eventId/organizacoes/:orgId delega para o service', async () => {
+  it('DELETE /events/:eventId/organizations/:orgId delega para o service', async () => {
     service.remove.mockResolvedValue(undefined);
 
     await controller.remove('event-1', 'org-1');

@@ -30,7 +30,7 @@ describe('TicketController', () => {
     controller = module.get(TicketController);
   });
 
-  it('POST /pedidos/:pedidoId/ingressos delega para ticketService.create()', async () => {
+  it('POST /orders/:orderId/tickets delega para ticketService.create()', async () => {
     const dto: CreateTicketsDto = {
       tickets: [{ eventId: 'event-1', ticketTypeId: 'type-1' }],
     };
@@ -43,7 +43,7 @@ describe('TicketController', () => {
     expect(result).toEqual(created);
   });
 
-  it('GET /pedidos/:pedidoId/ingressos delega para ticketService.findAllByOrder()', async () => {
+  it('GET /orders/:orderId/tickets delega para ticketService.findAllByOrder()', async () => {
     const list = [{ id: 'ticket-1' }] as never;
     service.findAllByOrder.mockResolvedValue(list);
 
@@ -53,7 +53,7 @@ describe('TicketController', () => {
     expect(result).toEqual(list);
   });
 
-  it('GET /ingressos/:id delega para ticketService.findOne()', async () => {
+  it('GET /tickets/:id delega para ticketService.findOne()', async () => {
     const ticket = { id: 'ticket-1' } as never;
     service.findOne.mockResolvedValue(ticket);
 
@@ -63,7 +63,7 @@ describe('TicketController', () => {
     expect(result).toEqual(ticket);
   });
 
-  it('PATCH /ingressos/:id delega para ticketService.update()', async () => {
+  it('PATCH /tickets/:id delega para ticketService.update()', async () => {
     const dto: UpdateTicketDto = { status: 'usado' };
     const updated = { id: 'ticket-1', ...dto } as never;
     service.update.mockResolvedValue(updated);

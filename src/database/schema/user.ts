@@ -8,7 +8,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-export const usuarios = pgTable(
+export const users = pgTable(
   'users',
   {
     id: uuid('id').primaryKey().defaultRandom(),
@@ -20,7 +20,7 @@ export const usuarios = pgTable(
     cpf: varchar('cpf', { length: 11 }).notNull(),
     birthDate: date('birth_date').notNull(),
     profileType: varchar('profile_type', { length: 50 }).notNull(),
-    status: varchar('status', { length: 20 }).default('ACTIVE'), // Já mudei de ATIVO para ACTIVE para padronizar
+    status: varchar('status', { length: 20 }).default('ACTIVE'),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
     deletedAt: timestamp('deleted_at'),

@@ -4,7 +4,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { EventService } from '../event/event.service';
-import { UsuariosService } from '../usuarios/usuarios.service';
+import { UsersService } from '../users/users.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { FindAllTasksFilters, TaskRepository } from './task.repository';
@@ -14,7 +14,7 @@ export class TaskService {
   constructor(
     private readonly taskRepository: TaskRepository,
     private readonly eventService: EventService,
-    private readonly usuariosService: UsuariosService,
+    private readonly usersService: UsersService,
   ) {}
 
   /** Consulta o evento antes para que um evento inexistente dê 404, e não `[]`. */
@@ -85,7 +85,7 @@ export class TaskService {
    */
   private async ensureUserExists(userId: string): Promise<void> {
     try {
-      await this.usuariosService.findOne(userId);
+      await this.usersService.findOne(userId);
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw new NotFoundException(`Usuário ${userId} não encontrado`);

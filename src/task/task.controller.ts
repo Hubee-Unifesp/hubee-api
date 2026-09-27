@@ -16,7 +16,7 @@ import { QueryTaskDto } from './dto/query-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskService } from './task.service';
 
-@Controller('eventos/:eventId/tarefas')
+@Controller('events/:eventId/tasks')
 export class TaskController {
   constructor(private readonly taskService: TaskService) {}
 

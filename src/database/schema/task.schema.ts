@@ -8,7 +8,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { events } from './event.schema';
-import { usuarios } from './user';
+import { users } from './user';
 
 /** Situações de uma tarefa no checklist de organização do evento. */
 export const taskStatus = pgEnum('task_status', [
@@ -31,7 +31,7 @@ export const tasks = pgTable(
     // um DELETE físico com tarefas atribuídas indica erro e deve falhar.
     responsibleUserId: uuid('responsible_user_id')
       .notNull()
-      .references(() => usuarios.id, { onDelete: 'restrict' }),
+      .references(() => users.id, { onDelete: 'restrict' }),
     title: varchar('title', { length: 255 }).notNull(),
     description: text('description'),
     dueDate: timestamp('due_date', { withTimezone: true }),

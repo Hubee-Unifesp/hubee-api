@@ -32,7 +32,7 @@ describe('TaskController', () => {
     controller = module.get(TaskController);
   });
 
-  it('POST /eventos/:eventId/tarefas delega para taskService.create()', async () => {
+  it('POST /events/:eventId/tasks delega para taskService.create()', async () => {
     const dto: CreateTaskDto = {
       responsibleUserId: 'user-1',
       title: 'Contratar buffet',
@@ -46,7 +46,7 @@ describe('TaskController', () => {
     expect(result).toEqual(created);
   });
 
-  it('GET /eventos/:eventId/tarefas delega para taskService.findAll() com os filtros da query', async () => {
+  it('GET /events/:eventId/tasks delega para taskService.findAll() com os filtros da query', async () => {
     const list = [{ id: 'task-1' }] as never;
     service.findAll.mockResolvedValue(list);
 
@@ -62,7 +62,7 @@ describe('TaskController', () => {
     expect(result).toEqual(list);
   });
 
-  it('GET /eventos/:eventId/tarefas/:id delega para taskService.findOne()', async () => {
+  it('GET /events/:eventId/tasks/:id delega para taskService.findOne()', async () => {
     const task = { id: 'task-1' } as never;
     service.findOne.mockResolvedValue(task);
 
@@ -72,7 +72,7 @@ describe('TaskController', () => {
     expect(result).toEqual(task);
   });
 
-  it('PATCH /eventos/:eventId/tarefas/:id delega para taskService.update()', async () => {
+  it('PATCH /events/:eventId/tasks/:id delega para taskService.update()', async () => {
     const dto: UpdateTaskDto = { status: 'done' };
     const updated = { id: 'task-1', ...dto } as never;
     service.update.mockResolvedValue(updated);
@@ -83,7 +83,7 @@ describe('TaskController', () => {
     expect(result).toEqual(updated);
   });
 
-  it('DELETE /eventos/:eventId/tarefas/:id delega para taskService.remove()', async () => {
+  it('DELETE /events/:eventId/tasks/:id delega para taskService.remove()', async () => {
     service.remove.mockResolvedValue(undefined);
 
     await controller.remove('event-1', 'task-1');

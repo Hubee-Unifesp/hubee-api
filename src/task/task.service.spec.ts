@@ -6,7 +6,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { events, tasks } from '../database/schema';
 import { EventService } from '../event/event.service';
-import { UsuariosService } from '../usuarios/usuarios.service';
+import { UsersService } from '../users/users.service';
 import { TaskRepository } from './task.repository';
 import { TaskService } from './task.service';
 
@@ -61,8 +61,8 @@ describe('TaskService', () => {
   let eventService: {
     findOne: jest.Mock<EventService['findOne']>;
   };
-  let usuariosService: {
-    findOne: jest.Mock<UsuariosService['findOne']>;
+  let usersService: {
+    findOne: jest.Mock<UsersService['findOne']>;
   };
 
   beforeEach(async () => {
@@ -76,8 +76,8 @@ describe('TaskService', () => {
     eventService = {
       findOne: jest.fn<EventService['findOne']>(),
     };
-    usuariosService = {
-      findOne: jest.fn<UsuariosService['findOne']>(),
+    usersService = {
+      findOne: jest.fn<UsersService['findOne']>(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -85,7 +85,7 @@ describe('TaskService', () => {
         TaskService,
         { provide: TaskRepository, useValue: taskRepository },
         { provide: EventService, useValue: eventService },
-        { provide: UsuariosService, useValue: usuariosService },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -158,7 +158,7 @@ describe('TaskService', () => {
     it('cria a tarefa no evento depois de validar evento e responsável', async () => {
       const created = makeTask();
       eventService.findOne.mockResolvedValue(makeEvent());
-      usuariosService.findOne.mockResolvedValue({ id: 'user-1' });
+      usersService.findOne.mockResolvedValue({ id: 'user-1' });
       taskRepository.create.mockResolvedValue(created);
 
       const result = await service.create('event-1', {
@@ -167,7 +167,7 @@ describe('TaskService', () => {
       });
 
       expect(eventService.findOne).toHaveBeenCalledWith('event-1');
-      expect(usuariosService.findOne).toHaveBeenCalledWith('user-1');
+      expect(usersService.findOne).toHaveBeenCalledWith('user-1');
       expect(taskRepository.create).toHaveBeenCalledWith({
         eventId: 'event-1',
         responsibleUserId: 'user-1',
@@ -192,7 +192,7 @@ describe('TaskService', () => {
 
     it('lança NotFound com a mensagem da tarefa quando o responsável não existe', async () => {
       eventService.findOne.mockResolvedValue(makeEvent());
-      usuariosService.findOne.mockRejectedValue(
+      usersService.findOne.mockRejectedValue(
         new NotFoundException('Usuário não encontrado.'),
       );
 
@@ -208,7 +208,7 @@ describe('TaskService', () => {
     it('propaga erros inesperados ao validar o responsável', async () => {
       const failure = new Error('conexão perdida');
       eventService.findOne.mockResolvedValue(makeEvent());
-      usuariosService.findOne.mockRejectedValue(failure);
+      usersService.findOne.mockRejectedValue(failure);
 
       await expect(
         service.create('event-1', {
@@ -229,7 +229,7 @@ describe('TaskService', () => {
           title: 'Contratar buffet',
         }),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
-      expect(usuariosService.findOne).not.toHaveBeenCalled();
+      expect(usersService.findOne).not.toHaveBeenCalled();
       expect(taskRepository.create).not.toHaveBeenCalled();
     });
   });
@@ -248,14 +248,14 @@ describe('TaskService', () => {
       expect(taskRepository.update).toHaveBeenCalledWith('event-1', 'task-1', {
         status: 'done',
       });
-      expect(usuariosService.findOne).not.toHaveBeenCalled();
+      expect(usersService.findOne).not.toHaveBeenCalled();
       expect(result).toEqual(updated);
     });
 
     it('valida o novo responsável quando ele muda', async () => {
       eventService.findOne.mockResolvedValue(makeEvent());
       taskRepository.findById.mockResolvedValue(makeTask());
-      usuariosService.findOne.mockResolvedValue({ id: 'user-2' });
+      usersService.findOne.mockResolvedValue({ id: 'user-2' });
       taskRepository.update.mockResolvedValue(
         makeTask({ responsibleUserId: 'user-2' }),
       );
@@ -264,14 +264,14 @@ describe('TaskService', () => {
         responsibleUserId: 'user-2',
       });
 
-      expect(usuariosService.findOne).toHaveBeenCalledWith('user-2');
+      expect(usersService.findOne).toHaveBeenCalledWith('user-2');
       expect(taskRepository.update).toHaveBeenCalled();
     });
 
     it('não atualiza quando o novo responsável não existe', async () => {
       eventService.findOne.mockResolvedValue(makeEvent());
       taskRepository.findById.mockResolvedValue(makeTask());
-      usuariosService.findOne.mockRejectedValue(
+      usersService.findOne.mockRejectedValue(
         new NotFoundException('Usuário não encontrado.'),
       );
 
@@ -290,7 +290,7 @@ describe('TaskService', () => {
         responsibleUserId: 'user-1',
       });
 
-      expect(usuariosService.findOne).not.toHaveBeenCalled();
+      expect(usersService.findOne).not.toHaveBeenCalled();
     });
 
     it('lança NotFound quando a tarefa não existe no evento', async () => {

@@ -12,7 +12,7 @@ import {
 import { CreateOrganizationEventDto } from './dto/create-organization-event.dto';
 import { OrganizationEventService } from './organization-event.service';
 
-@Controller('eventos/:eventId/organizacoes')
+@Controller('events/:eventId/organizations')
 export class OrganizationEventController {
   constructor(
     private readonly organizationEventService: OrganizationEventService,

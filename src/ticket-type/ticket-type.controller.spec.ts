@@ -32,7 +32,7 @@ describe('TicketTypeController', () => {
     controller = module.get(TicketTypeController);
   });
 
-  it('POST /eventos/:eventId/tipos-ingresso delega para ticketTypeService.create()', async () => {
+  it('POST /events/:eventId/ticket-types delega para ticketTypeService.create()', async () => {
     const dto: CreateTicketTypeDto = { batch: '1º Lote', price: 100 };
     const created = { id: 'ticket-type-1', ...dto } as never;
     service.create.mockResolvedValue(created);
@@ -43,7 +43,7 @@ describe('TicketTypeController', () => {
     expect(result).toEqual(created);
   });
 
-  it('GET /eventos/:eventId/tipos-ingresso delega para ticketTypeService.findAll()', async () => {
+  it('GET /events/:eventId/ticket-types delega para ticketTypeService.findAll()', async () => {
     const list = [{ id: 'ticket-type-1' }] as never;
     service.findAll.mockResolvedValue(list);
 
@@ -53,7 +53,7 @@ describe('TicketTypeController', () => {
     expect(result).toEqual(list);
   });
 
-  it('GET /eventos/:eventId/tipos-ingresso/:id delega para ticketTypeService.findOne()', async () => {
+  it('GET /events/:eventId/ticket-types/:id delega para ticketTypeService.findOne()', async () => {
     const ticketType = { id: 'ticket-type-1' } as never;
     service.findOne.mockResolvedValue(ticketType);
 
@@ -63,7 +63,7 @@ describe('TicketTypeController', () => {
     expect(result).toEqual(ticketType);
   });
 
-  it('PATCH /eventos/:eventId/tipos-ingresso/:id delega para ticketTypeService.update()', async () => {
+  it('PATCH /events/:eventId/ticket-types/:id delega para ticketTypeService.update()', async () => {
     const dto: UpdateTicketTypeDto = { price: 150 };
     const updated = { id: 'ticket-type-1', ...dto } as never;
     service.update.mockResolvedValue(updated);
@@ -78,7 +78,7 @@ describe('TicketTypeController', () => {
     expect(result).toEqual(updated);
   });
 
-  it('DELETE /eventos/:eventId/tipos-ingresso/:id delega para ticketTypeService.remove()', async () => {
+  it('DELETE /events/:eventId/ticket-types/:id delega para ticketTypeService.remove()', async () => {
     service.remove.mockResolvedValue(undefined);
 
     await controller.remove('event-1', 'ticket-type-1');

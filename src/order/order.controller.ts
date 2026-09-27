@@ -16,7 +16,7 @@ import { QueryOrderDto } from './dto/query-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderService } from './order.service';
 
-@Controller('pedidos')
+@Controller('orders')
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}
 
