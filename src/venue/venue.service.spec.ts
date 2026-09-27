@@ -110,7 +110,9 @@ describe('VenueService', () => {
       addressService.findById.mockResolvedValue(makeAddress());
       venueRepository.findByNameCapacityAndAddress.mockResolvedValue(undefined);
       const venue = makeVenue();
+      const venueWithAddress = { ...venue, address: makeAddress() };
       venueRepository.create.mockResolvedValue(venue);
+      venueRepository.findById.mockResolvedValue(venueWithAddress);
 
       const result = await service.create({ ...baseDto, addressId: 'addr-1' });
 
@@ -119,13 +121,16 @@ describe('VenueService', () => {
         { name: 'Auditório A', maxCapacity: 100, addressId: 'addr-1' },
         tx,
       );
-      expect(result).toEqual(venue);
+      expect(venueRepository.findById).toHaveBeenCalledWith('venue-1');
+      expect(result).toEqual(venueWithAddress);
     });
 
     it('retorna a venue existente com os mesmos dados', async () => {
       addressService.findById.mockResolvedValue(makeAddress());
       const venue = makeVenue();
+      const venueWithAddress = { ...venue, address: makeAddress() };
       venueRepository.findByNameCapacityAndAddress.mockResolvedValue(venue);
+      venueRepository.findById.mockResolvedValue(venueWithAddress);
 
       const result = await service.create({
         ...baseDto,
@@ -139,7 +144,7 @@ describe('VenueService', () => {
         tx,
       );
       expect(venueRepository.create).not.toHaveBeenCalled();
-      expect(result).toEqual(venue);
+      expect(result).toEqual(venueWithAddress);
     });
 
     it('cria o endereço junto quando "address" é informado', async () => {
@@ -148,6 +153,10 @@ describe('VenueService', () => {
       venueRepository.create.mockResolvedValue(
         makeVenue({ addressId: 'addr-novo' }),
       );
+      venueRepository.findById.mockResolvedValue({
+        ...makeVenue({ addressId: 'addr-novo' }),
+        address: makeAddress({ id: 'addr-novo' }),
+      });
 
       await service.create({
         ...baseDto,
@@ -170,6 +179,10 @@ describe('VenueService', () => {
       venueRepository.create.mockResolvedValue(
         makeVenue({ addressId: 'addr-novo' }),
       );
+      venueRepository.findById.mockResolvedValue({
+        ...makeVenue({ addressId: 'addr-novo' }),
+        address: makeAddress({ id: 'addr-novo' }),
+      });
 
       await service.create({
         ...baseDto,
@@ -216,10 +229,13 @@ describe('VenueService', () => {
           addressId: 'addr-2',
           active: false,
         });
-        venueRepository.findById.mockResolvedValue({
-          ...currentVenue,
-          address: makeAddress(),
-        });
+        const nextWithAddress = {
+          ...nextVenue,
+          address: makeAddress({ id: 'addr-2' }),
+        };
+        venueRepository.findById
+          .mockResolvedValueOnce({ ...currentVenue, address: makeAddress() })
+          .mockResolvedValueOnce(nextWithAddress);
         addressService.findById.mockResolvedValue(
           makeAddress({ id: 'addr-2' }),
         );
@@ -239,7 +255,7 @@ describe('VenueService', () => {
           active: false,
         });
 
-        expect(result).toEqual(nextVenue);
+        expect(result).toEqual(nextWithAddress);
         expect(venueRepository.create).toHaveBeenCalledWith(
           {
             name: currentVenue.name,
@@ -266,11 +282,11 @@ describe('VenueService', () => {
         addressId: 'addr-2',
         active: true,
       });
+      const nextWithAddress = { ...nextVenue, address: newAddress };
 
-      venueRepository.findById.mockResolvedValue({
-        ...currentVenue,
-        address: makeAddress(),
-      });
+      venueRepository.findById
+        .mockResolvedValueOnce({ ...currentVenue, address: makeAddress() })
+        .mockResolvedValueOnce(nextWithAddress);
       addressService.findById.mockResolvedValue(newAddress);
       venueRepository.findByNameCapacityAndAddress.mockResolvedValue(undefined);
       venueRepository.create.mockResolvedValue(nextVenue);
@@ -296,7 +312,7 @@ describe('VenueService', () => {
         { active: false },
         tx,
       );
-      expect(result).toEqual(nextVenue);
+      expect(result).toEqual(nextWithAddress);
     });
 
     it.each([undefined, null, '', 'Sala 3'])(
@@ -307,12 +323,15 @@ describe('VenueService', () => {
           country: 'Portugal',
         });
         const original = { ...currentAddress };
-        venueRepository.findById.mockResolvedValue({
-          ...makeVenue(),
-          address: currentAddress,
-        });
-        addressService.create.mockResolvedValue(makeAddress({ id: 'addr-2' }));
         const nextVenue = makeVenue({ id: 'venue-2', addressId: 'addr-2' });
+        const nextWithAddress = {
+          ...nextVenue,
+          address: makeAddress({ id: 'addr-2' }),
+        };
+        venueRepository.findById
+          .mockResolvedValueOnce({ ...makeVenue(), address: currentAddress })
+          .mockResolvedValueOnce(nextWithAddress);
+        addressService.create.mockResolvedValue(makeAddress({ id: 'addr-2' }));
         venueRepository.create.mockResolvedValue(nextVenue);
 
         const result = await service.update('venue-1', {
@@ -339,24 +358,27 @@ describe('VenueService', () => {
           { active: false },
           tx,
         );
-        expect(result).toEqual(nextVenue);
+        expect(result).toEqual(nextWithAddress);
       },
     );
 
     it('atualiza endereço sem complemento e reutiliza um local equivalente', async () => {
-      venueRepository.findById.mockResolvedValue({
-        ...makeVenue(),
-        address: makeAddress(),
-      });
+      const existing = makeVenue({ id: 'venue-2', addressId: 'addr-2' });
+      const existingWithAddress = {
+        ...existing,
+        address: makeAddress({ id: 'addr-2', city: 'Olinda' }),
+      };
+      venueRepository.findById
+        .mockResolvedValueOnce({ ...makeVenue(), address: makeAddress() })
+        .mockResolvedValueOnce(existingWithAddress);
       addressService.create.mockResolvedValue(
         makeAddress({ id: 'addr-2', city: 'Olinda' }),
       );
-      const existing = makeVenue({ id: 'venue-2', addressId: 'addr-2' });
       venueRepository.findByNameCapacityAndAddress.mockResolvedValue(existing);
 
       await expect(
         service.update('venue-1', { address: { city: 'Olinda' } }),
-      ).resolves.toEqual(existing);
+      ).resolves.toEqual(existingWithAddress);
       expect(addressService.create).toHaveBeenCalledWith(
         expect.objectContaining({ complement: null, country: 'Brasil' }),
         tx,
@@ -373,14 +395,14 @@ describe('VenueService', () => {
       'mantém o local quando o endereço não muda: %j',
       async (address) => {
         const current = makeVenue();
-        venueRepository.findById.mockResolvedValue({
-          ...current,
-          address: makeAddress(),
-        });
+        const currentWithAddress = { ...current, address: makeAddress() };
+        venueRepository.findById
+          .mockResolvedValueOnce({ ...current, address: makeAddress() })
+          .mockResolvedValueOnce(currentWithAddress);
         venueRepository.update.mockResolvedValue(current);
 
         await expect(service.update('venue-1', { address })).resolves.toEqual(
-          current,
+          currentWithAddress,
         );
         expect(addressService.create).not.toHaveBeenCalled();
         expect(addressService.update).not.toHaveBeenCalled();
