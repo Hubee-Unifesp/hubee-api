@@ -1,4 +1,10 @@
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { UserResponseDto } from './dto/user-response.dto';
 import {
   Controller,
   Get,
@@ -21,21 +27,25 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
+  @ApiCreatedResponse({ type: UserResponseDto })
   create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.create(createUserDto);
   }
 
   @Get()
+  @ApiOkResponse({ type: UserResponseDto, isArray: true })
   findAll() {
     return this.usersService.findAll();
   }
 
   @Get(':id')
+  @ApiOkResponse({ type: UserResponseDto })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.findOne(id);
   }
 
   @Patch(':id')
+  @ApiOkResponse({ type: UserResponseDto })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserDto: UpdateUserDto,
@@ -45,6 +55,7 @@ export class UsersController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
   async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.usersService.remove(id);
   }

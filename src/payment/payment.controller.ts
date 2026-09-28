@@ -1,4 +1,5 @@
-import { ApiTags } from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { PaymentResponseDto } from './dto/payment-response.dto';
 import {
   Body,
   Controller,
@@ -21,6 +22,7 @@ export class PaymentController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiCreatedResponse({ type: PaymentResponseDto })
   create(
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: CreatePaymentDto,
@@ -29,11 +31,13 @@ export class PaymentController {
   }
 
   @Get()
+  @ApiOkResponse({ type: PaymentResponseDto })
   findOne(@Param('orderId', ParseUUIDPipe) orderId: string) {
     return this.paymentService.findOne(orderId);
   }
 
   @Patch()
+  @ApiOkResponse({ type: PaymentResponseDto })
   update(
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: UpdatePaymentDto,

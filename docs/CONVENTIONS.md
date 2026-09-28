@@ -48,6 +48,20 @@ Por decisão consciente, estes pontos **permanecem em português** e não devem 
   `404` para recurso inexistente, `409` para conflito de estado. Estão
   documentados no OpenAPI.
 
+### DTOs de resposta
+
+Cada recurso tem um `*ResponseDto` explícito (ex.: `SupplierResponseDto`) que
+define o contrato de saída público — omitindo campos internos como `deletedAt`
+e `password`. Esses DTOs são referenciados nos controllers via
+`@ApiOkResponse`/`@ApiCreatedResponse`, então o Swagger mostra o schema real da
+resposta.
+
+> **Estado atual (documentação-only)**: os endpoints ainda **retornam a linha do
+> banco** em runtime; os `*ResponseDto` documentam o contrato pretendido, mas a
+> aplicação em runtime (retornar instâncias do DTO, garantindo que campos
+> internos não vazem) é uma **task futura** — que também reescreverá os testes
+> que hoje asseveram a linha crua.
+
 ## Documentação (OpenAPI / Swagger)
 
 A documentação é **gerada a partir do código** (tipos dos DTOs + decorators) e

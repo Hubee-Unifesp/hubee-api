@@ -1,4 +1,10 @@
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { TicketTypeResponseDto } from './dto/ticket-type-response.dto';
 import {
   Body,
   Controller,
@@ -22,6 +28,7 @@ export class TicketTypeController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiCreatedResponse({ type: TicketTypeResponseDto })
   create(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Body() dto: CreateTicketTypeDto,
@@ -30,11 +37,13 @@ export class TicketTypeController {
   }
 
   @Get()
+  @ApiOkResponse({ type: TicketTypeResponseDto, isArray: true })
   findAll(@Param('eventId', ParseUUIDPipe) eventId: string) {
     return this.ticketTypeService.findAll(eventId);
   }
 
   @Get(':id')
+  @ApiOkResponse({ type: TicketTypeResponseDto })
   findOne(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -43,6 +52,7 @@ export class TicketTypeController {
   }
 
   @Patch(':id')
+  @ApiOkResponse({ type: TicketTypeResponseDto })
   update(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -53,6 +63,7 @@ export class TicketTypeController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
   async remove(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,

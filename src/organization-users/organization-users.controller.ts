@@ -1,4 +1,10 @@
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { OrganizationUserResponseDto } from './dto/organization-user-response.dto';
 import {
   Body,
   Controller,
@@ -24,6 +30,7 @@ export class OrganizationUsersController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiCreatedResponse({ type: OrganizationUserResponseDto })
   create(
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Body() dto: CreateOrganizationUserDto,
@@ -32,11 +39,13 @@ export class OrganizationUsersController {
   }
 
   @Get()
+  @ApiOkResponse({ type: OrganizationUserResponseDto, isArray: true })
   findAll(@Param('orgId', ParseUUIDPipe) orgId: string) {
     return this.organizationUsersService.findAll(orgId);
   }
 
   @Patch(':userId')
+  @ApiOkResponse({ type: OrganizationUserResponseDto })
   update(
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('userId', ParseUUIDPipe) userId: string,
@@ -47,6 +56,7 @@ export class OrganizationUsersController {
 
   @Delete(':userId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
   async remove(
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('userId', ParseUUIDPipe) userId: string,

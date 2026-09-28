@@ -1,4 +1,5 @@
-import { ApiTags } from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { TicketResponseDto } from './dto/ticket-response.dto';
 import {
   Body,
   Controller,
@@ -26,6 +27,7 @@ export class TicketController {
 
   @Post('orders/:orderId/tickets')
   @HttpCode(HttpStatus.CREATED)
+  @ApiCreatedResponse({ type: TicketResponseDto, isArray: true })
   create(
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: CreateTicketsDto,
@@ -34,16 +36,19 @@ export class TicketController {
   }
 
   @Get('orders/:orderId/tickets')
+  @ApiOkResponse({ type: TicketResponseDto, isArray: true })
   findAllByOrder(@Param('orderId', ParseUUIDPipe) orderId: string) {
     return this.ticketService.findAllByOrder(orderId);
   }
 
   @Get('tickets/:id')
+  @ApiOkResponse({ type: TicketResponseDto })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.ticketService.findOne(id);
   }
 
   @Patch('tickets/:id')
+  @ApiOkResponse({ type: TicketResponseDto })
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateTicketDto) {
     return this.ticketService.update(id, dto);
   }

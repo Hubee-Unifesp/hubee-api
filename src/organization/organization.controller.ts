@@ -1,4 +1,10 @@
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { OrganizationResponseDto } from './dto/organization-response.dto';
 import {
   Body,
   Controller,
@@ -24,21 +30,25 @@ export class OrganizationController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiCreatedResponse({ type: OrganizationResponseDto })
   create(@Body() dto: CreateOrganizationDto) {
     return this.organizationService.create(dto);
   }
 
   @Get()
+  @ApiOkResponse({ type: OrganizationResponseDto, isArray: true })
   findAll(@Query() query: QueryOrganizationDto) {
     return this.organizationService.findAll(query);
   }
 
   @Get(':id')
+  @ApiOkResponse({ type: OrganizationResponseDto })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.organizationService.findOne(id);
   }
 
   @Patch(':id')
+  @ApiOkResponse({ type: OrganizationResponseDto })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateOrganizationDto,
@@ -48,6 +58,7 @@ export class OrganizationController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
   async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.organizationService.remove(id);
   }

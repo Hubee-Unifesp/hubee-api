@@ -1,4 +1,10 @@
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { ExpenseResponseDto } from './dto/expense-response.dto';
 import {
   Body,
   Controller,
@@ -24,6 +30,7 @@ export class ExpensesController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiCreatedResponse({ type: ExpenseResponseDto })
   create(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Body() dto: CreateExpenseDto,
@@ -32,6 +39,7 @@ export class ExpensesController {
   }
 
   @Get()
+  @ApiOkResponse({ type: ExpenseResponseDto, isArray: true })
   findAll(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Query() query: QueryExpenseDto,
@@ -40,6 +48,7 @@ export class ExpensesController {
   }
 
   @Get(':id')
+  @ApiOkResponse({ type: ExpenseResponseDto })
   findOne(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -48,6 +57,7 @@ export class ExpensesController {
   }
 
   @Patch(':id')
+  @ApiOkResponse({ type: ExpenseResponseDto })
   update(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -58,6 +68,7 @@ export class ExpensesController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
   async remove(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,

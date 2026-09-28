@@ -1,4 +1,10 @@
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { SupplierResponseDto } from './dto/supplier-response.dto';
 import {
   Controller,
   Get,
@@ -21,21 +27,25 @@ export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
 
   @Post()
+  @ApiCreatedResponse({ type: SupplierResponseDto })
   create(@Body() createSupplierDto: CreateSupplierDto) {
     return this.suppliersService.create(createSupplierDto);
   }
 
   @Get()
+  @ApiOkResponse({ type: SupplierResponseDto, isArray: true })
   findAll() {
     return this.suppliersService.findAll();
   }
 
   @Get(':id')
+  @ApiOkResponse({ type: SupplierResponseDto })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.suppliersService.findOne(id);
   }
 
   @Patch(':id')
+  @ApiOkResponse({ type: SupplierResponseDto })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateSupplierDto: UpdateSupplierDto,
@@ -45,6 +55,7 @@ export class SuppliersController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
   async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.suppliersService.remove(id);
   }
