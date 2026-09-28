@@ -8,8 +8,18 @@ import { UpdateAddressDto } from './dto/update-address.dto';
 export class AddressService {
   constructor(private readonly addressRepository: AddressRepository) {}
 
-  create(dto: CreateAddressDto, executor?: DbExecutor) {
-    return this.addressRepository.create(dto, executor);
+  async create(dto: CreateAddressDto, executor?: DbExecutor) {
+    const data = { ...dto, country: dto.country ?? 'Brasil' };
+    const existing = await this.addressRepository.findByFullAddress(
+      data,
+      executor,
+    );
+
+    if (existing) {
+      return existing;
+    }
+
+    return this.addressRepository.create(data, executor);
   }
 
   findById(id: string, executor?: DbExecutor) {

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { UsuariosService } from '../usuarios/usuarios.service';
+import { UsersService } from '../users/users.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import {
@@ -11,7 +11,7 @@ import {
 export class OrganizationService {
   constructor(
     private readonly organizationRepository: OrganizationRepository,
-    private readonly usuariosService: UsuariosService,
+    private readonly usersService: UsersService,
   ) {}
 
   findAll(filters: FindAllOrganizationsFilters) {
@@ -54,7 +54,7 @@ export class OrganizationService {
     }
 
     try {
-      await this.usuariosService.findOne(representativeId);
+      await this.usersService.findOne(representativeId);
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw new NotFoundException(

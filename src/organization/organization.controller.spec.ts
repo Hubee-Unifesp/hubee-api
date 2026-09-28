@@ -32,7 +32,7 @@ describe('OrganizationController', () => {
     controller = module.get(OrganizationController);
   });
 
-  it('POST /organizacoes delega para organizationService.create()', async () => {
+  it('POST /organizations delega para organizationService.create()', async () => {
     const dto: CreateOrganizationDto = { name: 'Centro Acadêmico' };
     const created = { id: 'org-1', ...dto } as never;
     service.create.mockResolvedValue(created);
@@ -43,7 +43,7 @@ describe('OrganizationController', () => {
     expect(result).toEqual(created);
   });
 
-  it('GET /organizacoes delega para organizationService.findAll() com os filtros da query', async () => {
+  it('GET /organizations delega para organizationService.findAll() com os filtros da query', async () => {
     const list = [{ id: 'org-1' }] as never;
     service.findAll.mockResolvedValue(list);
 
@@ -53,7 +53,7 @@ describe('OrganizationController', () => {
     expect(result).toEqual(list);
   });
 
-  it('GET /organizacoes/:id delega para organizationService.findOne()', async () => {
+  it('GET /organizations/:id delega para organizationService.findOne()', async () => {
     const organization = { id: 'org-1' } as never;
     service.findOne.mockResolvedValue(organization);
 
@@ -63,7 +63,7 @@ describe('OrganizationController', () => {
     expect(result).toEqual(organization);
   });
 
-  it('PATCH /organizacoes/:id delega para organizationService.update()', async () => {
+  it('PATCH /organizations/:id delega para organizationService.update()', async () => {
     const dto: UpdateOrganizationDto = { name: 'Novo nome' };
     const updated = { id: 'org-1', ...dto } as never;
     service.update.mockResolvedValue(updated);
@@ -74,7 +74,7 @@ describe('OrganizationController', () => {
     expect(result).toEqual(updated);
   });
 
-  it('DELETE /organizacoes/:id delega para organizationService.remove()', async () => {
+  it('DELETE /organizations/:id delega para organizationService.remove()', async () => {
     service.remove.mockResolvedValue(undefined);
 
     await controller.remove('org-1');

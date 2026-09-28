@@ -4,12 +4,21 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
+import { ExpensesModule } from './expenses/expenses.module';
+import { EventModule } from './event/event.module';
 import { HealthModule } from './health/health.module';
-import { OrganizacaoUsuariosModule } from './organizacao-usuarios/organizacao-usuarios.module';
+import { OrderModule } from './order/order.module';
+import { OrganizationUsersModule } from './organization-users/organization-users.module';
+import { OrganizationEventModule } from './organization-event/organization-event.module';
 import { OrganizationModule } from './organization/organization.module';
-import { UsuariosModule } from './usuarios/usuarios.module';
+import { TaskModule } from './task/task.module';
+import { PaymentModule } from './payment/payment.module';
+import { TicketModule } from './ticket/ticket.module';
+import { TicketTypeModule } from './ticket-type/ticket-type.module';
+import { UsersModule } from './users/users.module';
 import { VenueModule } from './venue/venue.module';
-import { FornecedoresModule } from './fornecedores/fornecedores.module';
+import { SuppliersModule } from './suppliers/suppliers.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -19,12 +28,21 @@ import { FornecedoresModule } from './fornecedores/fornecedores.module';
       validate: validateEnv,
     }),
     DatabaseModule,
+    ExpensesModule,
+    EventModule,
     HealthModule,
-    OrganizacaoUsuariosModule,
+    OrderModule,
+    OrganizationUsersModule,
+    OrganizationEventModule,
     OrganizationModule,
-    UsuariosModule,
+    TaskModule,
+    PaymentModule,
+    TicketModule,
+    TicketTypeModule,
+    UsersModule,
     VenueModule,
-    FornecedoresModule,
+    SuppliersModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

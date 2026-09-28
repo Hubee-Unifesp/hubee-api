@@ -50,6 +50,7 @@ Preencha o `.env` com os dados de conexão do banco:
 | `DB_PASSWORD` | Senha                                                       |
 | `DB_NAME`     | Nome do banco                                               |
 | `DB_SSL`      | `true` para o Neon (exige TLS), `false` para Postgres local |
+| `JWT_SECRET`  | Segredo para assinar os tokens JWT (obrigatório)            |
 
 No Neon, esses valores estão em **Dashboard > Connect > Parameters only**.
 
@@ -63,6 +64,16 @@ npm run start:dev
 ```
 
 A aplicação será iniciada em `http://localhost:3000`.
+
+### Documentação da API (Swagger)
+
+Com a aplicação rodando, a documentação interativa (OpenAPI/Swagger) fica em:
+
+- **Swagger UI**: `http://localhost:3000/docs`
+- **Spec OpenAPI (JSON)**: `http://localhost:3000/docs-json`
+
+As convenções de nomenclatura e o padrão de respostas estão em
+[`docs/CONVENTIONS.md`](docs/CONVENTIONS.md).
 
 ### Verificar a conexão com o banco
 

@@ -1,0 +1,26 @@
+name: Avisar PR pronto para revisão
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+jobs:
+  notify:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar alerta no Discord
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          URL: ${{ github.event.pull_request.html_url }}
+          REPO: ${{ github.repository }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          PAYLOAD=$(jq -n \
+            --arg repo "$REPO" \
+            --arg title "$TITLE" \
+            --arg author "$AUTHOR" \
+            --arg url "$URL" \
+            '{content: ("⚠️ **REVISÃO IMPORTANTE — não deixem acumular!** @everyone\n\n**" + $title + "**\nRepositório: " + $repo + "\nAutor: " + $author + "\n" + $url + "\n\n🙏 Por favor revisem o quanto antes, isso trava o andamento do time.")}')
+          curl -s -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK"

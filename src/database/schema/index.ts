@@ -6,8 +6,16 @@
  * usa o mesmo objeto para tipar as queries.
  */
 export * from './user';
+export * from './order.schema';
+export * from './event.schema';
+export * from './task.schema';
+export * from './ticket-type.schema';
+export * from './ticket.schema';
 export * from './address.schema';
 export * from './venue.schema';
 export * from './organization-user';
-export * from './fornecedor';
+export * from './organization-event.schema';
+export * from './supplier';
 export * from './organization.schema';
+export * from './expense.schema';
+export * from './payment.schema';
