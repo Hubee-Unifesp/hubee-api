@@ -26,8 +26,8 @@ export class UsuariosService {
       .from(usuarios)
       .where(
         and(
-          data.cpf 
-            ? or(eq(usuarios.email, data.email), eq(usuarios.cpf, data.cpf)) 
+          data.cpf
+            ? or(eq(usuarios.email, data.email), eq(usuarios.cpf, data.cpf))
             : eq(usuarios.email, data.email),
           isNull(usuarios.deletedAt),
         ),
@@ -36,16 +36,16 @@ export class UsuariosService {
     if (existingUser.length > 0) {
       throw new ConflictException('E-mail ou CPF já cadastrados.');
     }
-    
+
     const hashedPassword = await bcrypt.hash(data.password, 10);
-    
+
     const [newUser] = await this.db
       .insert(usuarios)
       .values({
         ...data,
         password: hashedPassword,
-        birthDate: data.birthDate 
-          ? new Date(data.birthDate).toISOString().split('T')[0] 
+        birthDate: data.birthDate
+          ? new Date(data.birthDate).toISOString().split('T')[0]
           : undefined,
       })
       .returning();
