@@ -34,15 +34,17 @@ export class CreateUserDto {
   password: string;
 
   @TrimString()
+  @IsOptional()
   @IsNumberString({}, { message: 'O CPF deve conter apenas números' })
   @Length(11, 11, { message: 'O CPF deve ter 11 dígitos' })
-  cpf: string;
+  cpf?: string;
 
+  @IsOptional()
   @IsDateString({}, { message: 'Data de nascimento inválida' })
-  birthDate: string;
+  birthDate?: string;
 
   @TrimString()
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'O tipo de perfil é obrigatório' })
-  profileType: string;
+  profileType?: string;
 }

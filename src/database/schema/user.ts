@@ -17,9 +17,11 @@ export const users = pgTable(
     email: varchar('email', { length: 255 }).notNull(),
     phone: varchar('phone', { length: 20 }),
     password: varchar('password', { length: 255 }).notNull(),
-    cpf: varchar('cpf', { length: 11 }).notNull(),
-    birthDate: date('birth_date').notNull(),
-    profileType: varchar('profile_type', { length: 50 }).notNull(),
+    cpf: varchar('cpf', { length: 11 }),
+    birthDate: date('birth_date'),
+    profileType: varchar('profile_type', { length: 50 })
+      .default('USER')
+      .notNull(),
     status: varchar('status', { length: 20 }).default('ACTIVE'),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),
