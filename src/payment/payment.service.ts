@@ -9,7 +9,7 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { PaymentRepository } from './payment.repository';
 
-// Máquina de estados para garantir transições válidas de payment
+// Máquina de estados para garantir transições válidas de pagamento
 const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
   pendente: ['confirmado', 'recusado'],
   confirmado: ['estornado'],

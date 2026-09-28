@@ -1,6 +1,6 @@
 # Atualização de locais e troca de endereço
 
-Este documento descreve o comportamento atual de `PATCH /locais/:id` em
+Este documento descreve o comportamento atual de `PATCH /venues/:id` em
 `VenueService.update` e as decisões pendentes identificadas na revisão do PR.
 
 ## Identidade do local e vínculo dos eventos
@@ -36,7 +36,7 @@ os eventos vinculados passam a consultar o endereço atualizado.
 
 ## Listagem de locais inativos
 
-`VenueRepository.findAll`, usado por `GET /locais`, filtra apenas cidade e
+`VenueRepository.findAll`, usado por `GET /venues`, filtra apenas cidade e
 estado. Não aplica filtro de `active`. Assim, o local antigo inativo e o novo
 podem aparecer juntos na listagem, desde que ambos atendam aos filtros.
 
