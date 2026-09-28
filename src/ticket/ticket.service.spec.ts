@@ -8,7 +8,7 @@ import { events, orders, ticketTypes, tickets } from '../database/schema';
 import { EventService } from '../event/event.service';
 import { OrderService } from '../order/order.service';
 import { TicketTypeService } from '../ticket-type/ticket-type.service';
-import { UsuariosService } from '../usuarios/usuarios.service';
+import { UsersService } from '../users/users.service';
 import { TicketRepository } from './ticket.repository';
 import { TicketService } from './ticket.service';
 
@@ -91,7 +91,7 @@ describe('TicketService', () => {
   let ticketTypeService: {
     findOne: jest.Mock<TicketTypeService['findOne']>;
   };
-  let usuariosService: { findOne: jest.Mock<UsuariosService['findOne']> };
+  let usersService: { findOne: jest.Mock<UsersService['findOne']> };
 
   beforeEach(async () => {
     ticketRepository = {
@@ -105,7 +105,7 @@ describe('TicketService', () => {
     ticketTypeService = {
       findOne: jest.fn<TicketTypeService['findOne']>(),
     };
-    usuariosService = { findOne: jest.fn<UsuariosService['findOne']>() };
+    usersService = { findOne: jest.fn<UsersService['findOne']>() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -114,7 +114,7 @@ describe('TicketService', () => {
         { provide: OrderService, useValue: orderService },
         { provide: EventService, useValue: eventService },
         { provide: TicketTypeService, useValue: ticketTypeService },
-        { provide: UsuariosService, useValue: usuariosService },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -175,7 +175,7 @@ describe('TicketService', () => {
       orderService.findOne.mockResolvedValue(makeOrder());
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeService.findOne.mockResolvedValue(makeTicketType());
-      usuariosService.findOne.mockResolvedValue({} as never);
+      usersService.findOne.mockResolvedValue({} as never);
       ticketRepository.createMany.mockImplementation((data) =>
         Promise.resolve(data.map((row) => makeTicket(row))),
       );
@@ -211,7 +211,7 @@ describe('TicketService', () => {
         'event-1',
         'type-1',
       );
-      expect(usuariosService.findOne).toHaveBeenCalledTimes(1);
+      expect(usersService.findOne).toHaveBeenCalledTimes(1);
     });
 
     it('lança NotFound quando o pedido não existe', async () => {
@@ -265,7 +265,7 @@ describe('TicketService', () => {
     });
 
     it('lança NotFound quando o titular não existe, sem criar nenhum ingresso do lote', async () => {
-      usuariosService.findOne.mockRejectedValue(new NotFoundException());
+      usersService.findOne.mockRejectedValue(new NotFoundException());
 
       await expect(service.create('order-1', dto)).rejects.toBeInstanceOf(
         NotFoundException,
@@ -275,7 +275,7 @@ describe('TicketService', () => {
 
     it('propaga erros inesperados ao consultar o titular', async () => {
       const boom = new Error('db down');
-      usuariosService.findOne.mockRejectedValue(boom);
+      usersService.findOne.mockRejectedValue(boom);
 
       await expect(service.create('order-1', dto)).rejects.toBe(boom);
     });

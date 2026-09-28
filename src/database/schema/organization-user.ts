@@ -5,7 +5,7 @@ import {
   timestamp,
   primaryKey,
 } from 'drizzle-orm/pg-core';
-import { usuarios } from './user';
+import { users } from './user';
 import { organizations } from './organization.schema';
 
 /**
@@ -21,7 +21,7 @@ export const organizationUsers = pgTable(
 
     userId: uuid('user_id')
       .notNull()
-      .references(() => usuarios.id),
+      .references(() => users.id),
     role: varchar('role', { length: 20 }).notNull(),
     permission: varchar('permission', { length: 20 }).notNull(),
     inviteStatus: varchar('invite_status', { length: 20 })

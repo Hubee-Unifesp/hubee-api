@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { orders } from '../database/schema';
-import { UsuariosService } from '../usuarios/usuarios.service';
+import { UsersService } from '../users/users.service';
 import { OrderRepository } from './order.repository';
 import { OrderService } from './order.service';
 
@@ -31,8 +31,8 @@ describe('OrderService', () => {
     create: jest.Mock<OrderRepository['create']>;
     update: jest.Mock<OrderRepository['update']>;
   };
-  let usuariosService: {
-    findOne: jest.Mock<UsuariosService['findOne']>;
+  let usersService: {
+    findOne: jest.Mock<UsersService['findOne']>;
   };
 
   beforeEach(async () => {
@@ -42,15 +42,15 @@ describe('OrderService', () => {
       create: jest.fn<OrderRepository['create']>(),
       update: jest.fn<OrderRepository['update']>(),
     };
-    usuariosService = {
-      findOne: jest.fn<UsuariosService['findOne']>(),
+    usersService = {
+      findOne: jest.fn<UsersService['findOne']>(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrderService,
         { provide: OrderRepository, useValue: orderRepository },
-        { provide: UsuariosService, useValue: usuariosService },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -95,7 +95,7 @@ describe('OrderService', () => {
   describe('create()', () => {
     it('cria o pedido depois de confirmar que o comprador existe', async () => {
       const created = makeOrder();
-      usuariosService.findOne.mockResolvedValue({ id: 'user-1' });
+      usersService.findOne.mockResolvedValue({ id: 'user-1' });
       orderRepository.create.mockResolvedValue(created);
 
       const result = await service.create({
@@ -103,7 +103,7 @@ describe('OrderService', () => {
         totalAmount: 150.5,
       });
 
-      expect(usuariosService.findOne).toHaveBeenCalledWith('user-1');
+      expect(usersService.findOne).toHaveBeenCalledWith('user-1');
       expect(orderRepository.create).toHaveBeenCalledWith({
         userId: 'user-1',
         totalAmount: 150.5,
@@ -112,7 +112,7 @@ describe('OrderService', () => {
     });
 
     it('lança NotFound e não cria quando o comprador não existe', async () => {
-      usuariosService.findOne.mockRejectedValue(
+      usersService.findOne.mockRejectedValue(
         new NotFoundException('Usuário não encontrado.'),
       );
 
@@ -123,7 +123,7 @@ describe('OrderService', () => {
     });
 
     it('propaga erros inesperados da consulta de usuários', async () => {
-      usuariosService.findOne.mockRejectedValue(new Error('conexão perdida'));
+      usersService.findOne.mockRejectedValue(new Error('conexão perdida'));
 
       await expect(
         service.create({ userId: 'user-1', totalAmount: 10 }),

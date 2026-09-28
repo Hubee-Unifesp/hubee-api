@@ -38,7 +38,7 @@ export class VenueService {
   }
 
   async create(dto: CreateVenueDto) {
-    return this.db.transaction(async (tx) => {
+    const venueId = await this.db.transaction(async (tx) => {
       const addressId = await this.resolveAddressForCreate(dto, tx);
       const existing = await this.venueRepository.findByNameCapacityAndAddress(
         dto.name,
@@ -48,18 +48,23 @@ export class VenueService {
       );
 
       if (existing) {
-        return existing;
+        return existing.id;
       }
 
-      return this.venueRepository.create(
+      const created = await this.venueRepository.create(
         { name: dto.name, maxCapacity: dto.maxCapacity, addressId },
         tx,
       );
+      return created.id;
     });
+
+    // Relê o recurso completo (com o endereço aninhado) para que a resposta de
+    // create seja idêntica à do GET.
+    return this.findOne(venueId);
   }
 
   async update(id: string, dto: UpdateVenueDto) {
-    return this.db.transaction(async (tx) => {
+    const resultId = await this.db.transaction(async (tx) => {
       const venue = await this.venueRepository.findById(id, tx);
       if (!venue) {
         throw new NotFoundException(`Local ${id} não encontrado`);
@@ -85,11 +90,11 @@ export class VenueService {
 
         if (existing && existing.id !== id && dto.active !== false) {
           await this.venueRepository.update(id, { active: false }, tx);
-          return existing;
+          return existing.id;
         }
 
         if (addressId === venue.addressId) {
-          return this.venueRepository.update(
+          const updated = await this.venueRepository.update(
             id,
             {
               name: dto.name,
@@ -98,6 +103,7 @@ export class VenueService {
             },
             tx,
           );
+          return updated.id;
         }
 
         const newVenue = await this.venueRepository.create(
@@ -112,10 +118,10 @@ export class VenueService {
 
         await this.venueRepository.update(id, { active: false }, tx);
 
-        return newVenue;
+        return newVenue.id;
       }
 
-      const updatedVenue = await this.venueRepository.update(
+      const updated = await this.venueRepository.update(
         id,
         {
           name: dto.name,
@@ -125,8 +131,12 @@ export class VenueService {
         tx,
       );
 
-      return updatedVenue;
+      return updated.id;
     });
+
+    // Relê o recurso completo (com o endereço aninhado) para alinhar a resposta
+    // de update com a do GET.
+    return this.findOne(resultId);
   }
 
   async remove(id: string): Promise<void> {

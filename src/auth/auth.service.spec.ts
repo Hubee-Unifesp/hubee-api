@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
-import { UsuariosService } from '../usuarios/usuarios.service';
+import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 
 describe('AuthService', () => {
@@ -11,7 +11,7 @@ describe('AuthService', () => {
       providers: [
         AuthService,
         {
-          provide: UsuariosService,
+          provide: UsersService,
           useValue: {
             findByEmail: () => {},
           },

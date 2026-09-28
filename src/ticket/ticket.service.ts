@@ -8,7 +8,7 @@ import type { TicketStatus } from '../database/schema';
 import { EventService } from '../event/event.service';
 import { OrderService } from '../order/order.service';
 import { TicketTypeService } from '../ticket-type/ticket-type.service';
-import { UsuariosService } from '../usuarios/usuarios.service';
+import { UsersService } from '../users/users.service';
 import { CreateTicketsDto } from './dto/create-tickets.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { TicketRepository } from './ticket.repository';
@@ -30,7 +30,7 @@ export class TicketService {
     private readonly orderService: OrderService,
     private readonly eventService: EventService,
     private readonly ticketTypeService: TicketTypeService,
-    private readonly usuariosService: UsuariosService,
+    private readonly usersService: UsersService,
   ) {}
 
   /** Consulta o pedido antes para que um pedido inexistente dê 404, e não `[]`. */
@@ -131,7 +131,7 @@ export class TicketService {
   private async ensureUsersExist(userIds: string[]) {
     for (const userId of new Set(userIds)) {
       try {
-        await this.usuariosService.findOne(userId);
+        await this.usersService.findOne(userId);
       } catch (error) {
         if (error instanceof NotFoundException) {
           throw new NotFoundException(`Usuário ${userId} não encontrado`);

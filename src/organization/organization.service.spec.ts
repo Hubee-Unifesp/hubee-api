@@ -2,7 +2,7 @@ import { jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { organizations } from '../database/schema';
-import { UsuariosService } from '../usuarios/usuarios.service';
+import { UsersService } from '../users/users.service';
 import { OrganizationRepository } from './organization.repository';
 import { OrganizationService } from './organization.service';
 
@@ -29,8 +29,8 @@ describe('OrganizationService', () => {
     update: jest.Mock<OrganizationRepository['update']>;
     delete: jest.Mock<OrganizationRepository['delete']>;
   };
-  let usuariosService: {
-    findOne: jest.Mock<UsuariosService['findOne']>;
+  let usersService: {
+    findOne: jest.Mock<UsersService['findOne']>;
   };
 
   beforeEach(async () => {
@@ -41,8 +41,8 @@ describe('OrganizationService', () => {
       update: jest.fn<OrganizationRepository['update']>(),
       delete: jest.fn<OrganizationRepository['delete']>(),
     };
-    usuariosService = {
-      findOne: jest.fn<UsuariosService['findOne']>(),
+    usersService = {
+      findOne: jest.fn<UsersService['findOne']>(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -53,8 +53,8 @@ describe('OrganizationService', () => {
           useValue: organizationRepository,
         },
         {
-          provide: UsuariosService,
-          useValue: usuariosService,
+          provide: UsersService,
+          useValue: usersService,
         },
       ],
     }).compile();
@@ -115,12 +115,12 @@ describe('OrganizationService', () => {
 
       await service.create({ name: 'Centro Acadêmico' });
 
-      expect(usuariosService.findOne).not.toHaveBeenCalled();
+      expect(usersService.findOne).not.toHaveBeenCalled();
     });
 
     it('valida o representante antes de criar', async () => {
       const created = makeOrganization({ representativeId: 'user-1' });
-      usuariosService.findOne.mockResolvedValue({ id: 'user-1' });
+      usersService.findOne.mockResolvedValue({ id: 'user-1' });
       organizationRepository.create.mockResolvedValue(created);
 
       const result = await service.create({
@@ -128,12 +128,12 @@ describe('OrganizationService', () => {
         representativeId: 'user-1',
       });
 
-      expect(usuariosService.findOne).toHaveBeenCalledWith('user-1');
+      expect(usersService.findOne).toHaveBeenCalledWith('user-1');
       expect(result).toEqual(created);
     });
 
     it('lança NotFound e não cria quando o representante não existe', async () => {
-      usuariosService.findOne.mockRejectedValue(
+      usersService.findOne.mockRejectedValue(
         new NotFoundException('Usuário não encontrado.'),
       );
 
@@ -147,7 +147,7 @@ describe('OrganizationService', () => {
     });
 
     it('propaga erros inesperados da consulta de usuários', async () => {
-      usuariosService.findOne.mockRejectedValue(new Error('conexão perdida'));
+      usersService.findOne.mockRejectedValue(new Error('conexão perdida'));
 
       await expect(
         service.create({
@@ -185,7 +185,7 @@ describe('OrganizationService', () => {
 
     it('lança NotFound e não escreve quando o novo representante não existe', async () => {
       organizationRepository.findById.mockResolvedValue(makeOrganization());
-      usuariosService.findOne.mockRejectedValue(
+      usersService.findOne.mockRejectedValue(
         new NotFoundException('Usuário não encontrado.'),
       );
 

@@ -32,7 +32,7 @@ describe('VenueController', () => {
     controller = module.get(VenueController);
   });
 
-  it('POST /locais delega para venueService.create()', async () => {
+  it('POST /venues delega para venueService.create()', async () => {
     const dto: CreateVenueDto = {
       name: 'Auditório A',
       maxCapacity: 100,
@@ -47,7 +47,7 @@ describe('VenueController', () => {
     expect(result).toEqual(created);
   });
 
-  it('GET /locais delega para venueService.findAll() com os filtros da query', async () => {
+  it('GET /venues delega para venueService.findAll() com os filtros da query', async () => {
     const list = [{ id: 'venue-1' }] as never;
     service.findAll.mockResolvedValue(list);
 
@@ -57,7 +57,7 @@ describe('VenueController', () => {
     expect(result).toEqual(list);
   });
 
-  it('GET /locais/:id delega para venueService.findOne()', async () => {
+  it('GET /venues/:id delega para venueService.findOne()', async () => {
     const venue = { id: 'venue-1' } as never;
     service.findOne.mockResolvedValue(venue);
 
@@ -67,7 +67,7 @@ describe('VenueController', () => {
     expect(result).toEqual(venue);
   });
 
-  it('PATCH /locais/:id delega para venueService.update()', async () => {
+  it('PATCH /venues/:id delega para venueService.update()', async () => {
     const dto: UpdateVenueDto = { name: 'Novo nome' };
     const updated = { id: 'venue-1', ...dto } as never;
     service.update.mockResolvedValue(updated);
@@ -78,7 +78,7 @@ describe('VenueController', () => {
     expect(result).toEqual(updated);
   });
 
-  it('DELETE /locais/:id delega para venueService.remove()', async () => {
+  it('DELETE /venues/:id delega para venueService.remove()', async () => {
     service.remove.mockResolvedValue(undefined);
 
     await controller.remove('venue-1');

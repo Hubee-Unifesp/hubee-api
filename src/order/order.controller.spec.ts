@@ -32,7 +32,7 @@ describe('OrderController', () => {
     controller = module.get(OrderController);
   });
 
-  it('POST /pedidos delega para orderService.create()', async () => {
+  it('POST /orders delega para orderService.create()', async () => {
     const dto: CreateOrderDto = { userId: 'user-1', totalAmount: 150.5 };
     const created = { id: 'order-1', ...dto } as never;
     service.create.mockResolvedValue(created);
@@ -43,7 +43,7 @@ describe('OrderController', () => {
     expect(result).toEqual(created);
   });
 
-  it('GET /pedidos delega para orderService.findAll() com os filtros da query', async () => {
+  it('GET /orders delega para orderService.findAll() com os filtros da query', async () => {
     const list = [{ id: 'order-1' }] as never;
     service.findAll.mockResolvedValue(list);
 
@@ -59,7 +59,7 @@ describe('OrderController', () => {
     expect(result).toEqual(list);
   });
 
-  it('GET /pedidos/:id delega para orderService.findOne()', async () => {
+  it('GET /orders/:id delega para orderService.findOne()', async () => {
     const order = { id: 'order-1' } as never;
     service.findOne.mockResolvedValue(order);
 
@@ -69,7 +69,7 @@ describe('OrderController', () => {
     expect(result).toEqual(order);
   });
 
-  it('PATCH /pedidos/:id delega para orderService.update()', async () => {
+  it('PATCH /orders/:id delega para orderService.update()', async () => {
     const dto: UpdateOrderDto = { status: 'pago' };
     const updated = { id: 'order-1', ...dto } as never;
     service.update.mockResolvedValue(updated);
@@ -80,7 +80,7 @@ describe('OrderController', () => {
     expect(result).toEqual(updated);
   });
 
-  it('DELETE /pedidos/:id delega para orderService.cancel()', async () => {
+  it('DELETE /orders/:id delega para orderService.cancel()', async () => {
     service.cancel.mockResolvedValue(undefined);
 
     await controller.remove('order-1');

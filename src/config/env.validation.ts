@@ -6,7 +6,7 @@ export interface EnvironmentVariables {
   DB_PASSWORD: string;
   DB_NAME: string;
   DB_SSL: boolean;
-  JWT_SECRET: string; // <-- Adicionado aqui
+  JWT_SECRET: string;
 }
 
 function requireString(

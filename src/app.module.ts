@@ -4,20 +4,20 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
-import { DespesasModule } from './despesas/despesas.module';
+import { ExpensesModule } from './expenses/expenses.module';
 import { EventModule } from './event/event.module';
 import { HealthModule } from './health/health.module';
 import { OrderModule } from './order/order.module';
-import { OrganizacaoUsuariosModule } from './organizacao-usuarios/organizacao-usuarios.module';
+import { OrganizationUsersModule } from './organization-users/organization-users.module';
 import { OrganizationEventModule } from './organization-event/organization-event.module';
 import { OrganizationModule } from './organization/organization.module';
 import { TaskModule } from './task/task.module';
-import { PagamentoModule } from './pagamento/pagamento.module';
+import { PaymentModule } from './payment/payment.module';
 import { TicketModule } from './ticket/ticket.module';
 import { TicketTypeModule } from './ticket-type/ticket-type.module';
-import { UsuariosModule } from './usuarios/usuarios.module';
+import { UsersModule } from './users/users.module';
 import { VenueModule } from './venue/venue.module';
-import { FornecedoresModule } from './fornecedores/fornecedores.module';
+import { SuppliersModule } from './suppliers/suppliers.module';
 import { AuthModule } from './auth/auth.module';
 
 @Module({
@@ -28,20 +28,20 @@ import { AuthModule } from './auth/auth.module';
       validate: validateEnv,
     }),
     DatabaseModule,
-    DespesasModule,
+    ExpensesModule,
     EventModule,
     HealthModule,
     OrderModule,
-    OrganizacaoUsuariosModule,
+    OrganizationUsersModule,
     OrganizationEventModule,
     OrganizationModule,
     TaskModule,
-    PagamentoModule,
+    PaymentModule,
     TicketModule,
     TicketTypeModule,
-    UsuariosModule,
+    UsersModule,
     VenueModule,
-    FornecedoresModule,
+    SuppliersModule,
     AuthModule,
   ],
   controllers: [AppController],

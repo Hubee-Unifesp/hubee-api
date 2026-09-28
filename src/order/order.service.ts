@@ -3,7 +3,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { UsuariosService } from '../usuarios/usuarios.service';
+import { UsersService } from '../users/users.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { FindAllOrdersFilters, OrderRepository } from './order.repository';
@@ -12,7 +12,7 @@ import { FindAllOrdersFilters, OrderRepository } from './order.repository';
 export class OrderService {
   constructor(
     private readonly orderRepository: OrderRepository,
-    private readonly usuariosService: UsuariosService,
+    private readonly usersService: UsersService,
   ) {}
 
   findAll(filters: FindAllOrdersFilters) {
@@ -69,7 +69,7 @@ export class OrderService {
    */
   private async ensureUserExists(userId: string): Promise<void> {
     try {
-      await this.usuariosService.findOne(userId);
+      await this.usersService.findOne(userId);
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw new NotFoundException(`Usuário ${userId} não encontrado`);

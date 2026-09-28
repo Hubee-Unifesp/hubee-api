@@ -1,4 +1,11 @@
 import {
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { OrganizationEventResponseDto } from './dto/organization-event-response.dto';
+import {
   Body,
   Controller,
   Delete,
@@ -12,7 +19,8 @@ import {
 import { CreateOrganizationEventDto } from './dto/create-organization-event.dto';
 import { OrganizationEventService } from './organization-event.service';
 
-@Controller('eventos/:eventId/organizacoes')
+@ApiTags('organization-events')
+@Controller('events/:eventId/organizations')
 export class OrganizationEventController {
   constructor(
     private readonly organizationEventService: OrganizationEventService,
@@ -20,6 +28,7 @@ export class OrganizationEventController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiCreatedResponse({ type: OrganizationEventResponseDto })
   create(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Body() dto: CreateOrganizationEventDto,
@@ -28,12 +37,14 @@ export class OrganizationEventController {
   }
 
   @Get()
+  @ApiOkResponse({ type: OrganizationEventResponseDto, isArray: true })
   findAll(@Param('eventId', ParseUUIDPipe) eventId: string) {
     return this.organizationEventService.findAll(eventId);
   }
 
   @Delete(':orgId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
   async remove(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('orgId', ParseUUIDPipe) orgId: string,

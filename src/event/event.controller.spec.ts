@@ -32,7 +32,7 @@ describe('EventController', () => {
     controller = module.get(EventController);
   });
 
-  it('POST /eventos delega para eventService.create()', async () => {
+  it('POST /events delega para eventService.create()', async () => {
     const dto: CreateEventDto = {
       name: 'Festa Junina 2026',
       organizerId: 'org-1',
@@ -49,7 +49,7 @@ describe('EventController', () => {
     expect(result).toEqual(created);
   });
 
-  it('GET /eventos delega para eventService.findAll() com os filtros da query', async () => {
+  it('GET /events delega para eventService.findAll() com os filtros da query', async () => {
     const list = [{ id: 'event-1' }] as never;
     service.findAll.mockResolvedValue(list);
 
@@ -65,7 +65,7 @@ describe('EventController', () => {
     expect(result).toEqual(list);
   });
 
-  it('GET /eventos/:id delega para eventService.findOne()', async () => {
+  it('GET /events/:id delega para eventService.findOne()', async () => {
     const event = { id: 'event-1' } as never;
     service.findOne.mockResolvedValue(event);
 
@@ -75,7 +75,7 @@ describe('EventController', () => {
     expect(result).toEqual(event);
   });
 
-  it('PATCH /eventos/:id delega para eventService.update()', async () => {
+  it('PATCH /events/:id delega para eventService.update()', async () => {
     const dto: UpdateEventDto = { status: 'published' };
     const updated = { id: 'event-1', ...dto } as never;
     service.update.mockResolvedValue(updated);
@@ -86,7 +86,7 @@ describe('EventController', () => {
     expect(result).toEqual(updated);
   });
 
-  it('DELETE /eventos/:id delega para eventService.cancel()', async () => {
+  it('DELETE /events/:id delega para eventService.cancel()', async () => {
     service.cancel.mockResolvedValue(undefined);
 
     await controller.remove('event-1');

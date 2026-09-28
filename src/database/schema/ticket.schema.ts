@@ -9,7 +9,7 @@ import {
 import { events } from './event.schema';
 import { orders } from './order.schema';
 import { ticketTypes } from './ticket-type.schema';
-import { usuarios } from './user';
+import { users } from './user';
 
 /** Situações de um ingresso: emitido no pedido, usado no check-in ou cancelado. */
 export const ticketStatus = pgEnum('ticket_status', [
@@ -41,7 +41,7 @@ export const tickets = pgTable(
       .references(() => ticketTypes.id, { onDelete: 'restrict' }),
     holderUserId: uuid('holder_user_id')
       .notNull()
-      .references(() => usuarios.id, { onDelete: 'restrict' }),
+      .references(() => users.id, { onDelete: 'restrict' }),
     status: ticketStatus('status').notNull().default('emitido'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
