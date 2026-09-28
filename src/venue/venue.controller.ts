@@ -1,3 +1,4 @@
+import { ApiTags } from '@nestjs/swagger';
 import {
   Body,
   Controller,
@@ -16,6 +17,7 @@ import { QueryVenueDto } from './dto/query-venue.dto';
 import { UpdateVenueDto } from './dto/update-venue.dto';
 import { VenueService } from './venue.service';
 
+@ApiTags('venues')
 @Controller('venues')
 export class VenueController {
   constructor(private readonly venueService: VenueService) {}

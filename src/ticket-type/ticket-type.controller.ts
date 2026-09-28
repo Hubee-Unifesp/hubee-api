@@ -1,3 +1,4 @@
+import { ApiTags } from '@nestjs/swagger';
 import {
   Body,
   Controller,
@@ -14,6 +15,7 @@ import { CreateTicketTypeDto } from './dto/create-ticket-type.dto';
 import { UpdateTicketTypeDto } from './dto/update-ticket-type.dto';
 import { TicketTypeService } from './ticket-type.service';
 
+@ApiTags('ticket-types')
 @Controller('events/:eventId/ticket-types')
 export class TicketTypeController {
   constructor(private readonly ticketTypeService: TicketTypeService) {}

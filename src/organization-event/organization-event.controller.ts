@@ -1,3 +1,4 @@
+import { ApiTags } from '@nestjs/swagger';
 import {
   Body,
   Controller,
@@ -12,6 +13,7 @@ import {
 import { CreateOrganizationEventDto } from './dto/create-organization-event.dto';
 import { OrganizationEventService } from './organization-event.service';
 
+@ApiTags('organization-events')
 @Controller('events/:eventId/organizations')
 export class OrganizationEventController {
   constructor(

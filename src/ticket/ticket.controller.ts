@@ -1,3 +1,4 @@
+import { ApiTags } from '@nestjs/swagger';
 import {
   Body,
   Controller,
@@ -18,6 +19,7 @@ import { TicketService } from './ticket.service';
  * pedido (`/orders/:orderId/tickets`), mas a consulta e a mudança de status
  * usam o ingresso direto (`/tickets/:id`), que é o que a portaria lê.
  */
+@ApiTags('tickets')
 @Controller()
 export class TicketController {
   constructor(private readonly ticketService: TicketService) {}

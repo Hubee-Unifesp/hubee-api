@@ -1,3 +1,4 @@
+import { ApiTags } from '@nestjs/swagger';
 import {
   Body,
   Controller,
@@ -14,6 +15,7 @@ import { OrganizationUsersService } from './organization-users.service';
 import { CreateOrganizationUserDto } from './dto/create-organization-user.dto';
 import { UpdateOrganizationUserDto } from './dto/update-organization-user.dto';
 
+@ApiTags('organization-users')
 @Controller('organizations/:orgId/users')
 export class OrganizationUsersController {
   constructor(

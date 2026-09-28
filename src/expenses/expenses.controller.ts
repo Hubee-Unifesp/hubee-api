@@ -1,3 +1,4 @@
+import { ApiTags } from '@nestjs/swagger';
 import {
   Body,
   Controller,
@@ -16,6 +17,7 @@ import { QueryExpenseDto } from './dto/query-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpensesService } from './expenses.service';
 
+@ApiTags('expenses')
 @Controller('events/:eventId/expenses')
 export class ExpensesController {
   constructor(private readonly expensesService: ExpensesService) {}

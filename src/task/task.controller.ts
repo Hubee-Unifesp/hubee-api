@@ -1,3 +1,4 @@
+import { ApiTags } from '@nestjs/swagger';
 import {
   Body,
   Controller,
@@ -16,6 +17,7 @@ import { QueryTaskDto } from './dto/query-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskService } from './task.service';
 
+@ApiTags('tasks')
 @Controller('events/:eventId/tasks')
 export class TaskController {
   constructor(private readonly taskService: TaskService) {}
