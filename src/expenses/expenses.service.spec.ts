@@ -195,9 +195,7 @@ describe('ExpensesService', () => {
         supplierId: 'novo-fornecedor',
       });
 
-      expect(suppliersService.findOne).toHaveBeenCalledWith(
-        'novo-fornecedor',
-      );
+      expect(suppliersService.findOne).toHaveBeenCalledWith('novo-fornecedor');
     });
 
     it('lança NotFound e não escreve quando a expense não existe', async () => {

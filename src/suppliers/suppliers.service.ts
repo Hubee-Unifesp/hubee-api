@@ -41,10 +41,7 @@ export class SuppliersService {
   }
 
   async findAll() {
-    return this.db
-      .select()
-      .from(suppliers)
-      .where(isNull(suppliers.deletedAt));
+    return this.db.select().from(suppliers).where(isNull(suppliers.deletedAt));
   }
 
   async findOne(id: string) {

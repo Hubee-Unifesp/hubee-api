@@ -78,9 +78,7 @@ export class ExpensesService {
       await this.suppliersService.findOne(supplierId);
     } catch (error) {
       if (error instanceof NotFoundException) {
-        throw new NotFoundException(
-          `Fornecedor ${supplierId} não encontrado`,
-        );
+        throw new NotFoundException(`Fornecedor ${supplierId} não encontrado`);
       }
       throw error;
     }

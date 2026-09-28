@@ -60,9 +60,7 @@ describe('OrganizationUsersService', () => {
       ],
     }).compile();
 
-    service = module.get<OrganizationUsersService>(
-      OrganizationUsersService,
-    );
+    service = module.get<OrganizationUsersService>(OrganizationUsersService);
   });
 
   it('should be defined', () => {

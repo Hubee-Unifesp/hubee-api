@@ -21,10 +21,7 @@ export class PaymentRepository {
     data: typeof payments.$inferInsert,
     executor: DbExecutor = this.db,
   ) {
-    const [payment] = await executor
-      .insert(payments)
-      .values(data)
-      .returning();
+    const [payment] = await executor.insert(payments).values(data).returning();
     return payment;
   }
 

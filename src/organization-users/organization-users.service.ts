@@ -71,11 +71,7 @@ export class OrganizationUsersService {
       .where(eq(organizationUsers.orgId, orgId));
   }
 
-  async update(
-    orgId: string,
-    userId: string,
-    dto: UpdateOrganizationUserDto,
-  ) {
+  async update(orgId: string, userId: string, dto: UpdateOrganizationUserDto) {
     const existing = await this.findMembership(orgId, userId);
     if (!existing) {
       throw new NotFoundException(
