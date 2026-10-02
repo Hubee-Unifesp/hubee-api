@@ -1,5 +1,7 @@
+import { NormalizeEmail } from '../../common/validation/normalize-email';
 import {
   IsEmail,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -12,15 +14,11 @@ import { TrimString } from '../../common/validation/update-validation';
 export class CreateUserDto {
   @TrimString()
   @IsString()
-  @IsNotEmpty({ message: 'O primeiro nome é obrigatório' })
-  firstName: string;
+  @IsNotEmpty({ message: 'O nome completo é obrigatório' })
+  @Length(1, 200)
+  fullName: string;
 
-  @TrimString()
-  @IsString()
-  @IsNotEmpty({ message: 'O sobrenome é obrigatório' })
-  lastName: string;
-
-  @TrimString()
+  @NormalizeEmail()
   @IsEmail({}, { message: 'Forneça um e-mail válido' })
   email: string;
 
@@ -43,8 +41,7 @@ export class CreateUserDto {
   @IsDateString({}, { message: 'Data de nascimento inválida' })
   birthDate?: string;
 
-  @TrimString()
   @IsOptional()
-  @IsString()
-  profileType?: string;
+  @IsIn(['BUY', 'ORGANIZE'])
+  signupIntent?: 'BUY' | 'ORGANIZE';
 }

@@ -9,10 +9,7 @@ export class UserResponseDto {
   id: string;
 
   @ApiProperty()
-  firstName: string;
-
-  @ApiProperty()
-  lastName: string;
+  fullName: string;
 
   @ApiProperty()
   email: string;
@@ -20,14 +17,17 @@ export class UserResponseDto {
   @ApiProperty({ nullable: true, required: false })
   phone: string | null;
 
-  @ApiProperty({ description: 'CPF do usuário' })
-  cpf: string;
+  @ApiProperty({ description: 'CPF do usuário', nullable: true })
+  cpf: string | null;
 
-  @ApiProperty({ format: 'date' })
-  birthDate: string;
+  @ApiProperty({ format: 'date', nullable: true })
+  birthDate: string | null;
 
   @ApiProperty()
-  profileType: string;
+  role: 'USER' | 'ADMIN';
+
+  @ApiProperty({ enum: ['BUY', 'ORGANIZE'], nullable: true })
+  signupIntent: 'BUY' | 'ORGANIZE' | null;
 
   @ApiProperty({ example: 'ACTIVE', nullable: true, required: false })
   status: string | null;

@@ -4,6 +4,7 @@ import {
   NotFoundException,
   Inject,
 } from '@nestjs/common';
+import { normalizeEmail } from '../common/validation/normalize-email';
 import { eq, or, and, isNull, ne } from 'drizzle-orm';
 import { users } from '../database/schema';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -21,6 +22,7 @@ export class UsersService {
   }
 
   async create(data: CreateUserDto) {
+    data = { ...data, email: normalizeEmail(data.email) };
     const existingUser = await this.db
       .select()
       .from(users)
@@ -43,6 +45,7 @@ export class UsersService {
       .insert(users)
       .values({
         ...data,
+        role: 'USER',
         password: hashedPassword,
         birthDate: data.birthDate
           ? new Date(data.birthDate).toISOString().split('T')[0]
@@ -77,11 +80,16 @@ export class UsersService {
     const [user] = await this.db
       .select()
       .from(users)
-      .where(and(eq(users.email, email), isNull(users.deletedAt)));
+      .where(
+        and(eq(users.email, normalizeEmail(email)), isNull(users.deletedAt)),
+      );
     return user;
   }
 
   async update(id: string, data: UpdateUserDto) {
+    if (data.email !== undefined) {
+      data = { ...data, email: normalizeEmail(data.email) };
+    }
     await this.findOne(id);
 
     if (data.email || data.cpf) {
