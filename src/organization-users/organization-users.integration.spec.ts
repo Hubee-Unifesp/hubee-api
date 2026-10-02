@@ -77,13 +77,12 @@ describe('OrganizationUsersService (banco real)', () => {
     const [user] = await db
       .insert(schema.users)
       .values({
-        firstName: 'Usuário',
-        lastName: 'Teste',
+        fullName: 'Usuário Teste',
         email: `teste-${Date.now()}@exemplo.com`,
         password: 'hashed_password_123', // Em produção seria hash real
         cpf: `${Date.now().toString().slice(-11)}`,
-        birthDate: new Date('1990-01-01'),
-        profileType: 'MEMBER',
+        birthDate: '1990-01-01',
+        role: 'USER',
       })
       .returning();
     userId = user.id;
