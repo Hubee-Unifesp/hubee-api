@@ -26,6 +26,11 @@ export const ticketTypes = pgTable(
       scale: 2,
       mode: 'number',
     }).notNull(),
+    quantity: numeric('quantity', {
+      precision: 10,
+      scale: 0,
+      mode: 'number',
+    }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -35,6 +40,6 @@ export const ticketTypes = pgTable(
   },
   (table) => [
     index('ticket_types_event_id_idx').on(table.eventId),
-    check('ticket_types_price_positive', sql`${table.price} > 0`),
+    check('ticket_types_price_positive', sql`${table.price} >= 0`),
   ],
 );

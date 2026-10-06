@@ -9,6 +9,7 @@ describe('EventController', () => {
   let controller: EventController;
   let service: {
     findAll: jest.Mock<EventService['findAll']>;
+    findUpcomingSummaries: jest.Mock<EventService['findUpcomingSummaries']>;
     findOne: jest.Mock<EventService['findOne']>;
     create: jest.Mock<EventService['create']>;
     update: jest.Mock<EventService['update']>;
@@ -18,6 +19,7 @@ describe('EventController', () => {
   beforeEach(async () => {
     service = {
       findAll: jest.fn<EventService['findAll']>(),
+      findUpcomingSummaries: jest.fn<EventService['findUpcomingSummaries']>(),
       findOne: jest.fn<EventService['findOne']>(),
       create: jest.fn<EventService['create']>(),
       update: jest.fn<EventService['update']>(),
@@ -73,6 +75,16 @@ describe('EventController', () => {
 
     expect(service.findOne).toHaveBeenCalledWith('event-1');
     expect(result).toEqual(event);
+  });
+
+  it('GET /events/summary delega para eventService.findUpcomingSummaries()', async () => {
+    const summaries = [{ id: 'event-1' }] as never;
+    service.findUpcomingSummaries.mockResolvedValue(summaries);
+
+    const result = await controller.findUpcomingSummaries();
+
+    expect(service.findUpcomingSummaries).toHaveBeenCalled();
+    expect(result).toEqual(summaries);
   });
 
   it('PATCH /events/:id delega para eventService.update()', async () => {

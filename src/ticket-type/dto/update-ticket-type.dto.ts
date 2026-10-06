@@ -5,6 +5,7 @@ import {
   IsPositive,
   IsString,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 /**
@@ -23,4 +24,9 @@ export class UpdateTicketTypeDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive()
   price?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 0 })
+  @Min(0, { message: 'A quantidade de ingressos não pode ser negativa.' })
+  quantity?: number;
 }
