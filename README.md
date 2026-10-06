@@ -51,6 +51,7 @@ Preencha o `.env` com os dados de conexão do banco:
 | `DB_NAME`     | Nome do banco                                               |
 | `DB_SSL`      | `true` para o Neon (exige TLS), `false` para Postgres local |
 | `JWT_SECRET`  | Segredo para assinar os tokens JWT (obrigatório)            |
+| `CORS_ORIGINS` | Origens permitidas pelo CORS, separadas por vírgula (padrão `http://localhost:3001`) |
 
 No Neon, esses valores estão em **Dashboard > Connect > Parameters only**.
 
