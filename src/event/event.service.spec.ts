@@ -57,6 +57,7 @@ describe('EventService', () => {
   let service: EventService;
   let eventRepository: {
     findAll: jest.Mock<EventRepository['findAll']>;
+    findUpcomingSummaries: jest.Mock<EventRepository['findUpcomingSummaries']>;
     findById: jest.Mock<EventRepository['findById']>;
     create: jest.Mock<EventRepository['create']>;
     update: jest.Mock<EventRepository['update']>;
@@ -71,6 +72,7 @@ describe('EventService', () => {
   beforeEach(async () => {
     eventRepository = {
       findAll: jest.fn<EventRepository['findAll']>(),
+      findUpcomingSummaries: jest.fn<EventRepository['findUpcomingSummaries']>(),
       findById: jest.fn<EventRepository['findById']>(),
       create: jest.fn<EventRepository['create']>(),
       update: jest.fn<EventRepository['update']>(),
@@ -109,6 +111,16 @@ describe('EventService', () => {
         status: 'published',
       });
       expect(result).toEqual(rows);
+    });
+  });
+
+  describe('findUpcomingSummaries()', () => {
+    it('repassa a consulta de resumos para o repositório', async () => {
+      const summaries = [{ id: 'event-1' }] as never;
+      eventRepository.findUpcomingSummaries.mockResolvedValue(summaries);
+
+      await expect(service.findUpcomingSummaries()).resolves.toEqual(summaries);
+      expect(eventRepository.findUpcomingSummaries).toHaveBeenCalled();
     });
   });
 

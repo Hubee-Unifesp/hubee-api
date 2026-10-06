@@ -5,6 +5,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { EventResponseDto } from './dto/event-response.dto';
+import { EventSummaryResponseDto } from './dto/event-summary-response.dto';
 import {
   Body,
   Controller,
@@ -39,6 +40,12 @@ export class EventController {
   @ApiOkResponse({ type: EventResponseDto, isArray: true })
   findAll(@Query() query: QueryEventDto) {
     return this.eventService.findAll(query);
+  }
+
+  @Get('summary')
+  @ApiOkResponse({ type: EventSummaryResponseDto, isArray: true })
+  findUpcomingSummaries() {
+    return this.eventService.findUpcomingSummaries();
   }
 
   @Get(':id')
