@@ -18,7 +18,7 @@ async function validationErrorsFor(
 }
 
 describe('CreateTicketTypeDto', () => {
-  const validPayload = { batch: '1º Lote', price: 100 };
+  const validPayload = { batch: '1º Lote', price: 100, quantity: 100 };
 
   it('aceita um payload válido', async () => {
     await expect(
@@ -53,14 +53,17 @@ describe('CreateTicketTypeDto', () => {
     ).resolves.toContain('isNumber');
   });
 
-  it('recusa valor zero ou negativo', async () => {
+  it('recusa payload sem quantidade', async () => {
+    const { quantity: _quantity, ...payload } = validPayload;
     await expect(
-      validationErrorsFor(CreateTicketTypeDto, { ...validPayload, price: 0 }),
-    ).resolves.toContain('isPositive');
+      validationErrorsFor(CreateTicketTypeDto, payload),
+    ).resolves.toContain('isNumber');
+  });
 
+  it('recusa valor negativo', async () => {
     await expect(
       validationErrorsFor(CreateTicketTypeDto, { ...validPayload, price: -10 }),
-    ).resolves.toContain('isPositive');
+    ).resolves.toContain('min');
   });
 
   it('recusa valor com mais de duas casas decimais', async () => {
@@ -68,6 +71,33 @@ describe('CreateTicketTypeDto', () => {
       validationErrorsFor(CreateTicketTypeDto, {
         ...validPayload,
         price: 10.999,
+      }),
+    ).resolves.toContain('isNumber');
+  });
+
+  it('aceita quantidade zero', async () => {
+    await expect(
+      validationErrorsFor(CreateTicketTypeDto, {
+        ...validPayload,
+        quantity: 0,
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  it('recusa quantidade negativa', async () => {
+    await expect(
+      validationErrorsFor(CreateTicketTypeDto, {
+        ...validPayload,
+        quantity: -1,
+      }),
+    ).resolves.toContain('min');
+  });
+
+  it('recusa quantidade fracionária', async () => {
+    await expect(
+      validationErrorsFor(CreateTicketTypeDto, {
+        ...validPayload,
+        quantity: 1.5,
       }),
     ).resolves.toContain('isNumber');
   });
@@ -92,6 +122,12 @@ describe('UpdateTicketTypeDto', () => {
     ).resolves.toEqual([]);
   });
 
+  it('aceita troca isolada da quantidade', async () => {
+    await expect(
+      validationErrorsFor(UpdateTicketTypeDto, { quantity: 200 }),
+    ).resolves.toEqual([]);
+  });
+
   it('recusa lote vazio', async () => {
     await expect(
       validationErrorsFor(UpdateTicketTypeDto, { batch: '' }),
@@ -102,5 +138,17 @@ describe('UpdateTicketTypeDto', () => {
     await expect(
       validationErrorsFor(UpdateTicketTypeDto, { price: 0 }),
     ).resolves.toContain('isPositive');
+  });
+
+  it('recusa quantidade negativa', async () => {
+    await expect(
+      validationErrorsFor(UpdateTicketTypeDto, { quantity: -1 }),
+    ).resolves.toContain('min');
+  });
+
+  it('recusa quantidade fracionária', async () => {
+    await expect(
+      validationErrorsFor(UpdateTicketTypeDto, { quantity: 1.5 }),
+    ).resolves.toContain('isNumber');
   });
 });

@@ -1,12 +1,10 @@
 import {
   IsNotEmpty,
   IsNumber,
-  IsPositive,
   IsString,
   MaxLength,
   Min,
 } from 'class-validator';
-import { min } from 'drizzle-orm';
 
 /** O evento vem da rota (`/eventos/:eventId/tipos-ingresso`), não do corpo. */
 export class CreateTicketTypeDto {
