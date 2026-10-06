@@ -38,3 +38,8 @@ export class UserResponseDto {
   @ApiProperty()
   updatedAt: Date;
 }
+
+export class MeResponseDto extends UserResponseDto {
+  @ApiProperty()
+  profileComplete: boolean;
+}
