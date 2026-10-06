@@ -92,7 +92,9 @@ export class EventRepository {
       .innerJoin(organizations, eq(events.organizerId, organizations.id))
       .innerJoin(venues, eq(events.venueId, venues.id))
       .innerJoin(addresses, eq(venues.addressId, addresses.id))
-      .where(and(eq(events.status, 'published'), gt(events.startDate, new Date())))
+      .where(
+        and(eq(events.status, 'published'), gt(events.startDate, new Date())),
+      )
       .orderBy(asc(events.startDate));
   }
 

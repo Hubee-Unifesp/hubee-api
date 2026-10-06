@@ -26,7 +26,7 @@ export const ticketTypes = pgTable(
       scale: 2,
       mode: 'number',
     }).notNull(),
-    quantity: numeric ('quantity', {
+    quantity: numeric('quantity', {
       precision: 10,
       scale: 0,
       mode: 'number',

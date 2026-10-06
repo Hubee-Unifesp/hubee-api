@@ -193,11 +193,7 @@ describe('EventRepository.findUpcomingSummaries (banco em memória)', () => {
       capacity: 0,
       ticketsSold: 0,
     });
-    expect(result.map((event) => event.id)).not.toContain(
-      fixture.pastEventId,
-    );
-    expect(result.map((event) => event.id)).not.toContain(
-      fixture.draftEventId,
-    );
+    expect(result.map((event) => event.id)).not.toContain(fixture.pastEventId);
+    expect(result.map((event) => event.id)).not.toContain(fixture.draftEventId);
   });
 });

@@ -72,7 +72,8 @@ describe('EventService', () => {
   beforeEach(async () => {
     eventRepository = {
       findAll: jest.fn<EventRepository['findAll']>(),
-      findUpcomingSummaries: jest.fn<EventRepository['findUpcomingSummaries']>(),
+      findUpcomingSummaries:
+        jest.fn<EventRepository['findUpcomingSummaries']>(),
       findById: jest.fn<EventRepository['findById']>(),
       create: jest.fn<EventRepository['create']>(),
       update: jest.fn<EventRepository['update']>(),
