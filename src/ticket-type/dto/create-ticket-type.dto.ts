@@ -1,5 +1,6 @@
 import {
   IsNotEmpty,
+  IsInt,
   IsNumber,
   IsString,
   MaxLength,
@@ -17,7 +18,8 @@ export class CreateTicketTypeDto {
   @Min(0, { message: 'O preço do ingresso não pode ser negativo.' })
   price: number;
 
-  @IsNumber({ maxDecimalPlaces: 0 })
+
+  @IsInt()
   @Min(0, { message: 'A quantidade de ingressos não pode ser negativa.' })
-  quantity: number;
+  quantity?: number = 0;
 }

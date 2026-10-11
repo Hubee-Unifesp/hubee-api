@@ -1,5 +1,6 @@
 import {
   IsNotEmpty,
+  IsInt,
   IsNumber,
   IsOptional,
   IsPositive,
@@ -22,11 +23,11 @@ export class UpdateTicketTypeDto {
 
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
-  @IsPositive()
+  @Min(0, { message: 'O preço do ingresso não pode ser negativo.' })
   price?: number;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 0 })
+  @IsInt()
   @Min(0, { message: 'A quantidade de ingressos não pode ser negativa.' })
   quantity?: number;
 }
