@@ -10,6 +10,8 @@ import {
   IsNumberString,
 } from 'class-validator';
 import { TrimString } from '../../common/validation/update-validation';
+import { IsCpf } from '../../common/validation/cpf';
+import { IsNotFutureDate } from '../../common/validation/not-future-date';
 
 export class CreateUserDto {
   @TrimString()
@@ -35,10 +37,14 @@ export class CreateUserDto {
   @IsOptional()
   @IsNumberString({}, { message: 'O CPF deve conter apenas números' })
   @Length(11, 11, { message: 'O CPF deve ter 11 dígitos' })
+  @IsCpf()
   cpf?: string;
 
   @IsOptional()
   @IsDateString({}, { message: 'Data de nascimento inválida' })
+  @IsNotFutureDate({
+    message: 'A data de nascimento não pode estar no futuro',
+  })
   birthDate?: string;
 
   @IsOptional()

@@ -29,8 +29,7 @@ export class AuthService {
   }
 
   async me(id: string) {
-    const user = await this.usersService.findOne(id);
-    return { ...user, profileComplete: Boolean(user.cpf && user.birthDate) };
+    return this.usersService.findMe(id);
   }
 
   async login(email: string, pass: string) {
