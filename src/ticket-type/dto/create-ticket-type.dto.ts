@@ -18,7 +18,6 @@ export class CreateTicketTypeDto {
   @Min(0, { message: 'O preço do ingresso não pode ser negativo.' })
   price: number;
 
-
   @IsInt()
   @Min(0, { message: 'A quantidade de ingressos não pode ser negativa.' })
   quantity?: number = 0;

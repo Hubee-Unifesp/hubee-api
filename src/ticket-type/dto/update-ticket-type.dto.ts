@@ -3,7 +3,6 @@ import {
   IsInt,
   IsNumber,
   IsOptional,
-  IsPositive,
   IsString,
   MaxLength,
   Min,
