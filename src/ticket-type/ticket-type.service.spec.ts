@@ -15,6 +15,7 @@ function makeTicketType(overrides: Partial<TicketTypeRow> = {}): TicketTypeRow {
     eventId: 'event-1',
     batch: '1º Lote',
     price: 100,
+    quantity: 100,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -148,6 +149,7 @@ describe('TicketTypeService', () => {
       const result = await service.create('event-1', {
         batch: '1º Lote',
         price: 100,
+        quantity: 100,
       });
 
       expect(eventService.findOne).toHaveBeenCalledWith('event-1');
@@ -155,6 +157,7 @@ describe('TicketTypeService', () => {
         eventId: 'event-1',
         batch: '1º Lote',
         price: 100,
+        quantity: 100,
       });
       expect(result).toEqual(created);
     });
@@ -165,7 +168,11 @@ describe('TicketTypeService', () => {
       );
 
       await expect(
-        service.create('event-1', { batch: '1º Lote', price: 100 }),
+        service.create('event-1', {
+          batch: '1º Lote',
+          price: 100,
+          quantity: 100,
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(ticketTypeRepository.create).not.toHaveBeenCalled();
     });
@@ -173,7 +180,11 @@ describe('TicketTypeService', () => {
 
   describe('update()', () => {
     it('atualiza o lote e o valor do tipo de ingresso', async () => {
-      const updated = makeTicketType({ batch: '2º Lote', price: 150 });
+      const updated = makeTicketType({
+        batch: '2º Lote',
+        price: 150,
+        quantity: 200,
+      });
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeRepository.findById.mockResolvedValue(makeTicketType());
       ticketTypeRepository.update.mockResolvedValue(updated);
@@ -181,12 +192,13 @@ describe('TicketTypeService', () => {
       const result = await service.update('event-1', 'ticket-type-1', {
         batch: '2º Lote',
         price: 150,
+        quantity: 200,
       });
 
       expect(ticketTypeRepository.update).toHaveBeenCalledWith(
         'event-1',
         'ticket-type-1',
-        { batch: '2º Lote', price: 150 },
+        { batch: '2º Lote', price: 150, quantity: 200 },
       );
       expect(result).toEqual(updated);
     });

@@ -17,7 +17,7 @@ describe('OrderController', () => {
     update: jest.Mock<OrderService['update']>;
     cancel: jest.Mock<OrderService['cancel']>;
   };
-  
+
   const mockUser: AuthenticatedUser = {
     id: 'user-1',
     email: 'teste@exemplo.com',
@@ -50,7 +50,7 @@ describe('OrderController', () => {
     const dto: CreateOrderDto = { totalAmount: 150.5 };
     const created = { id: 'order-1', userId: mockUser.id, ...dto } as never;
     service.create.mockResolvedValue(created);
-    
+
     const result = await controller.create(mockUser, dto);
 
     expect(service.create).toHaveBeenCalledWith(mockUser.id, dto);

@@ -33,7 +33,11 @@ describe('TicketTypeController', () => {
   });
 
   it('POST /events/:eventId/ticket-types delega para ticketTypeService.create()', async () => {
-    const dto: CreateTicketTypeDto = { batch: '1º Lote', price: 100 };
+    const dto: CreateTicketTypeDto = {
+      batch: '1º Lote',
+      price: 100,
+      quantity: 100,
+    };
     const created = { id: 'ticket-type-1', ...dto } as never;
     service.create.mockResolvedValue(created);
 
@@ -64,7 +68,7 @@ describe('TicketTypeController', () => {
   });
 
   it('PATCH /events/:eventId/ticket-types/:id delega para ticketTypeService.update()', async () => {
-    const dto: UpdateTicketTypeDto = { price: 150 };
+    const dto: UpdateTicketTypeDto = { price: 150, quantity: 200 };
     const updated = { id: 'ticket-type-1', ...dto } as never;
     service.update.mockResolvedValue(updated);
 

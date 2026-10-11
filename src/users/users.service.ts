@@ -1,7 +1,9 @@
 import {
   Injectable,
+  BadRequestException,
   ConflictException,
   NotFoundException,
+  UnauthorizedException,
   Inject,
 } from '@nestjs/common';
 import { normalizeEmail } from '../common/validation/normalize-email';
@@ -9,6 +11,8 @@ import { eq, or, and, isNull, ne } from 'drizzle-orm';
 import { users } from '../database/schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateMeDto } from './dto/update-me.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import * as bcrypt from 'bcrypt';
 import { DRIZZLE } from '../database/database.constants';
 
@@ -76,6 +80,10 @@ export class UsersService {
     return this.excludePassword(user);
   }
 
+  async findMe(id: string) {
+    return this.withProfileStatus(await this.findOne(id));
+  }
+
   async findByEmail(email: string) {
     const [user] = await this.db
       .select()
@@ -139,5 +147,40 @@ export class UsersService {
       .update(users)
       .set({ deletedAt: new Date(), status: 'INACTIVE' })
       .where(eq(users.id, id));
+  }
+
+  async updateMe(id: string, data: UpdateMeDto) {
+    if (data.cpf !== undefined) {
+      const current = await this.findOne(id);
+      if (current.cpf && current.cpf !== data.cpf) {
+        throw new BadRequestException('CPF não pode ser alterado');
+      }
+    }
+    return this.withProfileStatus(await this.update(id, data));
+  }
+
+  async changePassword(id: string, data: ChangePasswordDto): Promise<void> {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, id), isNull(users.deletedAt)));
+    if (!user) throw new NotFoundException('Usuário não encontrado.');
+
+    const isMatch = await bcrypt.compare(data.currentPassword, user.password);
+    if (!isMatch) throw new UnauthorizedException('Senha atual incorreta');
+
+    await this.db
+      .update(users)
+      .set({
+        password: await bcrypt.hash(data.newPassword, 10),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, id));
+  }
+
+  private withProfileStatus<
+    T extends { cpf: string | null; birthDate: string | null },
+  >(user: T) {
+    return { ...user, profileComplete: Boolean(user.cpf && user.birthDate) };
   }
 }

@@ -27,7 +27,10 @@ import { OrderService } from './order.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser, type AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  type AuthenticatedUser,
+} from '../auth/decorators/current-user.decorator';
 
 @ApiTags('orders')
 @Controller('orders')
@@ -39,10 +42,7 @@ export class OrderController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrderResponseDto })
-  create(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: CreateOrderDto
-  ) {
+  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrderDto) {
     return this.orderService.create(user.id, dto);
   }
 
@@ -62,7 +62,7 @@ export class OrderController {
   @ApiOkResponse({ type: OrderResponseDto })
   findOne(
     @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: AuthenticatedUser
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.orderService.findOne(id, user);
   }
@@ -74,7 +74,7 @@ export class OrderController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: UpdateOrderDto
+    @Body() dto: UpdateOrderDto,
   ) {
     return this.orderService.update(id, dto, user);
   }
@@ -86,7 +86,7 @@ export class OrderController {
   @ApiNoContentResponse()
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: AuthenticatedUser
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
     await this.orderService.cancel(id, user);
   }

@@ -14,6 +14,9 @@ export class TicketTypeResponseDto {
   @ApiProperty({ type: Number })
   price: number;
 
+  @ApiProperty({ type: Number })
+  quantity: number;
+
   @ApiProperty()
   createdAt: Date;
 
