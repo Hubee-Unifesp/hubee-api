@@ -28,6 +28,10 @@ export class EventService {
     return this.eventRepository.findAll(filters);
   }
 
+  findUpcomingSummaries() {
+    return this.eventRepository.findUpcomingSummaries();
+  }
+
   async findOne(id: string) {
     const event = await this.eventRepository.findById(id);
     if (!event) {
