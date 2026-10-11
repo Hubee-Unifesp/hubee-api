@@ -25,10 +25,9 @@ import { QueryOrderDto } from './dto/query-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderService } from './order.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import {
-  CurrentUser,
-  type AuthenticatedUser,
-} from '../auth/decorators/current-user.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser, type AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('orders')
 @Controller('orders')
@@ -40,32 +39,55 @@ export class OrderController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrderResponseDto })
-  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrderDto) {
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateOrderDto
+  ) {
     return this.orderService.create(user.id, dto);
   }
 
+  // Rota restrita apenas a ADMIN
   @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
   @ApiOkResponse({ type: OrderResponseDto, isArray: true })
   findAll(@Query() query: QueryOrderDto) {
     return this.orderService.findAll(query);
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOkResponse({ type: OrderResponseDto })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.orderService.findOne(id);
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser
+  ) {
+    return this.orderService.findOne(id, user);
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOkResponse({ type: OrderResponseDto })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateOrderDto) {
-    return this.orderService.update(id, dto);
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateOrderDto
+  ) {
+    return this.orderService.update(id, dto, user);
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
-  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    await this.orderService.cancel(id);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser
+  ): Promise<void> {
+    await this.orderService.cancel(id, user);
   }
 }

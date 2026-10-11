@@ -8,6 +8,7 @@ import { UsersService } from '../users/users.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { FindAllOrdersFilters, OrderRepository } from './order.repository';
+import { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 
 @Injectable()
 export class OrderService {
@@ -20,11 +21,16 @@ export class OrderService {
     return this.orderRepository.findAll(filters);
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: AuthenticatedUser) {
     const order = await this.orderRepository.findById(id);
     if (!order) {
       throw new NotFoundException(`Pedido ${id} não encontrado`);
     }
+
+    if (user && order.userId !== user.id && user.role !== 'ADMIN') {
+      throw new NotFoundException(`Pedido ${id} não encontrado`);
+    }
+
     return order;
   }
 
@@ -44,8 +50,8 @@ export class OrderService {
     return this.orderRepository.create({ ...dto, userId });
   }
 
-  async update(id: string, dto: UpdateOrderDto) {
-    const order = await this.findOne(id);
+  async update(id: string, dto: UpdateOrderDto, user: AuthenticatedUser) {
+    const order = await this.findOne(id, user);
     if (order.status === 'cancelado') {
       throw new UnprocessableEntityException(
         'Pedido cancelado não pode ser alterado',
@@ -59,8 +65,8 @@ export class OrderService {
    * O DELETE da API cancela o pedido em vez de apagar a linha: pedido é
    * registro financeiro e precisa continuar auditável depois de cancelado.
    */
-  async cancel(id: string): Promise<void> {
-    const order = await this.findOne(id);
+  async cancel(id: string, user: AuthenticatedUser): Promise<void> {
+    const order = await this.findOne(id, user);
 
     if (order.status === 'cancelado') {
       throw new UnprocessableEntityException('Pedido já está cancelado');

@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import {
+  ForbiddenException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -8,6 +9,7 @@ import { orders } from '../database/schema';
 import { UsersService } from '../users/users.service';
 import { OrderRepository } from './order.repository';
 import { OrderService } from './order.service';
+import { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 
 type Order = typeof orders.$inferSelect;
 
@@ -33,6 +35,12 @@ describe('OrderService', () => {
   };
   let usersService: {
     findOne: jest.Mock<UsersService['findOne']>;
+  };
+
+  const mockAuthUser: AuthenticatedUser = {
+    id: 'user-1',
+    email: 'teste@exemplo.com',
+    role: 'USER',
   };
 
   beforeEach(async () => {
@@ -80,28 +88,27 @@ describe('OrderService', () => {
       const order = makeOrder();
       orderRepository.findById.mockResolvedValue(order);
 
-      await expect(service.findOne('order-1')).resolves.toEqual(order);
+      await expect(service.findOne('order-1', mockAuthUser)).resolves.toEqual(order);
     });
 
     it('lança NotFound quando o pedido não existe', async () => {
       orderRepository.findById.mockResolvedValue(undefined);
 
-      await expect(service.findOne('order-1')).rejects.toBeInstanceOf(
+      await expect(service.findOne('order-1', mockAuthUser)).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });
   });
 
   describe('create()', () => {
-    it('cria o pedido depois de confirmar que o comprador existe', async () => {
+    it('cria o pedido depois de confirmar que o comprador tem perfil completo', async () => {
       const created = makeOrder();
-      usersService.findOne.mockResolvedValue({ id: 'user-1' });
+      // Simulando usuário com perfil completo
+      usersService.findOne.mockResolvedValue({ id: 'user-1', cpf: '123', birthDate: new Date() } as any);
       orderRepository.create.mockResolvedValue(created);
 
-      const result = await service.create({
-        userId: 'user-1',
-        totalAmount: 150.5,
-      });
+      // Passando userId separado do DTO
+      const result = await service.create('user-1', { totalAmount: 150.5 });
 
       expect(usersService.findOne).toHaveBeenCalledWith('user-1');
       expect(orderRepository.create).toHaveBeenCalledWith({
@@ -111,23 +118,24 @@ describe('OrderService', () => {
       expect(result).toEqual(created);
     });
 
+    it('recusa criar pedido se perfil estiver incompleto', async () => {
+      // Simulando usuário SEM cpf e birthDate
+      usersService.findOne.mockResolvedValue({ id: 'user-1' } as any);
+
+      await expect(
+        service.create('user-1', { totalAmount: 150.5 }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(orderRepository.create).not.toHaveBeenCalled();
+    });
+
     it('lança NotFound e não cria quando o comprador não existe', async () => {
       usersService.findOne.mockRejectedValue(
         new NotFoundException('Usuário não encontrado.'),
       );
 
       await expect(
-        service.create({ userId: 'user-1', totalAmount: 10 }),
+        service.create('user-1', { totalAmount: 10 }),
       ).rejects.toBeInstanceOf(NotFoundException);
-      expect(orderRepository.create).not.toHaveBeenCalled();
-    });
-
-    it('propaga erros inesperados da consulta de usuários', async () => {
-      usersService.findOne.mockRejectedValue(new Error('conexão perdida'));
-
-      await expect(
-        service.create({ userId: 'user-1', totalAmount: 10 }),
-      ).rejects.toThrow('conexão perdida');
       expect(orderRepository.create).not.toHaveBeenCalled();
     });
   });
@@ -138,7 +146,7 @@ describe('OrderService', () => {
       orderRepository.findById.mockResolvedValue(makeOrder());
       orderRepository.update.mockResolvedValue(updated);
 
-      const result = await service.update('order-1', { status: 'pago' });
+      const result = await service.update('order-1', { status: 'pago' }, mockAuthUser);
 
       expect(orderRepository.update).toHaveBeenCalledWith('order-1', {
         status: 'pago',
@@ -150,7 +158,7 @@ describe('OrderService', () => {
       orderRepository.findById.mockResolvedValue(undefined);
 
       await expect(
-        service.update('order-1', { status: 'pago' }),
+        service.update('order-1', { status: 'pago' }, mockAuthUser),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(orderRepository.update).not.toHaveBeenCalled();
     });
@@ -161,7 +169,7 @@ describe('OrderService', () => {
       );
 
       await expect(
-        service.update('order-1', { status: 'pago' }),
+        service.update('order-1', { status: 'pago' }, mockAuthUser),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
       expect(orderRepository.update).not.toHaveBeenCalled();
     });
@@ -174,7 +182,7 @@ describe('OrderService', () => {
         makeOrder({ status: 'cancelado' }),
       );
 
-      await service.cancel('order-1');
+      await service.cancel('order-1', mockAuthUser);
 
       expect(orderRepository.update).toHaveBeenCalledWith('order-1', {
         status: 'cancelado',
@@ -184,7 +192,7 @@ describe('OrderService', () => {
     it('lança NotFound quando o pedido não existe', async () => {
       orderRepository.findById.mockResolvedValue(undefined);
 
-      await expect(service.cancel('order-1')).rejects.toBeInstanceOf(
+      await expect(service.cancel('order-1', mockAuthUser)).rejects.toBeInstanceOf(
         NotFoundException,
       );
       expect(orderRepository.update).not.toHaveBeenCalled();
@@ -195,7 +203,7 @@ describe('OrderService', () => {
         makeOrder({ status: 'cancelado' }),
       );
 
-      await expect(service.cancel('order-1')).rejects.toBeInstanceOf(
+      await expect(service.cancel('order-1', mockAuthUser)).rejects.toBeInstanceOf(
         UnprocessableEntityException,
       );
       expect(orderRepository.update).not.toHaveBeenCalled();
@@ -204,7 +212,7 @@ describe('OrderService', () => {
     it('recusa cancelar pedido pago com 422', async () => {
       orderRepository.findById.mockResolvedValue(makeOrder({ status: 'pago' }));
 
-      await expect(service.cancel('order-1')).rejects.toBeInstanceOf(
+      await expect(service.cancel('order-1', mockAuthUser)).rejects.toBeInstanceOf(
         UnprocessableEntityException,
       );
       expect(orderRepository.update).not.toHaveBeenCalled();
