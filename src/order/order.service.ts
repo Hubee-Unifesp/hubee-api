@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -27,9 +28,20 @@ export class OrderService {
     return order;
   }
 
-  async create(dto: CreateOrderDto) {
-    await this.ensureUserExists(dto.userId);
-    return this.orderRepository.create(dto);
+  async create(userId: string, dto: CreateOrderDto) {
+    const user = await this.usersService.findOne(userId);
+
+    const missing: string[] = [];
+    if (!user.cpf) missing.push('cpf');
+    if (!user.birthDate) missing.push('birthDate');
+
+    if (missing.length > 0) {
+      throw new ForbiddenException({
+        code: 'PROFILE_INCOMPLETE',
+        missing,
+      });
+    }
+    return this.orderRepository.create({ ...dto, userId });
   }
 
   async update(id: string, dto: UpdateOrderDto) {
@@ -61,20 +73,5 @@ export class OrderService {
     }
 
     await this.orderRepository.update(id, { status: 'cancelado' });
-  }
-
-  /**
-   * A FK garante que o comprador existe, mas só na hora do INSERT: sem esta
-   * checagem o erro do Postgres subiria como 500 em vez de 404.
-   */
-  private async ensureUserExists(userId: string): Promise<void> {
-    try {
-      await this.usersService.findOne(userId);
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw new NotFoundException(`Usuário ${userId} não encontrado`);
-      }
-      throw error;
-    }
   }
 }

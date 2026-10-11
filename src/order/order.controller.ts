@@ -1,4 +1,5 @@
 import {
+  ApiBearerAuth,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiOkResponse,
@@ -17,11 +18,17 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { QueryOrderDto } from './dto/query-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderService } from './order.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import {
+  CurrentUser,
+  type AuthenticatedUser,
+} from '../auth/decorators/current-user.decorator';
 
 @ApiTags('orders')
 @Controller('orders')
@@ -29,10 +36,12 @@ export class OrderController {
   constructor(private readonly orderService: OrderService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrderResponseDto })
-  create(@Body() dto: CreateOrderDto) {
-    return this.orderService.create(dto);
+  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrderDto) {
+    return this.orderService.create(user.id, dto);
   }
 
   @Get()

@@ -4,6 +4,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
+import { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 
 describe('OrderController', () => {
   let controller: OrderController;
@@ -13,6 +14,13 @@ describe('OrderController', () => {
     create: jest.Mock<OrderService['create']>;
     update: jest.Mock<OrderService['update']>;
     cancel: jest.Mock<OrderService['cancel']>;
+  };
+
+  // Mock do utilizador logado injetado pelo @CurrentUser()
+  const mockUser: AuthenticatedUser = {
+    id: 'user-1',
+    email: 'teste@exemplo.com',
+    role: 'USER',
   };
 
   beforeEach(async () => {
@@ -32,14 +40,16 @@ describe('OrderController', () => {
     controller = module.get(OrderController);
   });
 
-  it('POST /orders delega para orderService.create()', async () => {
-    const dto: CreateOrderDto = { userId: 'user-1', totalAmount: 150.5 };
-    const created = { id: 'order-1', ...dto } as never;
+  it('POST /orders delega para orderService.create() passando o id do utilizador', async () => {
+    // userId removido do DTO!
+    const dto: CreateOrderDto = { totalAmount: 150.5 };
+    const created = { id: 'order-1', userId: mockUser.id, ...dto } as never;
     service.create.mockResolvedValue(created);
 
-    const result = await controller.create(dto);
+    // Passamos o mockUser como primeiro argumento, como faz o NestJS agora
+    const result = await controller.create(mockUser, dto);
 
-    expect(service.create).toHaveBeenCalledWith(dto);
+    expect(service.create).toHaveBeenCalledWith(mockUser.id, dto);
     expect(result).toEqual(created);
   });
 
