@@ -28,12 +28,18 @@ const row = {
   updatedAt: new Date('2026-01-01T00:00:00Z'),
 };
 
+const ADMIN = {
+  id: 'admin-1',
+  email: 'admin@example.com',
+  role: 'ADMIN' as const,
+};
+
 describe('EventController', () => {
   let controller: EventController;
   let service: {
     findAll: jest.Mock<EventService['findAll']>;
     findUpcomingSummaries: jest.Mock<EventService['findUpcomingSummaries']>;
-    findOne: jest.Mock<EventService['findOne']>;
+    findVisible: jest.Mock<EventService['findVisible']>;
     create: jest.Mock<EventService['create']>;
     update: jest.Mock<EventService['update']>;
     cancel: jest.Mock<EventService['cancel']>;
@@ -43,7 +49,7 @@ describe('EventController', () => {
     service = {
       findAll: jest.fn<EventService['findAll']>(),
       findUpcomingSummaries: jest.fn<EventService['findUpcomingSummaries']>(),
-      findOne: jest.fn<EventService['findOne']>(),
+      findVisible: jest.fn<EventService['findVisible']>(),
       create: jest.fn<EventService['create']>(),
       update: jest.fn<EventService['update']>(),
       cancel: jest.fn<EventService['cancel']>(),
@@ -76,30 +82,30 @@ describe('EventController', () => {
     expect(result).toBeInstanceOf(EventResponseDto);
   });
 
-  it('GET /events delega para eventService.findAll() com os filtros da query', async () => {
+  it('GET /events delega para eventService.findAll() com os filtros da query e o usuário', async () => {
     const list = [row] as never;
     service.findAll.mockResolvedValue(list);
 
-    const result = await controller.findAll({
-      organizerId: 'org-1',
-      status: 'published',
-    });
+    const result = await controller.findAll(
+      { organizerId: 'org-1', status: 'draft' },
+      ADMIN,
+    );
 
-    expect(service.findAll).toHaveBeenCalledWith({
-      organizerId: 'org-1',
-      status: 'published',
-    });
+    expect(service.findAll).toHaveBeenCalledWith(
+      { organizerId: 'org-1', status: 'draft' },
+      ADMIN,
+    );
     expect(result).toEqual(list);
     expect(result[0]).toBeInstanceOf(EventResponseDto);
   });
 
-  it('GET /events/:id delega para eventService.findOne()', async () => {
+  it('GET /events/:id delega para eventService.findVisible() sem usuário quando anônimo', async () => {
     const event = row as never;
-    service.findOne.mockResolvedValue(event);
+    service.findVisible.mockResolvedValue(event);
 
     const result = await controller.findOne('event-1');
 
-    expect(service.findOne).toHaveBeenCalledWith('event-1');
+    expect(service.findVisible).toHaveBeenCalledWith('event-1', undefined);
     expect(result).toEqual(event);
     expect(result).toBeInstanceOf(EventResponseDto);
   });
