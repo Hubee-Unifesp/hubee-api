@@ -160,6 +160,16 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
         .expect(409);
     });
 
+    it('recusa e-mail de outra conta ativa com 409', async () => {
+      await register('email-ocupado@example.com');
+      const { token } = await register('email-novo@example.com');
+      await http()
+        .patch('/users/me')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ email: 'email-ocupado@example.com' })
+        .expect(409);
+    });
+
     it('não permite alterar um CPF já preenchido', async () => {
       const { token } = await register('cpf-fixo@example.com');
       await http()
@@ -283,6 +293,31 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
         .then((result) => result.rows);
       expect(row.deleted_at).not.toBeNull();
       expect(row.status).toBe('INACTIVE');
+    });
+
+    it('exclui a conta e libera e-mail e CPF para novo cadastro', async () => {
+      const email = 'libera@example.com';
+      const cpf = '39053344705';
+      const { token } = await register(email);
+      await http()
+        .patch('/users/me')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ cpf })
+        .expect(200);
+      await http()
+        .delete('/users/me')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+
+      const again = await http()
+        .post('/auth/register')
+        .send({ fullName: 'Fulano', email, password: 'secret123' })
+        .expect(201);
+      await http()
+        .patch('/users/me')
+        .set('Authorization', `Bearer ${again.body.access_token}`)
+        .send({ cpf })
+        .expect(200);
     });
   });
 
