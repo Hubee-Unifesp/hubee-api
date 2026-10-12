@@ -1,29 +1,24 @@
 import {
-  ApiBearerAuth,
-  ApiCreatedResponse,
-  ApiNoContentResponse,
-  ApiOkResponse,
-  ApiTags,
-} from '@nestjs/swagger';
-import { MeResponseDto, UserResponseDto } from './dto/user-response.dto';
-import {
   Controller,
   Get,
   Post,
   Body,
   Patch,
   Param,
-  ParseUUIDPipe,
   Delete,
+  ParseUUIDPipe,
   HttpCode,
   HttpStatus,
   UseGuards,
+  Query,
+  NotImplementedException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { MeResponseDto, UserResponseDto } from './dto/user-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -31,6 +26,17 @@ import {
   CurrentUser,
   type AuthenticatedUser,
 } from '../auth/decorators/current-user.decorator';
+import { OrderService } from '../order/order.service';
+import { QueryOrderDto } from '../order/dto/query-order.dto';
+import { OrderResponseDto } from '../order/dto/order-response.dto';
+import {
+  ApiBearerAuth,
+  ApiTags,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiNotImplementedResponse,
+} from '@nestjs/swagger';
 import { toResponse } from '../common/serialization/to-response';
 
 @ApiTags('users')
@@ -38,7 +44,10 @@ import { toResponse } from '../common/serialization/to-response';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly orderService: OrderService,
+  ) {}
 
   @Get('me')
   @ApiOkResponse({ type: MeResponseDto })
@@ -90,6 +99,26 @@ export class UsersController {
   @ApiOkResponse({ type: UserResponseDto, isArray: true })
   async findAll() {
     return toResponse(UserResponseDto, await this.usersService.findAll());
+  }
+
+  @Get('me/orders')
+  @ApiOkResponse({ type: OrderResponseDto, isArray: true })
+  async getMyOrders(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: QueryOrderDto,
+  ) {
+    return toResponse(
+      OrderResponseDto,
+      await this.orderService.findAll({ ...query, userId: user.id }),
+    );
+  }
+
+  @Get('me/tickets')
+  @ApiNotImplementedResponse({ description: 'Rota ainda não implementada.' })
+  getMyTickets(): never {
+    throw new NotImplementedException(
+      'Listagem de ingressos ainda não disponível',
+    );
   }
 
   @Get(':id')

@@ -1,8 +1,12 @@
 import { jest } from '@jest/globals';
-import { JwtModule } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
+import { NotImplementedException } from '@nestjs/common';
+import { OrderService } from '../order/order.service';
+import { OrderResponseDto } from '../order/dto/order-response.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { MeResponseDto, UserResponseDto } from './dto/user-response.dto';
 
@@ -26,6 +30,7 @@ const { password: _password, deletedAt: _deletedAt, ...publicUser } = row;
 
 describe('UsersController', () => {
   let controller: UsersController;
+
   const user: AuthenticatedUser = {
     id: 'user-id',
     email: 'user@example.com',
@@ -41,20 +46,26 @@ describe('UsersController', () => {
     updateMe: jest.fn(),
     changePassword: jest.fn(),
     remove: jest.fn(),
+    removeMe: jest.fn(),
+  };
+
+  const mockOrderService = {
+    findAll: jest.fn(),
   };
 
   beforeEach(async () => {
-    jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
-      imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [UsersController],
       providers: [
-        {
-          provide: UsersService,
-          useValue: mockUsersService,
-        },
+        { provide: UsersService, useValue: mockUsersService },
+        { provide: OrderService, useValue: mockOrderService },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<UsersController>(UsersController);
   });
@@ -79,6 +90,33 @@ describe('UsersController', () => {
       passwords,
     );
     expect(mockUsersService.remove).toHaveBeenCalledWith('user-id');
+  });
+
+  it('GET /me/orders filtra pelo usuário do token, ignorando o userId da query', async () => {
+    const order = {
+      id: 'order-1',
+      userId: 'user-id',
+      totalAmount: 150.5,
+      status: 'pendente',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+    };
+    mockOrderService.findAll.mockResolvedValue([order] as never);
+
+    const result = await controller.getMyOrders(user, {
+      userId: 'outro-usuario',
+      status: 'pendente',
+    });
+
+    expect(mockOrderService.findAll).toHaveBeenCalledWith({
+      userId: 'user-id',
+      status: 'pendente',
+    });
+    expect(result).toEqual([expect.any(OrderResponseDto)]);
+  });
+
+  it('GET /me/tickets responde 501 enquanto não está implementada', () => {
+    expect(() => controller.getMyTickets()).toThrow(NotImplementedException);
   });
 
   describe('resposta segue o UserResponseDto (sem password/deletedAt)', () => {
@@ -123,9 +161,14 @@ describe('UsersController', () => {
   it('declara as rotas /me antes das rotas /:id', () => {
     const methods = Object.getOwnPropertyNames(UsersController.prototype);
     const lastMe = Math.max(
-      ...['findMe', 'updateMe', 'changePassword', 'removeMe'].map((name) =>
-        methods.indexOf(name),
-      ),
+      ...[
+        'findMe',
+        'updateMe',
+        'changePassword',
+        'removeMe',
+        'getMyOrders',
+        'getMyTickets',
+      ].map((name) => methods.indexOf(name)),
     );
     const firstById = Math.min(
       ...['findOne', 'update', 'remove'].map((name) => methods.indexOf(name)),

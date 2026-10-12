@@ -12,6 +12,7 @@ import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { DRIZZLE } from '../database/database.constants';
 import * as schema from '../database/schema';
+import { OrderService } from '../order/order.service';
 
 const VALID_CPF = '52998224725';
 const OTHER_VALID_CPF = '11144477735';
@@ -58,6 +59,7 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
         AuthService,
         UsersService,
         { provide: DRIZZLE, useValue: db },
+        { provide: OrderService, useValue: { findAll: () => [] } },
       ],
     }).compile();
     app = module.createNestApplication();
