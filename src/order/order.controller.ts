@@ -44,8 +44,14 @@ export class OrderController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrderResponseDto })
-  async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrderDto) {
-    return toResponse(OrderResponseDto, await this.orderService.create(user, dto));
+  async create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateOrderDto,
+  ) {
+    return toResponse(
+      OrderResponseDto,
+      await this.orderService.create(user, dto),
+    );
   }
 
   // Rota restrita apenas a ADMIN
@@ -66,7 +72,10 @@ export class OrderController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return toResponse(OrderResponseDto, await this.orderService.findOne(id, user));
+    return toResponse(
+      OrderResponseDto,
+      await this.orderService.findOne(id, user),
+    );
   }
 
   @Patch(':id')
@@ -80,9 +89,11 @@ export class OrderController {
   ) {
     // Trava de segurança exigida na revisão!
     if (user.role !== 'ADMIN' && dto.status) {
-      throw new ForbiddenException('Apenas administradores podem alterar o status do pedido');
+      throw new ForbiddenException(
+        'Apenas administradores podem alterar o status do pedido',
+      );
     }
-    
+
     return toResponse(
       OrderResponseDto,
       await this.orderService.update(id, dto, user),

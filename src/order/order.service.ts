@@ -17,25 +17,25 @@ export class OrderService {
     private readonly usersService: UsersService,
   ) {}
 
-  findAll(filters: FindAllOrdersFilters) {
-    return this.orderRepository.findAll(filters);
+  findAll(filters: FindAllOrdersFilters, userId?: string) {
+    return this.orderRepository.findAll({ ...filters, userId });
   }
 
-  async findOne(id: string, user?: AuthenticatedUser) {
+  async findOne(id: string, user: AuthenticatedUser) {
     const order = await this.orderRepository.findById(id);
     if (!order) {
       throw new NotFoundException(`Pedido ${id} não encontrado`);
     }
 
-    if (user && order.userId !== user.id && user.role !== 'ADMIN') {
+    if (order.userId !== user.id && user.role !== 'ADMIN') {
       throw new NotFoundException(`Pedido ${id} não encontrado`);
     }
 
     return order;
   }
 
-  async create(userId: string, dto: CreateOrderDto) {
-    const user = await this.usersService.findOne(userId);
+  async create(authUser: AuthenticatedUser, dto: CreateOrderDto) {
+    const user = await this.usersService.findOne(authUser.id);
 
     const missing: string[] = [];
     if (!user.cpf) missing.push('cpf');
@@ -47,7 +47,7 @@ export class OrderService {
         missing,
       });
     }
-    return this.orderRepository.create({ ...dto, userId });
+    return this.orderRepository.create({ ...dto, userId: authUser.id });
   }
 
   async update(id: string, dto: UpdateOrderDto, user: AuthenticatedUser) {
@@ -61,10 +61,6 @@ export class OrderService {
     return this.orderRepository.update(id, dto);
   }
 
-  /**
-   * O DELETE da API cancela o pedido em vez de apagar a linha: pedido é
-   * registro financeiro e precisa continuar auditável depois de cancelado.
-   */
   async cancel(id: string, user: AuthenticatedUser): Promise<void> {
     const order = await this.findOne(id, user);
 
