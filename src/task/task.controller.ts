@@ -22,6 +22,7 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { QueryTaskDto } from './dto/query-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskService } from './task.service';
+import { toResponse } from '../common/serialization/to-response';
 
 @ApiTags('tasks')
 @Controller('events/:eventId/tasks')
@@ -31,39 +32,51 @@ export class TaskController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: TaskResponseDto })
-  create(
+  async create(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Body() dto: CreateTaskDto,
   ) {
-    return this.taskService.create(eventId, dto);
+    return toResponse(
+      TaskResponseDto,
+      await this.taskService.create(eventId, dto),
+    );
   }
 
   @Get()
   @ApiOkResponse({ type: TaskResponseDto, isArray: true })
-  findAll(
+  async findAll(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Query() query: QueryTaskDto,
   ) {
-    return this.taskService.findAll(eventId, query);
+    return toResponse(
+      TaskResponseDto,
+      await this.taskService.findAll(eventId, query),
+    );
   }
 
   @Get(':id')
   @ApiOkResponse({ type: TaskResponseDto })
-  findOne(
+  async findOne(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.taskService.findOne(eventId, id);
+    return toResponse(
+      TaskResponseDto,
+      await this.taskService.findOne(eventId, id),
+    );
   }
 
   @Patch(':id')
   @ApiOkResponse({ type: TaskResponseDto })
-  update(
+  async update(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTaskDto,
   ) {
-    return this.taskService.update(eventId, id, dto);
+    return toResponse(
+      TaskResponseDto,
+      await this.taskService.update(eventId, id, dto),
+    );
   }
 
   @Delete(':id')

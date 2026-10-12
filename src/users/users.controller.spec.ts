@@ -4,6 +4,25 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { MeResponseDto, UserResponseDto } from './dto/user-response.dto';
+
+/** Linha completa do banco, incluindo os campos internos. */
+const row = {
+  id: 'user-id',
+  fullName: 'Pessoa Teste',
+  email: 'user@example.com',
+  phone: null,
+  password: '$2b$10$hash',
+  cpf: '52998224725',
+  birthDate: '1990-05-20',
+  role: 'USER' as const,
+  signupIntent: 'BUY' as const,
+  status: 'ACTIVE',
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
+  deletedAt: null,
+};
+const { password: _password, deletedAt: _deletedAt, ...publicUser } = row;
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -60,6 +79,45 @@ describe('UsersController', () => {
       passwords,
     );
     expect(mockUsersService.remove).toHaveBeenCalledWith('user-id');
+  });
+
+  describe('resposta segue o UserResponseDto (sem password/deletedAt)', () => {
+    it.each([
+      ['create', () => controller.create(row as never)],
+      ['findOne', () => controller.findOne('user-id')],
+      ['update', () => controller.update('user-id', {})],
+    ] as const)('%s', async (method, call) => {
+      mockUsersService[method].mockResolvedValue(row as never);
+
+      const result = await call();
+
+      expect(result).toBeInstanceOf(UserResponseDto);
+      expect(result).toEqual(publicUser);
+    });
+
+    it('findAll', async () => {
+      mockUsersService.findAll.mockResolvedValue([row] as never);
+
+      const result = await controller.findAll();
+
+      expect(result[0]).toBeInstanceOf(UserResponseDto);
+      expect(result).toEqual([publicUser]);
+    });
+
+    it.each([
+      ['findMe', () => controller.findMe(user)],
+      ['updateMe', () => controller.updateMe(user, {})],
+    ] as const)('%s inclui profileComplete', async (method, call) => {
+      mockUsersService[method].mockResolvedValue({
+        ...row,
+        profileComplete: true,
+      } as never);
+
+      const result = await call();
+
+      expect(result).toBeInstanceOf(MeResponseDto);
+      expect(result).toEqual({ ...publicUser, profileComplete: true });
+    });
   });
 
   it('declara as rotas /me antes das rotas /:id', () => {

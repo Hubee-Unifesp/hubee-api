@@ -7,6 +7,7 @@ import {
   OrganizationPermission,
   OrganizationRole,
 } from './dto/create-organization-user.dto';
+import { OrganizationUserResponseDto } from './dto/organization-user-response.dto';
 
 describe('OrganizationUsersController', () => {
   let controller: OrganizationUsersController;
@@ -21,6 +22,17 @@ describe('OrganizationUsersController', () => {
 
   const orgId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
   const userId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+
+  /** Linha completa do banco, como o service a retorna. */
+  const row = {
+    orgId,
+    userId,
+    role: OrganizationRole.ADMIN,
+    permission: OrganizationPermission.FULL,
+    inviteStatus: InviteStatus.PENDING,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
+  };
 
   beforeEach(async () => {
     service = {
@@ -51,34 +63,35 @@ describe('OrganizationUsersController', () => {
       role: OrganizationRole.ADMIN,
       permission: OrganizationPermission.FULL,
     };
-    const respostaFalsa = { orgId, ...dto };
-    service.create.mockResolvedValueOnce(respostaFalsa);
+    service.create.mockResolvedValueOnce(row);
 
     const resultado = await controller.create(orgId, dto);
 
     expect(service.create).toHaveBeenCalledWith(orgId, dto);
-    expect(resultado).toEqual(respostaFalsa);
+    expect(resultado).toBeInstanceOf(OrganizationUserResponseDto);
+    expect(resultado).toEqual(row);
   });
 
   it('findAll() repassa orgId pro service', async () => {
-    const listaFalsa = [{ orgId, userId }];
-    service.findAll.mockResolvedValueOnce(listaFalsa);
+    service.findAll.mockResolvedValueOnce([row]);
 
     const resultado = await controller.findAll(orgId);
 
     expect(service.findAll).toHaveBeenCalledWith(orgId);
-    expect(resultado).toEqual(listaFalsa);
+    expect(resultado[0]).toBeInstanceOf(OrganizationUserResponseDto);
+    expect(resultado).toEqual([row]);
   });
 
   it('update() repassa orgId, userId e dto pro service', async () => {
     const dto = { inviteStatus: InviteStatus.ACCEPTED };
-    const respostaFalsa = { orgId, userId, ...dto };
-    service.update.mockResolvedValueOnce(respostaFalsa);
+    const atualizado = { ...row, ...dto };
+    service.update.mockResolvedValueOnce(atualizado);
 
     const resultado = await controller.update(orgId, userId, dto);
 
     expect(service.update).toHaveBeenCalledWith(orgId, userId, dto);
-    expect(resultado).toEqual(respostaFalsa);
+    expect(resultado).toBeInstanceOf(OrganizationUserResponseDto);
+    expect(resultado).toEqual(atualizado);
   });
 
   it('remove() repassa orgId e userId pro service', async () => {

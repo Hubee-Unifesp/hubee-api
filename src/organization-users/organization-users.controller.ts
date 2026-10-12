@@ -20,6 +20,7 @@ import {
 import { OrganizationUsersService } from './organization-users.service';
 import { CreateOrganizationUserDto } from './dto/create-organization-user.dto';
 import { UpdateOrganizationUserDto } from './dto/update-organization-user.dto';
+import { toResponse } from '../common/serialization/to-response';
 
 @ApiTags('organization-users')
 @Controller('organizations/:orgId/users')
@@ -31,27 +32,36 @@ export class OrganizationUsersController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrganizationUserResponseDto })
-  create(
+  async create(
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Body() dto: CreateOrganizationUserDto,
   ) {
-    return this.organizationUsersService.create(orgId, dto);
+    return toResponse(
+      OrganizationUserResponseDto,
+      await this.organizationUsersService.create(orgId, dto),
+    );
   }
 
   @Get()
   @ApiOkResponse({ type: OrganizationUserResponseDto, isArray: true })
-  findAll(@Param('orgId', ParseUUIDPipe) orgId: string) {
-    return this.organizationUsersService.findAll(orgId);
+  async findAll(@Param('orgId', ParseUUIDPipe) orgId: string) {
+    return toResponse(
+      OrganizationUserResponseDto,
+      await this.organizationUsersService.findAll(orgId),
+    );
   }
 
   @Patch(':userId')
   @ApiOkResponse({ type: OrganizationUserResponseDto })
-  update(
+  async update(
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Param('userId', ParseUUIDPipe) userId: string,
     @Body() dto: UpdateOrganizationUserDto,
   ) {
-    return this.organizationUsersService.update(orgId, userId, dto);
+    return toResponse(
+      OrganizationUserResponseDto,
+      await this.organizationUsersService.update(orgId, userId, dto),
+    );
   }
 
   @Delete(':userId')

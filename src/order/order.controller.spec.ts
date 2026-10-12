@@ -4,6 +4,17 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
+import { OrderResponseDto } from './dto/order-response.dto';
+
+/** Linha completa do banco, como o service a retorna. */
+const row = {
+  id: 'order-1',
+  userId: 'user-1',
+  totalAmount: 150.5,
+  status: 'pendente' as const,
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
+};
 
 describe('OrderController', () => {
   let controller: OrderController;
@@ -34,17 +45,18 @@ describe('OrderController', () => {
 
   it('POST /orders delega para orderService.create()', async () => {
     const dto: CreateOrderDto = { userId: 'user-1', totalAmount: 150.5 };
-    const created = { id: 'order-1', ...dto } as never;
+    const created = row as never;
     service.create.mockResolvedValue(created);
 
     const result = await controller.create(dto);
 
     expect(service.create).toHaveBeenCalledWith(dto);
     expect(result).toEqual(created);
+    expect(result).toBeInstanceOf(OrderResponseDto);
   });
 
   it('GET /orders delega para orderService.findAll() com os filtros da query', async () => {
-    const list = [{ id: 'order-1' }] as never;
+    const list = [row] as never;
     service.findAll.mockResolvedValue(list);
 
     const result = await controller.findAll({
@@ -57,27 +69,30 @@ describe('OrderController', () => {
       status: 'pago',
     });
     expect(result).toEqual(list);
+    expect(result[0]).toBeInstanceOf(OrderResponseDto);
   });
 
   it('GET /orders/:id delega para orderService.findOne()', async () => {
-    const order = { id: 'order-1' } as never;
+    const order = row as never;
     service.findOne.mockResolvedValue(order);
 
     const result = await controller.findOne('order-1');
 
     expect(service.findOne).toHaveBeenCalledWith('order-1');
     expect(result).toEqual(order);
+    expect(result).toBeInstanceOf(OrderResponseDto);
   });
 
   it('PATCH /orders/:id delega para orderService.update()', async () => {
     const dto: UpdateOrderDto = { status: 'pago' };
-    const updated = { id: 'order-1', ...dto } as never;
+    const updated = row as never;
     service.update.mockResolvedValue(updated);
 
     const result = await controller.update('order-1', dto);
 
     expect(service.update).toHaveBeenCalledWith('order-1', dto);
     expect(result).toEqual(updated);
+    expect(result).toBeInstanceOf(OrderResponseDto);
   });
 
   it('DELETE /orders/:id delega para orderService.cancel()', async () => {

@@ -26,6 +26,7 @@ import {
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
+import { toResponse } from '../common/serialization/to-response';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -34,22 +35,28 @@ export class AuthController {
 
   @Post('register')
   @ApiCreatedResponse({ type: RegisterResponseDto })
-  register(@Body() data: RegisterDto) {
-    return this.authService.register(data);
+  async register(@Body() data: RegisterDto) {
+    return toResponse(
+      RegisterResponseDto,
+      await this.authService.register(data),
+    );
   }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOkResponse({ type: MeResponseDto })
-  me(@CurrentUser() user: AuthenticatedUser) {
-    return this.authService.me(user.id);
+  async me(@CurrentUser() user: AuthenticatedUser) {
+    return toResponse(MeResponseDto, await this.authService.me(user.id));
   }
 
   @HttpCode(HttpStatus.OK)
   @Post('login')
   @ApiOkResponse({ type: LoginResponseDto })
-  login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto.email, loginDto.password);
+  async login(@Body() loginDto: LoginDto) {
+    return toResponse(
+      LoginResponseDto,
+      await this.authService.login(loginDto.email, loginDto.password),
+    );
   }
 }

@@ -56,11 +56,18 @@ e `password`. Esses DTOs são referenciados nos controllers via
 `@ApiOkResponse`/`@ApiCreatedResponse`, então o Swagger mostra o schema real da
 resposta.
 
-> **Estado atual (documentação-only)**: os endpoints ainda **retornam a linha do
-> banco** em runtime; os `*ResponseDto` documentam o contrato pretendido, mas a
-> aplicação em runtime (retornar instâncias do DTO, garantindo que campos
-> internos não vazem) é uma **task futura** — que também reescreverá os testes
-> que hoje asseveram a linha crua.
+O contrato também é aplicado em **runtime** (task **GOL-112**):
+
+- Os services retornam a linha do banco; o **controller** converte o retorno com
+  `toResponse(XResponseDto, ...)` ([`src/common/serialization/to-response.ts`](../src/common/serialization/to-response.ts)),
+  que usa `plainToInstance` com `excludeExtraneousValues`.
+- Todo campo do DTO precisa de **`@Expose()`** junto do `@ApiProperty()`; campo
+  sem `@Expose()` não sai na resposta. Objetos aninhados também precisam de
+  `@Type(() => OutroResponseDto)` (ex.: `VenueResponseDto.address`).
+- O teste de contrato em
+  [`to-response.spec.ts`](../src/common/serialization/to-response.spec.ts)
+  garante que cada `*ResponseDto` expõe exatamente as propriedades documentadas
+  no OpenAPI. Ao criar um DTO de resposta novo, adicione-o à lista desse teste.
 
 ## Documentação (OpenAPI / Swagger)
 

@@ -20,11 +20,6 @@ import { DRIZZLE } from '../database/database.constants';
 export class UsersService {
   constructor(@Inject(DRIZZLE) private readonly db: any) {}
 
-  private excludePassword(user: any) {
-    const { password: _password, ...userWithoutPassword } = user;
-    return userWithoutPassword;
-  }
-
   async create(data: CreateUserDto) {
     data = { ...data, email: normalizeEmail(data.email) };
     const existingUser = await this.db
@@ -57,16 +52,11 @@ export class UsersService {
       })
       .returning();
 
-    return this.excludePassword(newUser);
+    return newUser;
   }
 
   async findAll() {
-    const allUsers = await this.db
-      .select()
-      .from(users)
-      .where(isNull(users.deletedAt));
-
-    return allUsers.map((user: any) => this.excludePassword(user));
+    return this.db.select().from(users).where(isNull(users.deletedAt));
   }
 
   async findOne(id: string) {
@@ -77,7 +67,7 @@ export class UsersService {
 
     if (!user) throw new NotFoundException('Usuário não encontrado.');
 
-    return this.excludePassword(user);
+    return user;
   }
 
   async findMe(id: string) {
@@ -138,7 +128,7 @@ export class UsersService {
       .where(eq(users.id, id))
       .returning();
 
-    return this.excludePassword(updatedUser);
+    return updatedUser;
   }
 
   async remove(id: string): Promise<void> {
