@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import { JwtModule } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CreateTicketsDto } from './dto/create-tickets.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
@@ -19,6 +20,8 @@ const row = {
   updatedAt: new Date('2026-01-01T00:00:00Z'),
 };
 
+const USER = { id: 'user-1', email: 'user@example.com', role: 'USER' as const };
+
 describe('TicketController', () => {
   let controller: TicketController;
   let service: {
@@ -37,6 +40,7 @@ describe('TicketController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
+      imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [TicketController],
       providers: [{ provide: TicketService, useValue: service }],
     }).compile();
@@ -62,9 +66,9 @@ describe('TicketController', () => {
     const list = [row] as never;
     service.findAllByOrder.mockResolvedValue(list);
 
-    const result = await controller.findAllByOrder('order-1');
+    const result = await controller.findAllByOrder('order-1', USER);
 
-    expect(service.findAllByOrder).toHaveBeenCalledWith('order-1');
+    expect(service.findAllByOrder).toHaveBeenCalledWith('order-1', USER);
     expect(result).toEqual(list);
     expect(result[0]).toBeInstanceOf(TicketResponseDto);
   });
@@ -73,9 +77,9 @@ describe('TicketController', () => {
     const ticket = row as never;
     service.findOne.mockResolvedValue(ticket);
 
-    const result = await controller.findOne('ticket-1');
+    const result = await controller.findOne('ticket-1', USER);
 
-    expect(service.findOne).toHaveBeenCalledWith('ticket-1');
+    expect(service.findOne).toHaveBeenCalledWith('ticket-1', USER);
     expect(result).toEqual(ticket);
     expect(result).toBeInstanceOf(TicketResponseDto);
   });

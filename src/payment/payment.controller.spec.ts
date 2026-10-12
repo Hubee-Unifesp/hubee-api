@@ -20,6 +20,7 @@ const row = {
 };
 
 const ORDER_ID = 'pedido-1';
+const USER = { id: 'user-1', email: 'user@example.com', role: 'USER' as const };
 
 describe('PaymentController', () => {
   let controller: PaymentController;
@@ -53,9 +54,9 @@ describe('PaymentController', () => {
     const created = row as never;
     service.create.mockResolvedValue(created);
 
-    const result = await controller.create(ORDER_ID, dto);
+    const result = await controller.create(ORDER_ID, dto, USER);
 
-    expect(service.create).toHaveBeenCalledWith(ORDER_ID, dto);
+    expect(service.create).toHaveBeenCalledWith(ORDER_ID, dto, USER);
     expect(result).toEqual(created);
     expect(result).toBeInstanceOf(PaymentResponseDto);
   });
@@ -64,9 +65,9 @@ describe('PaymentController', () => {
     const payment = row as never;
     service.findOne.mockResolvedValue(payment);
 
-    const result = await controller.findOne(ORDER_ID);
+    const result = await controller.findOne(ORDER_ID, USER);
 
-    expect(service.findOne).toHaveBeenCalledWith(ORDER_ID);
+    expect(service.findOne).toHaveBeenCalledWith(ORDER_ID, USER);
     expect(result).toEqual(payment);
     expect(result).toBeInstanceOf(PaymentResponseDto);
   });

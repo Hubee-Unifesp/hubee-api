@@ -15,17 +15,29 @@ import { CreateTicketsDto } from './dto/create-tickets.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { TicketService } from './ticket.service';
 import { toResponse } from '../common/serialization/to-response';
+import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import { Authenticated } from '../auth/decorators/authenticated.decorator';
+import {
+  type AuthenticatedUser,
+  CurrentUser,
+} from '../auth/decorators/current-user.decorator';
 
 /**
  * Sem prefixo no `@Controller`: a emissão e a listagem são sub-recursos do
  * pedido (`/orders/:orderId/tickets`), mas a consulta e a mudança de status
  * usam o ingresso direto (`/tickets/:id`), que é o que a portaria lê.
+ *
+ * Emitir e mudar status é só ADMIN: o service não confere a quantidade
+ * emitida contra o valor pago, então o comprador não pode emitir sozinho.
+ * Consultar é para o comprador ou o titular (o service responde 404 aos
+ * demais).
  */
 @ApiTags('tickets')
 @Controller()
 export class TicketController {
   constructor(private readonly ticketService: TicketService) {}
 
+  @AdminOnly()
   @Post('orders/:orderId/tickets')
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: TicketResponseDto, isArray: true })
@@ -39,21 +51,33 @@ export class TicketController {
     );
   }
 
+  @Authenticated()
   @Get('orders/:orderId/tickets')
   @ApiOkResponse({ type: TicketResponseDto, isArray: true })
-  async findAllByOrder(@Param('orderId', ParseUUIDPipe) orderId: string) {
+  async findAllByOrder(
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return toResponse(
       TicketResponseDto,
-      await this.ticketService.findAllByOrder(orderId),
+      await this.ticketService.findAllByOrder(orderId, user),
     );
   }
 
+  @Authenticated()
   @Get('tickets/:id')
   @ApiOkResponse({ type: TicketResponseDto })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return toResponse(TicketResponseDto, await this.ticketService.findOne(id));
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return toResponse(
+      TicketResponseDto,
+      await this.ticketService.findOne(id, user),
+    );
   }
 
+  @AdminOnly()
   @Patch('tickets/:id')
   @ApiOkResponse({ type: TicketResponseDto })
   async update(

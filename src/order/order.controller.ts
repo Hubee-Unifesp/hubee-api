@@ -23,6 +23,7 @@ import { QueryOrderDto } from './dto/query-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderService } from './order.service';
 import { toResponse } from '../common/serialization/to-response';
+import { AdminOnly } from '../auth/decorators/admin-only.decorator';
 
 @ApiTags('orders')
 @Controller('orders')
@@ -48,6 +49,12 @@ export class OrderController {
     return toResponse(OrderResponseDto, await this.orderService.findOne(id));
   }
 
+  /**
+   * Só ADMIN: o DTO aceita `status`, e marcar o pedido como `pago` é o que
+   * libera a emissão de ingressos. As demais rotas de pedido ganham checagem
+   * de dono na GOL-103.
+   */
+  @AdminOnly()
   @Patch(':id')
   @ApiOkResponse({ type: OrderResponseDto })
   async update(
