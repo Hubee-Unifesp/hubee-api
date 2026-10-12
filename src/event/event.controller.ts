@@ -24,12 +24,14 @@ import { QueryEventDto } from './dto/query-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventService } from './event.service';
 import { toResponse } from '../common/serialization/to-response';
+import { AdminOnly } from '../auth/decorators/admin-only.decorator';
 
 @ApiTags('events')
 @Controller('events')
 export class EventController {
   constructor(private readonly eventService: EventService) {}
 
+  @AdminOnly()
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: EventResponseDto })
@@ -58,6 +60,7 @@ export class EventController {
     return toResponse(EventResponseDto, await this.eventService.findOne(id));
   }
 
+  @AdminOnly()
   @Patch(':id')
   @ApiOkResponse({ type: EventResponseDto })
   async update(
@@ -70,6 +73,7 @@ export class EventController {
     );
   }
 
+  @AdminOnly()
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()

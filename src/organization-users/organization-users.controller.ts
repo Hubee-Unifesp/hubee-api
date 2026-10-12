@@ -21,8 +21,10 @@ import { OrganizationUsersService } from './organization-users.service';
 import { CreateOrganizationUserDto } from './dto/create-organization-user.dto';
 import { UpdateOrganizationUserDto } from './dto/update-organization-user.dto';
 import { toResponse } from '../common/serialization/to-response';
+import { AdminOnly } from '../auth/decorators/admin-only.decorator';
 
 @ApiTags('organization-users')
+@AdminOnly()
 @Controller('organizations/:orgId/users')
 export class OrganizationUsersController {
   constructor(

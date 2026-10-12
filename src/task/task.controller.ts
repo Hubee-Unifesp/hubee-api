@@ -23,8 +23,10 @@ import { QueryTaskDto } from './dto/query-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskService } from './task.service';
 import { toResponse } from '../common/serialization/to-response';
+import { AdminOnly } from '../auth/decorators/admin-only.decorator';
 
 @ApiTags('tasks')
+@AdminOnly()
 @Controller('events/:eventId/tasks')
 export class TaskController {
   constructor(private readonly taskService: TaskService) {}

@@ -19,8 +19,10 @@ import {
 import { CreateOrganizationEventDto } from './dto/create-organization-event.dto';
 import { OrganizationEventService } from './organization-event.service';
 import { toResponse } from '../common/serialization/to-response';
+import { AdminOnly } from '../auth/decorators/admin-only.decorator';
 
 @ApiTags('organization-events')
+@AdminOnly()
 @Controller('events/:eventId/organizations')
 export class OrganizationEventController {
   constructor(

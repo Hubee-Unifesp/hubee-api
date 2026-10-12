@@ -15,8 +15,10 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { PaymentService } from './payment.service';
 import { toResponse } from '../common/serialization/to-response';
+import { AdminOnly } from '../auth/decorators/admin-only.decorator';
 
 @ApiTags('payments')
+@AdminOnly()
 @Controller('orders/:orderId/payments')
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}

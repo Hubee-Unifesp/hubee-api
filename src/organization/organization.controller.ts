@@ -23,12 +23,14 @@ import { QueryOrganizationDto } from './dto/query-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OrganizationService } from './organization.service';
 import { toResponse } from '../common/serialization/to-response';
+import { AdminOnly } from '../auth/decorators/admin-only.decorator';
 
 @ApiTags('organizations')
 @Controller('organizations')
 export class OrganizationController {
   constructor(private readonly organizationService: OrganizationService) {}
 
+  @AdminOnly()
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrganizationResponseDto })
@@ -57,6 +59,7 @@ export class OrganizationController {
     );
   }
 
+  @AdminOnly()
   @Patch(':id')
   @ApiOkResponse({ type: OrganizationResponseDto })
   async update(
@@ -69,6 +72,7 @@ export class OrganizationController {
     );
   }
 
+  @AdminOnly()
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
