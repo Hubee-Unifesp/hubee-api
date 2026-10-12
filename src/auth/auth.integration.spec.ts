@@ -109,6 +109,7 @@ describe('Auth endpoints (Postgres em memória)', () => {
       birthDate: null,
     });
     expect(response.body.user).not.toHaveProperty('password');
+    expect(response.body.user).not.toHaveProperty('deletedAt');
     token = response.body.access_token;
     userId = response.body.user.id;
     expect(await jwt.verifyAsync(token)).toMatchObject({
@@ -183,6 +184,7 @@ describe('Auth endpoints (Postgres em memória)', () => {
       profileComplete: false,
     });
     expect(response.body).not.toHaveProperty('password');
+    expect(response.body).not.toHaveProperty('deletedAt');
   });
 
   it('me calcula profileComplete apenas quando CPF e nascimento existem', async () => {
