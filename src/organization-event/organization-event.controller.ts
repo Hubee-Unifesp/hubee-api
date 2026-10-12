@@ -18,6 +18,7 @@ import {
 } from '@nestjs/common';
 import { CreateOrganizationEventDto } from './dto/create-organization-event.dto';
 import { OrganizationEventService } from './organization-event.service';
+import { toResponse } from '../common/serialization/to-response';
 
 @ApiTags('organization-events')
 @Controller('events/:eventId/organizations')
@@ -29,17 +30,23 @@ export class OrganizationEventController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrganizationEventResponseDto })
-  create(
+  async create(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Body() dto: CreateOrganizationEventDto,
   ) {
-    return this.organizationEventService.create(eventId, dto);
+    return toResponse(
+      OrganizationEventResponseDto,
+      await this.organizationEventService.create(eventId, dto),
+    );
   }
 
   @Get()
   @ApiOkResponse({ type: OrganizationEventResponseDto, isArray: true })
-  findAll(@Param('eventId', ParseUUIDPipe) eventId: string) {
-    return this.organizationEventService.findAll(eventId);
+  async findAll(@Param('eventId', ParseUUIDPipe) eventId: string) {
+    return toResponse(
+      OrganizationEventResponseDto,
+      await this.organizationEventService.findAll(eventId),
+    );
   }
 
   @Delete(':orgId')
