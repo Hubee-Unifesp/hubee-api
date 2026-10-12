@@ -5,19 +5,22 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { EventController } from '../event/event.controller';
+import { EventService } from '../event/event.service';
 import { ExpensesController } from '../expenses/expenses.controller';
 import { OrganizationEventController } from '../organization-event/organization-event.controller';
 import { OrganizationUsersController } from '../organization-users/organization-users.controller';
+import { OrderController } from '../order/order.controller';
 import { OrganizationController } from '../organization/organization.controller';
 import { PaymentController } from '../payment/payment.controller';
 import { SuppliersController } from '../suppliers/suppliers.controller';
 import { TaskController } from '../task/task.controller';
+import { TicketController } from '../ticket/ticket.controller';
 import { TicketTypeController } from '../ticket-type/ticket-type.controller';
 import { VenueController } from '../venue/venue.controller';
 
 /**
- * Controllers cobertos pela GOL-114. Users fica na GOL-105; orders e tickets
- * na GOL-103.
+ * Controllers cobertos pela GOL-114. Users fica na GOL-105; o resto de orders
+ * (checagem de dono) na GOL-103.
  */
 const CONTROLLERS: Type[] = [
   EventController,
@@ -28,6 +31,8 @@ const CONTROLLERS: Type[] = [
   ExpensesController,
   TaskController,
   PaymentController,
+  TicketController,
+  OrderController,
   OrganizationUsersController,
   OrganizationEventController,
 ];
@@ -35,7 +40,7 @@ const CONTROLLERS: Type[] = [
 /**
  * Únicas rotas desses controllers que continuam públicas: a home do front
  * lista eventos, organizações, locais e tipos de ingresso sem login.
- * Qualquer outra rota precisa exigir token de ADMIN.
+ * Qualquer rota fora das listas abaixo precisa exigir token de ADMIN.
  */
 const PUBLIC_ROUTES = [
   'GET /events',
@@ -47,6 +52,26 @@ const PUBLIC_ROUTES = [
   'GET /organizations/:id',
   'GET /venues',
   'GET /venues/:id',
+];
+
+/**
+ * Qualquer usuário logado: o comprador paga e consulta o próprio pedido. O
+ * service responde 404 para recurso de outra pessoa (coberto nos specs dos
+ * services, já que aqui o service é falso).
+ */
+const AUTHENTICATED_ROUTES = [
+  'POST /orders/:orderId/payments',
+  'GET /orders/:orderId/payments',
+  'GET /orders/:orderId/tickets',
+  'GET /tickets/:id',
+];
+
+/** Rotas de pedido que ganham proteção com checagem de dono na GOL-103. */
+const PENDING_GOL_103_ROUTES = [
+  'POST /orders',
+  'GET /orders',
+  'GET /orders/:id',
+  'DELETE /orders/:id',
 ];
 
 // Chaves de metadata que o Nest grava via @Controller/@Get/@Post/... (as
@@ -105,7 +130,17 @@ function mockServiceOf(controller: Type) {
 const ID = '11111111-1111-4111-8111-111111111111';
 const ROUTES = CONTROLLERS.flatMap(routesOf);
 const publicRoutes = ROUTES.filter((r) => PUBLIC_ROUTES.includes(r.label));
-const protectedRoutes = ROUTES.filter((r) => !PUBLIC_ROUTES.includes(r.label));
+const authenticatedRoutes = ROUTES.filter((r) =>
+  AUTHENTICATED_ROUTES.includes(r.label),
+);
+const protectedRoutes = ROUTES.filter(
+  (r) =>
+    ![
+      ...PUBLIC_ROUTES,
+      ...AUTHENTICATED_ROUTES,
+      ...PENDING_GOL_103_ROUTES,
+    ].includes(r.label),
+);
 
 describe('Proteção de rotas (GOL-114)', () => {
   let app: INestApplication;
@@ -167,6 +202,15 @@ describe('Proteção de rotas (GOL-114)', () => {
       },
     );
 
+    it.each(authenticatedRoutes.map((r) => [r.label, r] as const))(
+      '%s documenta Bearer e resposta 401',
+      (_label, route) => {
+        const operation = operationOf(route);
+        expect(operation?.security).toEqual([{ bearer: [] }]);
+        expect(Object.keys(operation?.responses ?? {})).toContain('401');
+      },
+    );
+
     it.each(publicRoutes.map((r) => [r.label, r] as const))(
       '%s não exige token',
       (_label, route) => {
@@ -177,10 +221,24 @@ describe('Proteção de rotas (GOL-114)', () => {
     );
   });
 
-  it('toda rota da lista de públicas existe nos controllers', () => {
+  it('toda rota das listas existe nos controllers', () => {
     const labels = ROUTES.map((r) => r.label);
-    for (const route of PUBLIC_ROUTES) expect(labels).toContain(route);
+    for (const route of [
+      ...PUBLIC_ROUTES,
+      ...AUTHENTICATED_ROUTES,
+      ...PENDING_GOL_103_ROUTES,
+    ])
+      expect(labels).toContain(route);
     expect(protectedRoutes.length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    'PATCH /orders/:orderId/payments',
+    'POST /orders/:orderId/tickets',
+    'PATCH /tickets/:id',
+    'PATCH /orders/:id',
+  ])('%s é só ADMIN', (label) => {
+    expect(protectedRoutes.map((r) => r.label)).toContain(label);
   });
 
   describe.each(publicRoutes.map((r) => [r.label, r] as const))(
@@ -188,6 +246,68 @@ describe('Proteção de rotas (GOL-114)', () => {
     (_label, route) => {
       it('responde sem token', async () => {
         const response = await call(route);
+        expect(response.status).toBeLessThan(300);
+      });
+
+      it('responde com token de USER', async () => {
+        const response = await call(route, userToken);
+        expect(response.status).toBeLessThan(300);
+      });
+    },
+  );
+
+  describe('eventos não publicados', () => {
+    const eventService = () =>
+      app.get(EventService) as unknown as {
+        findAll: jest.Mock;
+        findVisible: jest.Mock;
+      };
+
+    it('GET /events?status=draft sem token repassa o filtro sem usuário', async () => {
+      await request(app.getHttpServer())
+        .get('/events?status=draft')
+        .expect(200);
+      expect(eventService().findAll).toHaveBeenLastCalledWith(
+        { status: 'draft' },
+        undefined,
+      );
+    });
+
+    it('GET /events com token de ADMIN repassa o ADMIN para o service', async () => {
+      await request(app.getHttpServer())
+        .get('/events')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(eventService().findAll).toHaveBeenLastCalledWith(
+        {},
+        expect.objectContaining({ role: 'ADMIN' }),
+      );
+    });
+
+    it('GET /events/:id com token inválido dá 401 em vez da visão pública', async () => {
+      await request(app.getHttpServer())
+        .get(`/events/${ID}`)
+        .set('Authorization', 'Bearer token-invalido')
+        .expect(401);
+    });
+  });
+
+  describe.each(authenticatedRoutes.map((r) => [r.label, r] as const))(
+    '%s (qualquer usuário logado)',
+    (_label, route) => {
+      it('401 sem token', async () => {
+        await call(route).expect(401);
+      });
+
+      it('401 com token inválido', async () => {
+        await call(route, 'token-invalido').expect(401);
+      });
+
+      it.each([
+        ['USER', () => userToken],
+        ['ADMIN', () => adminToken],
+      ])('2xx com token de %s', async (_role, token) => {
+        const response = await call(route, token());
         expect(response.status).toBeLessThan(300);
       });
     },
