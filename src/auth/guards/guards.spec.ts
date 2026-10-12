@@ -7,6 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { OptionalJwtAuthGuard } from './optional-jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 import { Roles } from '../decorators/roles.decorator';
 
@@ -94,6 +95,43 @@ describe('JwtAuthGuard', () => {
       ),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
+});
+
+describe('OptionalJwtAuthGuard', () => {
+  const optionalGuard = new OptionalJwtAuthGuard(jwt);
+
+  it('deixa passar sem Authorization e sem preencher o usuário', async () => {
+    const req = { headers: {}, user: undefined };
+    await expect(optionalGuard.canActivate(context(req))).resolves.toBe(true);
+    expect(req.user).toBeUndefined();
+  });
+
+  it('preenche o usuário quando o token é válido', async () => {
+    const token = await jwt.signAsync({
+      sub: 'user-id',
+      email: 'user@example.com',
+      role: 'USER',
+    });
+    const req = {
+      headers: { authorization: `Bearer ${token}` },
+      user: undefined,
+    };
+    await expect(optionalGuard.canActivate(context(req))).resolves.toBe(true);
+    expect(req.user).toEqual({
+      id: 'user-id',
+      email: 'user@example.com',
+      role: 'USER',
+    });
+  });
+
+  it.each(['', 'Bearer invalid'])(
+    'recusa Authorization=%j enviado mas inválido',
+    async (authorization) => {
+      await expect(
+        optionalGuard.canActivate(context({ headers: { authorization } })),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    },
+  );
 });
 
 describe('RolesGuard e @Roles', () => {

@@ -15,7 +15,9 @@ const errorSchema = { $ref: '#/components/schemas/ErrorResponse' };
  * documenta o Bearer e as respostas 401/403 no Swagger.
  *
  * Regra provisória: até o spike GOL-109 definir as permissões por
- * organização, toda escrita fora de users/orders/tickets é só ADMIN.
+ * organização, toda escrita fora de users/orders/tickets é só ADMIN. Em
+ * pedidos, só `PATCH /orders/:id` (que muda o status) é ADMIN por enquanto;
+ * o comprador paga e consulta o próprio pedido via `Authenticated()`.
  */
 export function AdminOnly() {
   return applyDecorators(
