@@ -1,6 +1,7 @@
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiTags,
@@ -19,7 +20,6 @@ import {
   Post,
   Query,
   UseGuards,
-  ForbiddenException,
 } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { QueryOrderDto } from './dto/query-order.dto';
@@ -44,6 +44,10 @@ export class OrderController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrderResponseDto })
+  @ApiForbiddenResponse({
+    description:
+      'Perfil incompleto: `code` = PROFILE_INCOMPLETE e `missing` lista os campos que faltam.',
+  })
   async create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateOrderDto,
@@ -82,18 +86,14 @@ export class OrderController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOkResponse({ type: OrderResponseDto })
+  @ApiForbiddenResponse({
+    description: 'Apenas administradores alteram pedidos.',
+  })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdateOrderDto,
   ) {
-    // Trava de segurança exigida na revisão!
-    if (user.role !== 'ADMIN' && dto.status) {
-      throw new ForbiddenException(
-        'Apenas administradores podem alterar o status do pedido',
-      );
-    }
-
     return toResponse(
       OrderResponseDto,
       await this.orderService.update(id, dto, user),

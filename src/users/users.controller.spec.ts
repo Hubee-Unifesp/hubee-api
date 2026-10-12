@@ -2,7 +2,9 @@ import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
+import { NotImplementedException } from '@nestjs/common';
 import { OrderService } from '../order/order.service';
+import { OrderResponseDto } from '../order/dto/order-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
@@ -88,6 +90,33 @@ describe('UsersController', () => {
       passwords,
     );
     expect(mockUsersService.remove).toHaveBeenCalledWith('user-id');
+  });
+
+  it('GET /me/orders filtra pelo usuário do token, ignorando o userId da query', async () => {
+    const order = {
+      id: 'order-1',
+      userId: 'user-id',
+      totalAmount: 150.5,
+      status: 'pendente',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+    };
+    mockOrderService.findAll.mockResolvedValue([order] as never);
+
+    const result = await controller.getMyOrders(user, {
+      userId: 'outro-usuario',
+      status: 'pendente',
+    });
+
+    expect(mockOrderService.findAll).toHaveBeenCalledWith({
+      userId: 'user-id',
+      status: 'pendente',
+    });
+    expect(result).toEqual([expect.any(OrderResponseDto)]);
+  });
+
+  it('GET /me/tickets responde 501 enquanto não está implementada', () => {
+    expect(() => controller.getMyTickets()).toThrow(NotImplementedException);
   });
 
   describe('resposta segue o UserResponseDto (sem password/deletedAt)', () => {

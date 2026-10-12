@@ -43,6 +43,12 @@ describe('OrderService', () => {
     role: 'USER',
   };
 
+  const mockAdmin: AuthenticatedUser = {
+    id: 'admin-1',
+    email: 'admin@exemplo.com',
+    role: 'ADMIN',
+  };
+
   beforeEach(async () => {
     orderRepository = {
       findAll: jest.fn<OrderRepository['findAll']>(),
@@ -81,6 +87,16 @@ describe('OrderService', () => {
       });
       expect(result).toEqual(rows);
     });
+
+    it('repassa o filtro de usuário vindo dentro dos filtros sem apagá-lo', async () => {
+      orderRepository.findAll.mockResolvedValue([]);
+
+      await service.findAll({ userId: 'user-1' });
+
+      expect(orderRepository.findAll).toHaveBeenCalledWith({
+        userId: 'user-1',
+      });
+    });
   });
 
   describe('findOne()', () => {
@@ -100,6 +116,16 @@ describe('OrderService', () => {
         service.findOne('order-1', mockAuthUser),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
+
+    it('responde NotFound quando o pedido é de outro usuário', async () => {
+      orderRepository.findById.mockResolvedValue(
+        makeOrder({ userId: 'outro-usuario' }),
+      );
+
+      await expect(
+        service.findOne('order-1', mockAuthUser),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
   });
 
   describe('create()', () => {
@@ -113,8 +139,7 @@ describe('OrderService', () => {
       } as any);
       orderRepository.create.mockResolvedValue(created);
 
-      // Passando userId separado do DTO
-      const result = await service.create('user-1', { totalAmount: 150.5 });
+      const result = await service.create(mockAuthUser, { totalAmount: 150.5 });
 
       expect(usersService.findOne).toHaveBeenCalledWith('user-1');
       expect(orderRepository.create).toHaveBeenCalledWith({
@@ -129,8 +154,15 @@ describe('OrderService', () => {
       usersService.findOne.mockResolvedValue({ id: 'user-1' } as any);
 
       await expect(
-        service.create('user-1', { totalAmount: 150.5 }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+        service.create(mockAuthUser, { totalAmount: 150.5 }),
+      ).rejects.toMatchObject({
+        response: {
+          statusCode: 403,
+          error: 'Forbidden',
+          code: 'PROFILE_INCOMPLETE',
+          missing: ['cpf', 'birthDate'],
+        },
+      });
       expect(orderRepository.create).not.toHaveBeenCalled();
     });
 
@@ -140,13 +172,22 @@ describe('OrderService', () => {
       );
 
       await expect(
-        service.create('user-1', { totalAmount: 10 }),
+        service.create(mockAuthUser, { totalAmount: 10 }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(orderRepository.create).not.toHaveBeenCalled();
     });
   });
 
   describe('update()', () => {
+    it('recusa com 403 quando quem altera não é ADMIN', async () => {
+      orderRepository.findById.mockResolvedValue(makeOrder());
+
+      await expect(
+        service.update('order-1', { totalAmount: 0 }, mockAuthUser),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(orderRepository.update).not.toHaveBeenCalled();
+    });
+
     it('atualiza o status de um pedido pendente', async () => {
       const updated = makeOrder({ status: 'pago' });
       orderRepository.findById.mockResolvedValue(makeOrder());
@@ -155,7 +196,7 @@ describe('OrderService', () => {
       const result = await service.update(
         'order-1',
         { status: 'pago' },
-        mockAuthUser,
+        mockAdmin,
       );
 
       expect(orderRepository.update).toHaveBeenCalledWith('order-1', {
@@ -168,7 +209,7 @@ describe('OrderService', () => {
       orderRepository.findById.mockResolvedValue(undefined);
 
       await expect(
-        service.update('order-1', { status: 'pago' }, mockAuthUser),
+        service.update('order-1', { status: 'pago' }, mockAdmin),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(orderRepository.update).not.toHaveBeenCalled();
     });
@@ -179,7 +220,7 @@ describe('OrderService', () => {
       );
 
       await expect(
-        service.update('order-1', { status: 'pago' }, mockAuthUser),
+        service.update('order-1', { status: 'pago' }, mockAdmin),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
       expect(orderRepository.update).not.toHaveBeenCalled();
     });

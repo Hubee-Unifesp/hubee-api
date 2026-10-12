@@ -11,6 +11,7 @@ import {
   HttpStatus,
   UseGuards,
   Query,
+  NotImplementedException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -27,12 +28,14 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { OrderService } from '../order/order.service';
 import { QueryOrderDto } from '../order/dto/query-order.dto';
+import { OrderResponseDto } from '../order/dto/order-response.dto';
 import {
   ApiBearerAuth,
   ApiTags,
   ApiOkResponse,
   ApiCreatedResponse,
   ApiNoContentResponse,
+  ApiNotImplementedResponse,
 } from '@nestjs/swagger';
 import { toResponse } from '../common/serialization/to-response';
 
@@ -99,16 +102,23 @@ export class UsersController {
   }
 
   @Get('me/orders')
+  @ApiOkResponse({ type: OrderResponseDto, isArray: true })
   async getMyOrders(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: QueryOrderDto,
   ) {
-    return this.orderService.findAll({ ...query, userId: user.id });
+    return toResponse(
+      OrderResponseDto,
+      await this.orderService.findAll({ ...query, userId: user.id }),
+    );
   }
 
   @Get('me/tickets')
-  async getMyTickets(@CurrentUser() _user: AuthenticatedUser) {
-    return [];
+  @ApiNotImplementedResponse({ description: 'Rota ainda não implementada.' })
+  getMyTickets(): never {
+    throw new NotImplementedException(
+      'Listagem de ingressos ainda não disponível',
+    );
   }
 
   @Get(':id')

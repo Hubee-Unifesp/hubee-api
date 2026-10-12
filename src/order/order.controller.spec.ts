@@ -57,14 +57,14 @@ describe('OrderController', () => {
     controller = module.get(OrderController);
   });
 
-  it('POST /orders delega para orderService.create() passando o id do utilizador', async () => {
+  it('POST /orders delega para orderService.create() passando o utilizador', async () => {
     const dto: CreateOrderDto = { totalAmount: 150.5 };
     const created = { id: 'order-1', userId: mockUser.id, ...dto } as never;
     service.create.mockResolvedValue(created);
 
     const result = await controller.create(mockUser, dto);
 
-    expect(service.create).toHaveBeenCalledWith(mockUser.id, dto);
+    expect(service.create).toHaveBeenCalledWith(mockUser, dto);
     expect(result).toEqual(created);
     expect(result).toBeInstanceOf(OrderResponseDto);
   });

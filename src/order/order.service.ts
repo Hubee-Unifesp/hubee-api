@@ -17,8 +17,8 @@ export class OrderService {
     private readonly usersService: UsersService,
   ) {}
 
-  findAll(filters: FindAllOrdersFilters, userId?: string) {
-    return this.orderRepository.findAll({ ...filters, userId });
+  findAll(filters: FindAllOrdersFilters) {
+    return this.orderRepository.findAll(filters);
   }
 
   async findOne(id: string, user: AuthenticatedUser) {
@@ -43,6 +43,9 @@ export class OrderService {
 
     if (missing.length > 0) {
       throw new ForbiddenException({
+        statusCode: 403,
+        message: 'Complete o perfil antes de comprar',
+        error: 'Forbidden',
         code: 'PROFILE_INCOMPLETE',
         missing,
       });
@@ -51,6 +54,12 @@ export class OrderService {
   }
 
   async update(id: string, dto: UpdateOrderDto, user: AuthenticatedUser) {
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException(
+        'Apenas administradores podem alterar pedidos',
+      );
+    }
+
     const order = await this.findOne(id, user);
     if (order.status === 'cancelado') {
       throw new UnprocessableEntityException(
