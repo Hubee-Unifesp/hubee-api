@@ -23,6 +23,7 @@ import { CreateEventDto } from './dto/create-event.dto';
 import { QueryEventDto } from './dto/query-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventService } from './event.service';
+import { toResponse } from '../common/serialization/to-response';
 
 @ApiTags('events')
 @Controller('events')
@@ -32,32 +33,41 @@ export class EventController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: EventResponseDto })
-  create(@Body() dto: CreateEventDto) {
-    return this.eventService.create(dto);
+  async create(@Body() dto: CreateEventDto) {
+    return toResponse(EventResponseDto, await this.eventService.create(dto));
   }
 
   @Get()
   @ApiOkResponse({ type: EventResponseDto, isArray: true })
-  findAll(@Query() query: QueryEventDto) {
-    return this.eventService.findAll(query);
+  async findAll(@Query() query: QueryEventDto) {
+    return toResponse(EventResponseDto, await this.eventService.findAll(query));
   }
 
   @Get('summary')
   @ApiOkResponse({ type: EventSummaryResponseDto, isArray: true })
-  findUpcomingSummaries() {
-    return this.eventService.findUpcomingSummaries();
+  async findUpcomingSummaries() {
+    return toResponse(
+      EventSummaryResponseDto,
+      await this.eventService.findUpcomingSummaries(),
+    );
   }
 
   @Get(':id')
   @ApiOkResponse({ type: EventResponseDto })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.eventService.findOne(id);
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return toResponse(EventResponseDto, await this.eventService.findOne(id));
   }
 
   @Patch(':id')
   @ApiOkResponse({ type: EventResponseDto })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateEventDto) {
-    return this.eventService.update(id, dto);
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateEventDto,
+  ) {
+    return toResponse(
+      EventResponseDto,
+      await this.eventService.update(id, dto),
+    );
   }
 
   @Delete(':id')

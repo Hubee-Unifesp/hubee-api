@@ -22,6 +22,7 @@ import { CreateExpenseDto } from './dto/create-expense.dto';
 import { QueryExpenseDto } from './dto/query-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpensesService } from './expenses.service';
+import { toResponse } from '../common/serialization/to-response';
 
 @ApiTags('expenses')
 @Controller('events/:eventId/expenses')
@@ -31,39 +32,51 @@ export class ExpensesController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: ExpenseResponseDto })
-  create(
+  async create(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Body() dto: CreateExpenseDto,
   ) {
-    return this.expensesService.create(eventId, dto);
+    return toResponse(
+      ExpenseResponseDto,
+      await this.expensesService.create(eventId, dto),
+    );
   }
 
   @Get()
   @ApiOkResponse({ type: ExpenseResponseDto, isArray: true })
-  findAll(
+  async findAll(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Query() query: QueryExpenseDto,
   ) {
-    return this.expensesService.findAll(eventId, query);
+    return toResponse(
+      ExpenseResponseDto,
+      await this.expensesService.findAll(eventId, query),
+    );
   }
 
   @Get(':id')
   @ApiOkResponse({ type: ExpenseResponseDto })
-  findOne(
+  async findOne(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.expensesService.findOne(eventId, id);
+    return toResponse(
+      ExpenseResponseDto,
+      await this.expensesService.findOne(eventId, id),
+    );
   }
 
   @Patch(':id')
   @ApiOkResponse({ type: ExpenseResponseDto })
-  update(
+  async update(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateExpenseDto,
   ) {
-    return this.expensesService.update(eventId, id, dto);
+    return toResponse(
+      ExpenseResponseDto,
+      await this.expensesService.update(eventId, id, dto),
+    );
   }
 
   @Delete(':id')

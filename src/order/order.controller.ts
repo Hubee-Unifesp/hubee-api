@@ -19,6 +19,7 @@ import {
   Post,
   Query,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { QueryOrderDto } from './dto/query-order.dto';
@@ -31,6 +32,7 @@ import {
   CurrentUser,
   type AuthenticatedUser,
 } from '../auth/decorators/current-user.decorator';
+import { toResponse } from '../common/serialization/to-response';
 
 @ApiTags('orders')
 @Controller('orders')
@@ -42,8 +44,8 @@ export class OrderController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrderResponseDto })
-  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrderDto) {
-    return this.orderService.create(user.id, dto);
+  async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrderDto) {
+    return toResponse(OrderResponseDto, await this.orderService.create(user, dto));
   }
 
   // Rota restrita apenas a ADMIN
@@ -52,31 +54,39 @@ export class OrderController {
   @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOkResponse({ type: OrderResponseDto, isArray: true })
-  findAll(@Query() query: QueryOrderDto) {
-    return this.orderService.findAll(query);
+  async findAll(@Query() query: QueryOrderDto) {
+    return toResponse(OrderResponseDto, await this.orderService.findAll(query));
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOkResponse({ type: OrderResponseDto })
-  findOne(
+  async findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.orderService.findOne(id, user);
+    return toResponse(OrderResponseDto, await this.orderService.findOne(id, user));
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOkResponse({ type: OrderResponseDto })
-  update(
+  async update(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdateOrderDto,
   ) {
-    return this.orderService.update(id, dto, user);
+    // Trava de segurança exigida na revisão!
+    if (user.role !== 'ADMIN' && dto.status) {
+      throw new ForbiddenException('Apenas administradores podem alterar o status do pedido');
+    }
+    
+    return toResponse(
+      OrderResponseDto,
+      await this.orderService.update(id, dto, user),
+    );
   }
 
   @Delete(':id')

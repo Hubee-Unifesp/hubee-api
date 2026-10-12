@@ -22,6 +22,7 @@ import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { QueryOrganizationDto } from './dto/query-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OrganizationService } from './organization.service';
+import { toResponse } from '../common/serialization/to-response';
 
 @ApiTags('organizations')
 @Controller('organizations')
@@ -31,29 +32,41 @@ export class OrganizationController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrganizationResponseDto })
-  create(@Body() dto: CreateOrganizationDto) {
-    return this.organizationService.create(dto);
+  async create(@Body() dto: CreateOrganizationDto) {
+    return toResponse(
+      OrganizationResponseDto,
+      await this.organizationService.create(dto),
+    );
   }
 
   @Get()
   @ApiOkResponse({ type: OrganizationResponseDto, isArray: true })
-  findAll(@Query() query: QueryOrganizationDto) {
-    return this.organizationService.findAll(query);
+  async findAll(@Query() query: QueryOrganizationDto) {
+    return toResponse(
+      OrganizationResponseDto,
+      await this.organizationService.findAll(query),
+    );
   }
 
   @Get(':id')
   @ApiOkResponse({ type: OrganizationResponseDto })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.organizationService.findOne(id);
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return toResponse(
+      OrganizationResponseDto,
+      await this.organizationService.findOne(id),
+    );
   }
 
   @Patch(':id')
   @ApiOkResponse({ type: OrganizationResponseDto })
-  update(
+  async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateOrganizationDto,
   ) {
-    return this.organizationService.update(id, dto);
+    return toResponse(
+      OrganizationResponseDto,
+      await this.organizationService.update(id, dto),
+    );
   }
 
   @Delete(':id')

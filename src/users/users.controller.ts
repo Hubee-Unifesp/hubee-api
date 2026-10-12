@@ -34,6 +34,7 @@ import {
   ApiCreatedResponse,
   ApiNoContentResponse,
 } from '@nestjs/swagger';
+import { toResponse } from '../common/serialization/to-response';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -47,17 +48,20 @@ export class UsersController {
 
   @Get('me')
   @ApiOkResponse({ type: MeResponseDto })
-  findMe(@CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.findMe(user.id);
+  async findMe(@CurrentUser() user: AuthenticatedUser) {
+    return toResponse(MeResponseDto, await this.usersService.findMe(user.id));
   }
 
   @Patch('me')
   @ApiOkResponse({ type: MeResponseDto })
-  updateMe(
+  async updateMe(
     @CurrentUser() user: AuthenticatedUser,
     @Body() updateMeDto: UpdateMeDto,
   ) {
-    return this.usersService.updateMe(user.id, updateMeDto);
+    return toResponse(
+      MeResponseDto,
+      await this.usersService.updateMe(user.id, updateMeDto),
+    );
   }
 
   @Patch('me/password')
@@ -80,15 +84,18 @@ export class UsersController {
   @Post()
   @Roles('ADMIN')
   @ApiCreatedResponse({ type: UserResponseDto })
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
+  async create(@Body() createUserDto: CreateUserDto) {
+    return toResponse(
+      UserResponseDto,
+      await this.usersService.create(createUserDto),
+    );
   }
 
   @Get()
   @Roles('ADMIN')
   @ApiOkResponse({ type: UserResponseDto, isArray: true })
-  findAll() {
-    return this.usersService.findAll();
+  async findAll() {
+    return toResponse(UserResponseDto, await this.usersService.findAll());
   }
 
   @Get('me/orders')
@@ -107,18 +114,21 @@ export class UsersController {
   @Get(':id')
   @Roles('ADMIN')
   @ApiOkResponse({ type: UserResponseDto })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.usersService.findOne(id);
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return toResponse(UserResponseDto, await this.usersService.findOne(id));
   }
 
   @Patch(':id')
   @Roles('ADMIN')
   @ApiOkResponse({ type: UserResponseDto })
-  update(
+  async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    return this.usersService.update(id, updateUserDto);
+    return toResponse(
+      UserResponseDto,
+      await this.usersService.update(id, updateUserDto),
+    );
   }
 
   @Delete(':id')

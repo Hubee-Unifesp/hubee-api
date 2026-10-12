@@ -115,6 +115,7 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
         profileComplete: true,
       });
       expect(response.body).not.toHaveProperty('password');
+      expect(response.body).not.toHaveProperty('deletedAt');
 
       const me = await http()
         .get('/auth/me')
@@ -318,16 +319,33 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
         .expect(403);
     });
 
-    it('ADMIN acessa a listagem e o detalhe', async () => {
+    it('ADMIN acessa a listagem e o detalhe no formato do UserResponseDto', async () => {
+      const userResponseKeys = [
+        'birthDate',
+        'cpf',
+        'createdAt',
+        'email',
+        'fullName',
+        'id',
+        'phone',
+        'role',
+        'signupIntent',
+        'status',
+        'updatedAt',
+      ];
       const list = await http()
         .get('/users')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
       expect(list.body.map((u: { id: string }) => u.id)).toContain(user.id);
-      await http()
+      for (const item of list.body) {
+        expect(Object.keys(item).sort()).toEqual(userResponseKeys);
+      }
+      const detail = await http()
         .get(`/users/${user.id}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
+      expect(Object.keys(detail.body).sort()).toEqual(userResponseKeys);
     });
 
     it('rotas /me não são capturadas por /:id', async () => {

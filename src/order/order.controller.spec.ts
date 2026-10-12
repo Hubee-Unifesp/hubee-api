@@ -7,6 +7,17 @@ import { OrderService } from './order.service';
 import { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { OrderResponseDto } from './dto/order-response.dto';
+
+/** Linha completa do banco, como o service a retorna. */
+const row = {
+  id: 'order-1',
+  userId: 'user-1',
+  totalAmount: 150.5,
+  status: 'pendente' as const,
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
+};
 
 describe('OrderController', () => {
   let controller: OrderController;
@@ -55,10 +66,11 @@ describe('OrderController', () => {
 
     expect(service.create).toHaveBeenCalledWith(mockUser.id, dto);
     expect(result).toEqual(created);
+    expect(result).toBeInstanceOf(OrderResponseDto);
   });
 
   it('GET /orders delega para orderService.findAll() com os filtros da query', async () => {
-    const list = [{ id: 'order-1' }] as never;
+    const list = [row] as never;
     service.findAll.mockResolvedValue(list);
 
     const result = await controller.findAll({
@@ -71,6 +83,7 @@ describe('OrderController', () => {
       status: 'pago',
     });
     expect(result).toEqual(list);
+    expect(result[0]).toBeInstanceOf(OrderResponseDto);
   });
 
   it('GET /orders/:id delega para orderService.findOne() com utilizador', async () => {
@@ -81,17 +94,19 @@ describe('OrderController', () => {
 
     expect(service.findOne).toHaveBeenCalledWith('order-1', mockUser);
     expect(result).toEqual(order);
+    expect(result).toBeInstanceOf(OrderResponseDto);
   });
 
   it('PATCH /orders/:id delega para orderService.update() com utilizador', async () => {
     const dto: UpdateOrderDto = { status: 'pago' };
-    const updated = { id: 'order-1', ...dto } as never;
+    const updated = row as never;
     service.update.mockResolvedValue(updated);
 
     const result = await controller.update('order-1', mockUser, dto);
 
     expect(service.update).toHaveBeenCalledWith('order-1', dto, mockUser);
     expect(result).toEqual(updated);
+    expect(result).toBeInstanceOf(OrderResponseDto);
   });
 
   it('DELETE /orders/:id delega para orderService.cancel() com utilizador', async () => {

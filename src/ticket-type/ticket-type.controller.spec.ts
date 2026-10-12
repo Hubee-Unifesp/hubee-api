@@ -4,6 +4,18 @@ import { CreateTicketTypeDto } from './dto/create-ticket-type.dto';
 import { UpdateTicketTypeDto } from './dto/update-ticket-type.dto';
 import { TicketTypeController } from './ticket-type.controller';
 import { TicketTypeService } from './ticket-type.service';
+import { TicketTypeResponseDto } from './dto/ticket-type-response.dto';
+
+/** Linha completa do banco, como o service a retorna. */
+const row = {
+  id: 'ticket-type-1',
+  eventId: 'event-1',
+  batch: '1º Lote',
+  price: 100,
+  quantity: 100,
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
+};
 
 describe('TicketTypeController', () => {
   let controller: TicketTypeController;
@@ -38,38 +50,41 @@ describe('TicketTypeController', () => {
       price: 100,
       quantity: 100,
     };
-    const created = { id: 'ticket-type-1', ...dto } as never;
+    const created = row as never;
     service.create.mockResolvedValue(created);
 
     const result = await controller.create('event-1', dto);
 
     expect(service.create).toHaveBeenCalledWith('event-1', dto);
     expect(result).toEqual(created);
+    expect(result).toBeInstanceOf(TicketTypeResponseDto);
   });
 
   it('GET /events/:eventId/ticket-types delega para ticketTypeService.findAll()', async () => {
-    const list = [{ id: 'ticket-type-1' }] as never;
+    const list = [row] as never;
     service.findAll.mockResolvedValue(list);
 
     const result = await controller.findAll('event-1');
 
     expect(service.findAll).toHaveBeenCalledWith('event-1');
     expect(result).toEqual(list);
+    expect(result[0]).toBeInstanceOf(TicketTypeResponseDto);
   });
 
   it('GET /events/:eventId/ticket-types/:id delega para ticketTypeService.findOne()', async () => {
-    const ticketType = { id: 'ticket-type-1' } as never;
+    const ticketType = row as never;
     service.findOne.mockResolvedValue(ticketType);
 
     const result = await controller.findOne('event-1', 'ticket-type-1');
 
     expect(service.findOne).toHaveBeenCalledWith('event-1', 'ticket-type-1');
     expect(result).toEqual(ticketType);
+    expect(result).toBeInstanceOf(TicketTypeResponseDto);
   });
 
   it('PATCH /events/:eventId/ticket-types/:id delega para ticketTypeService.update()', async () => {
     const dto: UpdateTicketTypeDto = { price: 150, quantity: 200 };
-    const updated = { id: 'ticket-type-1', ...dto } as never;
+    const updated = row as never;
     service.update.mockResolvedValue(updated);
 
     const result = await controller.update('event-1', 'ticket-type-1', dto);
@@ -80,6 +95,7 @@ describe('TicketTypeController', () => {
       dto,
     );
     expect(result).toEqual(updated);
+    expect(result).toBeInstanceOf(TicketTypeResponseDto);
   });
 
   it('DELETE /events/:eventId/ticket-types/:id delega para ticketTypeService.remove()', async () => {

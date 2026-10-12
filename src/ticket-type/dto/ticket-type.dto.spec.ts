@@ -137,9 +137,15 @@ describe('UpdateTicketTypeDto', () => {
     ).resolves.toContain('isNotEmpty');
   });
 
-  it('recusa valor zero ou negativo', async () => {
+  it('aceita valor zero (ingresso gratuito)', async () => {
     await expect(
-      validationErrorsFor(UpdateTicketTypeDto, { price: -5 }),
+      validationErrorsFor(UpdateTicketTypeDto, { price: 0 }),
+    ).resolves.toEqual([]);
+  });
+
+  it('recusa valor negativo', async () => {
+    await expect(
+      validationErrorsFor(UpdateTicketTypeDto, { price: -1 }),
     ).resolves.toContain('min');
   });
 

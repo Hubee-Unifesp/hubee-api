@@ -14,6 +14,7 @@ import {
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { PaymentService } from './payment.service';
+import { toResponse } from '../common/serialization/to-response';
 
 @ApiTags('payments')
 @Controller('orders/:orderId/payments')
@@ -23,25 +24,34 @@ export class PaymentController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: PaymentResponseDto })
-  create(
+  async create(
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: CreatePaymentDto,
   ) {
-    return this.paymentService.create(orderId, dto);
+    return toResponse(
+      PaymentResponseDto,
+      await this.paymentService.create(orderId, dto),
+    );
   }
 
   @Get()
   @ApiOkResponse({ type: PaymentResponseDto })
-  findOne(@Param('orderId', ParseUUIDPipe) orderId: string) {
-    return this.paymentService.findOne(orderId);
+  async findOne(@Param('orderId', ParseUUIDPipe) orderId: string) {
+    return toResponse(
+      PaymentResponseDto,
+      await this.paymentService.findOne(orderId),
+    );
   }
 
   @Patch()
   @ApiOkResponse({ type: PaymentResponseDto })
-  update(
+  async update(
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: UpdatePaymentDto,
   ) {
-    return this.paymentService.update(orderId, dto);
+    return toResponse(
+      PaymentResponseDto,
+      await this.paymentService.update(orderId, dto),
+    );
   }
 }
