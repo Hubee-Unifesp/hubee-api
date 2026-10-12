@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import { JwtModule } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
@@ -19,6 +20,7 @@ const row = {
 };
 
 const ORDER_ID = 'pedido-1';
+const USER = { id: 'user-1', email: 'user@example.com', role: 'USER' as const };
 
 describe('PaymentController', () => {
   let controller: PaymentController;
@@ -36,6 +38,7 @@ describe('PaymentController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
+      imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [PaymentController],
       providers: [{ provide: PaymentService, useValue: service }],
     }).compile();
@@ -51,9 +54,9 @@ describe('PaymentController', () => {
     const created = row as never;
     service.create.mockResolvedValue(created);
 
-    const result = await controller.create(ORDER_ID, dto);
+    const result = await controller.create(ORDER_ID, dto, USER);
 
-    expect(service.create).toHaveBeenCalledWith(ORDER_ID, dto);
+    expect(service.create).toHaveBeenCalledWith(ORDER_ID, dto, USER);
     expect(result).toEqual(created);
     expect(result).toBeInstanceOf(PaymentResponseDto);
   });
@@ -62,9 +65,9 @@ describe('PaymentController', () => {
     const payment = row as never;
     service.findOne.mockResolvedValue(payment);
 
-    const result = await controller.findOne(ORDER_ID);
+    const result = await controller.findOne(ORDER_ID, USER);
 
-    expect(service.findOne).toHaveBeenCalledWith(ORDER_ID);
+    expect(service.findOne).toHaveBeenCalledWith(ORDER_ID, USER);
     expect(result).toEqual(payment);
     expect(result).toBeInstanceOf(PaymentResponseDto);
   });

@@ -53,6 +53,13 @@ function makeCreateDto(
   };
 }
 
+const USER = { id: 'user-1', email: 'user@example.com', role: 'USER' as const };
+const ADMIN = {
+  id: 'admin-1',
+  email: 'admin@example.com',
+  role: 'ADMIN' as const,
+};
+
 describe('EventService', () => {
   let service: EventService;
   let eventRepository: {
@@ -98,21 +105,41 @@ describe('EventService', () => {
   });
 
   describe('findAll()', () => {
-    it('repassa os filtros de organização e status para o repositório', async () => {
+    it('repassa os filtros de organização e status para o repositório quando ADMIN', async () => {
       const rows = [makeEvent()];
       eventRepository.findAll.mockResolvedValue(rows);
 
-      const result = await service.findAll({
-        organizerId: 'org-1',
-        status: 'published',
-      });
+      const result = await service.findAll(
+        { organizerId: 'org-1', status: 'draft' },
+        ADMIN,
+      );
 
       expect(eventRepository.findAll).toHaveBeenCalledWith({
         organizerId: 'org-1',
-        status: 'published',
+        status: 'draft',
       });
       expect(result).toEqual(rows);
     });
+
+    it.each([
+      ['anônimo', undefined],
+      ['USER', USER],
+    ])(
+      'força status published para %s, ignorando o filtro da query',
+      async (_label, viewer) => {
+        eventRepository.findAll.mockResolvedValue([]);
+
+        await service.findAll(
+          { organizerId: 'org-1', status: 'draft' },
+          viewer,
+        );
+
+        expect(eventRepository.findAll).toHaveBeenCalledWith({
+          organizerId: 'org-1',
+          status: 'published',
+        });
+      },
+    );
   });
 
   describe('findUpcomingSummaries()', () => {
@@ -139,6 +166,52 @@ describe('EventService', () => {
       await expect(service.findOne('event-404')).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+  });
+
+  describe('findVisible()', () => {
+    it.each([
+      ['anônimo', undefined],
+      ['USER', USER],
+      ['ADMIN', ADMIN],
+    ])('retorna evento publicado para %s', async (_label, viewer) => {
+      const event = makeEvent({ status: 'published' });
+      eventRepository.findById.mockResolvedValue(event);
+
+      await expect(service.findVisible('event-1', viewer)).resolves.toEqual(
+        event,
+      );
+    });
+
+    it.each(['draft', 'finished', 'cancelled'] as const)(
+      'responde 404 para evento %s quando não é ADMIN',
+      async (status) => {
+        eventRepository.findById.mockResolvedValue(makeEvent({ status }));
+
+        await expect(service.findVisible('event-1')).rejects.toBeInstanceOf(
+          NotFoundException,
+        );
+        await expect(
+          service.findVisible('event-1', USER),
+        ).rejects.toBeInstanceOf(NotFoundException);
+      },
+    );
+
+    it('retorna evento não publicado para ADMIN', async () => {
+      const event = makeEvent({ status: 'draft' });
+      eventRepository.findById.mockResolvedValue(event);
+
+      await expect(service.findVisible('event-1', ADMIN)).resolves.toEqual(
+        event,
+      );
+    });
+
+    it('lança 404 quando o evento não existe', async () => {
+      eventRepository.findById.mockResolvedValue(undefined);
+
+      await expect(
+        service.findVisible('event-404', ADMIN),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

@@ -1,4 +1,5 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import { JwtModule } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrganizationUsersController } from './organization-users.controller';
 import { OrganizationUsersService } from './organization-users.service';
@@ -44,6 +45,7 @@ describe('OrganizationUsersController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
+      imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [OrganizationUsersController],
       providers: [{ provide: OrganizationUsersService, useValue: service }],
     }).compile();

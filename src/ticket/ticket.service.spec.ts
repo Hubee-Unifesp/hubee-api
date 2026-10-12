@@ -78,6 +78,14 @@ function makeTicketType(overrides: Partial<TicketType> = {}): TicketType {
   };
 }
 
+const BUYER = {
+  id: 'buyer-1',
+  email: 'buyer@example.com',
+  role: 'USER' as const,
+};
+const OTHER_USER = { ...BUYER, id: 'other-1' };
+const ADMIN = { ...BUYER, id: 'admin-1', role: 'ADMIN' as const };
+
 describe('TicketService', () => {
   let service: TicketService;
   let ticketRepository: {
@@ -122,16 +130,34 @@ describe('TicketService', () => {
   });
 
   describe('findAllByOrder()', () => {
-    it('lista os ingressos do pedido', async () => {
+    it('lista os ingressos do pedido para o comprador', async () => {
       const rows = [makeTicket()];
       orderService.findOne.mockResolvedValue(makeOrder());
       ticketRepository.findAllByOrder.mockResolvedValue(rows);
 
-      const result = await service.findAllByOrder('order-1');
+      const result = await service.findAllByOrder('order-1', BUYER);
 
       expect(orderService.findOne).toHaveBeenCalledWith('order-1');
       expect(ticketRepository.findAllByOrder).toHaveBeenCalledWith('order-1');
       expect(result).toEqual(rows);
+    });
+
+    it('ADMIN lista os ingressos de qualquer pedido', async () => {
+      orderService.findOne.mockResolvedValue(makeOrder());
+      ticketRepository.findAllByOrder.mockResolvedValue([]);
+
+      await expect(service.findAllByOrder('order-1', ADMIN)).resolves.toEqual(
+        [],
+      );
+    });
+
+    it('lança NotFound quando o pedido é de outra pessoa', async () => {
+      orderService.findOne.mockResolvedValue(makeOrder());
+
+      await expect(
+        service.findAllByOrder('order-1', OTHER_USER),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(ticketRepository.findAllByOrder).not.toHaveBeenCalled();
     });
 
     it('lança NotFound quando o pedido não existe, em vez de lista vazia', async () => {
@@ -139,25 +165,53 @@ describe('TicketService', () => {
         new NotFoundException('Pedido order-1 não encontrado'),
       );
 
-      await expect(service.findAllByOrder('order-1')).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.findAllByOrder('order-1', BUYER),
+      ).rejects.toBeInstanceOf(NotFoundException);
       expect(ticketRepository.findAllByOrder).not.toHaveBeenCalled();
     });
   });
 
   describe('findOne()', () => {
-    it('retorna o ingresso quando ele existe', async () => {
+    it('retorna o ingresso ao titular sem consultar o pedido', async () => {
+      const ticket = makeTicket({ holderUserId: OTHER_USER.id });
+      ticketRepository.findById.mockResolvedValue(ticket);
+
+      await expect(service.findOne('ticket-1', OTHER_USER)).resolves.toEqual(
+        ticket,
+      );
+      expect(orderService.findOne).not.toHaveBeenCalled();
+    });
+
+    it('retorna o ingresso ao comprador do pedido', async () => {
+      const ticket = makeTicket();
+      ticketRepository.findById.mockResolvedValue(ticket);
+      orderService.findOne.mockResolvedValue(makeOrder());
+
+      await expect(service.findOne('ticket-1', BUYER)).resolves.toEqual(ticket);
+      expect(orderService.findOne).toHaveBeenCalledWith('order-1');
+    });
+
+    it('retorna qualquer ingresso para ADMIN', async () => {
       const ticket = makeTicket();
       ticketRepository.findById.mockResolvedValue(ticket);
 
-      await expect(service.findOne('ticket-1')).resolves.toEqual(ticket);
+      await expect(service.findOne('ticket-1', ADMIN)).resolves.toEqual(ticket);
+    });
+
+    it('lança NotFound para quem não é titular nem comprador', async () => {
+      ticketRepository.findById.mockResolvedValue(makeTicket());
+      orderService.findOne.mockResolvedValue(makeOrder());
+
+      await expect(
+        service.findOne('ticket-1', OTHER_USER),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('lança NotFound quando o ingresso não existe', async () => {
       ticketRepository.findById.mockResolvedValue(undefined);
 
-      await expect(service.findOne('ticket-1')).rejects.toBeInstanceOf(
+      await expect(service.findOne('ticket-1', ADMIN)).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });

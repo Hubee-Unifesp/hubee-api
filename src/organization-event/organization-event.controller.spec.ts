@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import { JwtModule } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CreateOrganizationEventDto } from './dto/create-organization-event.dto';
 import { OrganizationEventController } from './organization-event.controller';
@@ -30,6 +31,7 @@ describe('OrganizationEventController', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
+      imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [OrganizationEventController],
       providers: [{ provide: OrganizationEventService, useValue: service }],
     }).compile();

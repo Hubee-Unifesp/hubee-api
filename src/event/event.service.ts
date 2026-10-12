@@ -4,6 +4,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { OrganizationService } from '../organization/organization.service';
 import { VenueService } from '../venue/venue.service';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -16,6 +17,8 @@ interface EventPeriod {
   salesStartDate?: Date | null;
 }
 
+const isAdmin = (viewer?: AuthenticatedUser) => viewer?.role === 'ADMIN';
+
 @Injectable()
 export class EventService {
   constructor(
@@ -24,8 +27,15 @@ export class EventService {
     private readonly venueService: VenueService,
   ) {}
 
-  findAll(filters: FindAllEventsFilters) {
-    return this.eventRepository.findAll(filters);
+  /**
+   * Visitante e USER só veem eventos publicados: o filtro `status` da query
+   * é ignorado e trocado por `published`. ADMIN filtra por qualquer status.
+   */
+  findAll(filters: FindAllEventsFilters, viewer?: AuthenticatedUser) {
+    const visible = isAdmin(viewer)
+      ? filters
+      : { ...filters, status: 'published' as const };
+    return this.eventRepository.findAll(visible);
   }
 
   findUpcomingSummaries() {
@@ -35,6 +45,18 @@ export class EventService {
   async findOne(id: string) {
     const event = await this.eventRepository.findById(id);
     if (!event) {
+      throw new NotFoundException(`Evento ${id} não encontrado`);
+    }
+    return event;
+  }
+
+  /**
+   * Versão pública de `findOne`: rascunho, encerrado ou cancelado responde
+   * 404 para quem não é ADMIN, como se o evento não existisse.
+   */
+  async findVisible(id: string, viewer?: AuthenticatedUser) {
+    const event = await this.findOne(id);
+    if (!isAdmin(viewer) && event.status !== 'published') {
       throw new NotFoundException(`Evento ${id} não encontrado`);
     }
     return event;

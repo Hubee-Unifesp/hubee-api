@@ -69,6 +69,45 @@ O contrato também é aplicado em **runtime** (task **GOL-112**):
   garante que cada `*ResponseDto` expõe exatamente as propriedades documentadas
   no OpenAPI. Ao criar um DTO de resposta novo, adicione-o à lista desse teste.
 
+## Autenticação e autorização
+
+As rotas usam JWT (`Authorization: Bearer <token>`, obtido em `POST /auth/login`
+ou `POST /auth/register`). A regra atual (task **GOL-114**) é **provisória**,
+até o spike **GOL-109** definir as permissões por organização:
+
+| Recurso | Leitura (`GET`) | Escrita (`POST`/`PATCH`/`DELETE`) |
+| ------- | --------------- | --------------------------------- |
+| `events` | pública, mas sem token de `ADMIN` só eventos `published` (o filtro `?status=` é ignorado e `GET /events/:id` de evento não publicado dá `404`) | só `ADMIN` |
+| `events/:eventId/ticket-types`, `organizations`, `venues` | pública (a home usa sem login) | só `ADMIN` |
+| `suppliers`, `expenses`, `tasks`, `organization-users`, `organization-events` | só `ADMIN` | só `ADMIN` |
+| `orders/:orderId/payments` | dono do pedido ou `ADMIN` | `POST`: dono do pedido ou `ADMIN`; `PATCH` (status): só `ADMIN` |
+| `tickets` | titular do ingresso, dono do pedido ou `ADMIN` | só `ADMIN` (emissão e mudança de status) |
+| `orders` | ver GOL-103 | `PATCH` (status): só `ADMIN`; demais, ver GOL-103 |
+| `users` | ver GOL-105 | ver GOL-105 |
+
+Continuam públicos `POST /auth/login`, `POST /auth/register` e `GET /health`.
+Recurso de outra pessoa responde **`404`** (e não `403`), para não revelar
+quais ids existem.
+
+- Para restringir a ADMIN, use o decorator
+  [`@AdminOnly()`](../src/auth/decorators/admin-only.decorator.ts), na rota ou
+  no controller inteiro. Ele aplica `JwtAuthGuard` + `RolesGuard` e documenta o
+  Bearer e as respostas `401`/`403` no Swagger.
+- Para exigir só login (qualquer role), use
+  [`@Authenticated()`](../src/auth/decorators/authenticated.decorator.ts) e
+  confira o dono no service com
+  [`canAccess()`](../src/auth/ownership.ts) e `@CurrentUser()`.
+- Rota pública que mostra mais para ADMIN usa
+  [`OptionalJwtAuthGuard`](../src/auth/guards/optional-jwt-auth.guard.ts): sem
+  `Authorization` segue anônima, com token inválido dá `401`.
+- Sem token (ou com token inválido/expirado) a resposta é **`401`**; com token
+  válido sem a role exigida, **`403`**.
+- O teste [`route-protection.spec.ts`](../src/auth/route-protection.spec.ts)
+  lê as rotas direto dos controllers: **toda rota nova é tratada como só ADMIN**
+  e o teste falha se ela não estiver protegida. Para tornar uma rota pública,
+  adicione-a a `PUBLIC_ROUTES` nesse teste; para liberar a qualquer usuário
+  logado, a `AUTHENTICATED_ROUTES`.
+
 ## Documentação (OpenAPI / Swagger)
 
 A documentação é **gerada a partir do código** (tipos dos DTOs + decorators) e

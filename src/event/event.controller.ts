@@ -18,18 +18,26 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { QueryEventDto } from './dto/query-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventService } from './event.service';
 import { toResponse } from '../common/serialization/to-response';
+import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import {
+  type AuthenticatedUser,
+  CurrentUser,
+} from '../auth/decorators/current-user.decorator';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 
 @ApiTags('events')
 @Controller('events')
 export class EventController {
   constructor(private readonly eventService: EventService) {}
 
+  @AdminOnly()
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: EventResponseDto })
@@ -37,10 +45,18 @@ export class EventController {
     return toResponse(EventResponseDto, await this.eventService.create(dto));
   }
 
+  /** Público; sem token de ADMIN, só lista eventos publicados. */
+  @UseGuards(OptionalJwtAuthGuard)
   @Get()
   @ApiOkResponse({ type: EventResponseDto, isArray: true })
-  async findAll(@Query() query: QueryEventDto) {
-    return toResponse(EventResponseDto, await this.eventService.findAll(query));
+  async findAll(
+    @Query() query: QueryEventDto,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    return toResponse(
+      EventResponseDto,
+      await this.eventService.findAll(query, user),
+    );
   }
 
   @Get('summary')
@@ -52,12 +68,21 @@ export class EventController {
     );
   }
 
+  /** Público; sem token de ADMIN, evento não publicado responde 404. */
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
   @ApiOkResponse({ type: EventResponseDto })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return toResponse(EventResponseDto, await this.eventService.findOne(id));
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    return toResponse(
+      EventResponseDto,
+      await this.eventService.findVisible(id, user),
+    );
   }
 
+  @AdminOnly()
   @Patch(':id')
   @ApiOkResponse({ type: EventResponseDto })
   async update(
@@ -70,6 +95,7 @@ export class EventController {
     );
   }
 
+  @AdminOnly()
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()

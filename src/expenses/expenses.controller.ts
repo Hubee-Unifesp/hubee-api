@@ -23,8 +23,10 @@ import { QueryExpenseDto } from './dto/query-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpensesService } from './expenses.service';
 import { toResponse } from '../common/serialization/to-response';
+import { AdminOnly } from '../auth/decorators/admin-only.decorator';
 
 @ApiTags('expenses')
+@AdminOnly()
 @Controller('events/:eventId/expenses')
 export class ExpensesController {
   constructor(private readonly expensesService: ExpensesService) {}
