@@ -162,5 +162,5 @@ npm run db:studio      # Abre o Drizzle Studio no navegador para visualização 
    npm run lint && npm run test
    ```
 5. **Integração com YouTrack:**
-   - Transicione a task para `State In Progress` ao iniciar o desenvolvimento.
-   - Atualize para `State Code Review` ao abrir o Pull Request no GitHub apontando para a `develop`.
+   - Ao iniciar o desenvolvimento, transicione a task para `State In Progress`.
+   - ⚠️ **REGRA OBRIGATÓRIA:** NUNCA mova o status para verificação (`To Verify`) automaticamente. O encerramento da task e a mudança de status devem ser **explicitamente confirmados pelo desenvolvedor responsável**.
