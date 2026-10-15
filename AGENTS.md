@@ -161,6 +161,9 @@ npm run db:studio      # Abre o Drizzle Studio no navegador para visualização 
    ```bash
    npm run lint && npm run test
    ```
-5. **Integração com YouTrack:**
+5. **Proibição de Commits/Push sem Permissão:**
+   - ⚠️ **NUNCA commite ou faça push sem autorização explícita do desenvolvedor.**
+   - O agente deve sempre apresentar as modificações realizadas, exibir os resultados de `npm run lint` e `npm run test`, e aguardar a confirmação expressa do desenvolvedor antes de executar qualquer `git commit` ou `git push`.
+6. **Integração com YouTrack:**
    - Ao iniciar o desenvolvimento, transicione a task para `State In Progress`.
    - ⚠️ **REGRA OBRIGATÓRIA:** NUNCA mova o status para verificação (`To Verify`) automaticamente. O encerramento da task e a mudança de status devem ser **explicitamente confirmados pelo desenvolvedor responsável**.
