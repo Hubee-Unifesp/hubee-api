@@ -105,20 +105,31 @@ describe('EventService', () => {
   });
 
   describe('findAll()', () => {
+    const listItem = (overrides: Partial<Event> = {}) => ({
+      ...makeEvent({ featured: false, ...overrides }),
+      venueName: 'Espaço Teste',
+      venueCity: 'São Paulo',
+      minPrice: 50,
+      minPriceBatch: '1º Lote',
+    });
+
     it('repassa os filtros de organização e status para o repositório quando ADMIN', async () => {
-      const rows = [makeEvent()];
-      eventRepository.findAll.mockResolvedValue(rows);
+      const rows = [listItem()];
+      eventRepository.findAll.mockResolvedValue({ data: rows, total: 1 });
 
       const result = await service.findAll(
         { organizerId: 'org-1', status: 'draft' },
         ADMIN,
       );
 
-      expect(eventRepository.findAll).toHaveBeenCalledWith({
-        organizerId: 'org-1',
-        status: 'draft',
+      expect(eventRepository.findAll).toHaveBeenCalledWith(
+        { organizerId: 'org-1', status: 'draft' },
+        { page: 1, limit: 20 },
+      );
+      expect(result).toEqual({
+        data: rows,
+        meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
       });
-      expect(result).toEqual(rows);
     });
 
     it.each([
@@ -127,19 +138,84 @@ describe('EventService', () => {
     ])(
       'força status published para %s, ignorando o filtro da query',
       async (_label, viewer) => {
-        eventRepository.findAll.mockResolvedValue([]);
+        eventRepository.findAll.mockResolvedValue({ data: [], total: 0 });
 
         await service.findAll(
           { organizerId: 'org-1', status: 'draft' },
           viewer,
         );
 
-        expect(eventRepository.findAll).toHaveBeenCalledWith({
-          organizerId: 'org-1',
-          status: 'published',
-        });
+        expect(eventRepository.findAll).toHaveBeenCalledWith(
+          { organizerId: 'org-1', status: 'published' },
+          { page: 1, limit: 20 },
+        );
       },
     );
+
+    it('repassa busca, categoria, cidade e período separados da paginação', async () => {
+      eventRepository.findAll.mockResolvedValue({ data: [], total: 0 });
+      const startDate = new Date('2026-10-01T00:00:00Z');
+      const endDate = new Date('2026-10-31T00:00:00Z');
+
+      await service.findAll({
+        search: 'festa',
+        category: 'shows',
+        city: 'São Paulo',
+        startDate,
+        endDate,
+        page: 3,
+        limit: 5,
+      });
+
+      expect(eventRepository.findAll).toHaveBeenCalledWith(
+        {
+          search: 'festa',
+          category: 'shows',
+          city: 'São Paulo',
+          startDate,
+          endDate,
+          status: 'published',
+        },
+        { page: 3, limit: 5 },
+      );
+    });
+
+    it('calcula o total de páginas a partir do total e do limite', async () => {
+      eventRepository.findAll.mockResolvedValue({
+        data: [listItem()],
+        total: 21,
+      });
+
+      const result = await service.findAll({ page: 3, limit: 10 });
+
+      expect(result.meta).toEqual({
+        page: 3,
+        limit: 10,
+        total: 21,
+        totalPages: 3,
+      });
+    });
+
+    it('sem resultados devolve lista vazia com os metadados', async () => {
+      eventRepository.findAll.mockResolvedValue({ data: [], total: 0 });
+
+      const result = await service.findAll({ city: 'Lugar Nenhum' });
+
+      expect(result).toEqual({
+        data: [],
+        meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+      });
+    });
+
+    it('lança 400 quando a data final é anterior à inicial', async () => {
+      await expect(
+        service.findAll({
+          startDate: new Date('2026-10-31T00:00:00Z'),
+          endDate: new Date('2026-10-01T00:00:00Z'),
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(eventRepository.findAll).not.toHaveBeenCalled();
+    });
   });
 
   describe('findUpcomingSummaries()', () => {

@@ -6,6 +6,9 @@ import { LoginResponseDto } from '../../auth/dto/login-response.dto';
 import { RegisterResponseDto } from '../../auth/dto/register-response.dto';
 import { EventResponseDto } from '../../event/dto/event-response.dto';
 import { EventSummaryResponseDto } from '../../event/dto/event-summary-response.dto';
+import { EventListItemResponseDto } from '../../event/dto/event-list-item-response.dto';
+import { EventPageResponseDto } from '../../event/dto/event-page-response.dto';
+import { PaginationMetaDto } from '../pagination/pagination-meta.dto';
 import { ExpenseResponseDto } from '../../expenses/dto/expense-response.dto';
 import { OrderResponseDto } from '../../order/dto/order-response.dto';
 import { OrganizationEventResponseDto } from '../../organization-event/dto/organization-event-response.dto';
@@ -41,6 +44,9 @@ const RESPONSE_DTOS: ClassConstructor<unknown>[] = [
   RegisterResponseDto,
   EventResponseDto,
   EventSummaryResponseDto,
+  EventListItemResponseDto,
+  EventPageResponseDto,
+  PaginationMetaDto,
   ExpenseResponseDto,
   OrderResponseDto,
   OrganizationEventResponseDto,
@@ -105,6 +111,53 @@ describe('toResponse', () => {
     expect(JSON.parse(JSON.stringify(result))).toStrictEqual({
       id: 'venue-1',
       address: { id: 'addr-1', city: 'Recife' },
+    });
+  });
+});
+
+describe('toResponse(EventPageResponseDto)', () => {
+  it('mapeia os itens e os metadados da página, sem campos internos', () => {
+    const result = toResponse(EventPageResponseDto, {
+      data: [
+        {
+          id: 'event-1',
+          name: 'Show',
+          venueName: 'Marco Zero',
+          venueCity: 'Recife',
+          minPrice: 0,
+          minPriceBatch: 'Lote gratuito',
+          venueAddressId: 'addr-1',
+        },
+      ],
+      meta: { page: 1, limit: 20, total: 1, totalPages: 1, offset: 0 },
+    });
+
+    expect(result.data[0]).toBeInstanceOf(EventListItemResponseDto);
+    expect(result.meta).toBeInstanceOf(PaginationMetaDto);
+    expect(JSON.parse(JSON.stringify(result))).toStrictEqual({
+      data: [
+        {
+          id: 'event-1',
+          name: 'Show',
+          venueName: 'Marco Zero',
+          venueCity: 'Recife',
+          minPrice: 0,
+          minPriceBatch: 'Lote gratuito',
+        },
+      ],
+      meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    });
+  });
+
+  it('página vazia mantém data como array vazio', () => {
+    const result = toResponse(EventPageResponseDto, {
+      data: [],
+      meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+    });
+
+    expect(JSON.parse(JSON.stringify(result))).toStrictEqual({
+      data: [],
+      meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
     });
   });
 });
