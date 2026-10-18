@@ -1,10 +1,12 @@
 import {
+  ApiBadRequestResponse,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { EventResponseDto } from './dto/event-response.dto';
+import { EventPageResponseDto } from './dto/event-page-response.dto';
 import { EventSummaryResponseDto } from './dto/event-summary-response.dto';
 import {
   Body,
@@ -45,16 +47,16 @@ export class EventController {
     return toResponse(EventResponseDto, await this.eventService.create(dto));
   }
 
-  /** Público; sem token de ADMIN, só lista eventos publicados. */
   @UseGuards(OptionalJwtAuthGuard)
   @Get()
-  @ApiOkResponse({ type: EventResponseDto, isArray: true })
+  @ApiOkResponse({ type: EventPageResponseDto })
+  @ApiBadRequestResponse({ description: 'Parâmetro de busca inválido' })
   async findAll(
     @Query() query: QueryEventDto,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
     return toResponse(
-      EventResponseDto,
+      EventPageResponseDto,
       await this.eventService.findAll(query, user),
     );
   }

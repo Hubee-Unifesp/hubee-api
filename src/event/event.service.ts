@@ -9,7 +9,12 @@ import { OrganizationService } from '../organization/organization.service';
 import { VenueService } from '../venue/venue.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
-import { EventRepository, FindAllEventsFilters } from './event.repository';
+import {
+  DEFAULT_LIMIT,
+  DEFAULT_PAGE,
+  QueryEventDto,
+} from './dto/query-event.dto';
+import { EventRepository } from './event.repository';
 
 interface EventPeriod {
   startDate: Date;
@@ -31,11 +36,31 @@ export class EventService {
    * Visitante e USER só veem eventos publicados: o filtro `status` da query
    * é ignorado e trocado por `published`. ADMIN filtra por qualquer status.
    */
-  findAll(filters: FindAllEventsFilters, viewer?: AuthenticatedUser) {
+  async findAll(query: QueryEventDto, viewer?: AuthenticatedUser) {
+    const { page = DEFAULT_PAGE, limit = DEFAULT_LIMIT, ...filters } = query;
+
+    if (
+      filters.startDate &&
+      filters.endDate &&
+      filters.endDate < filters.startDate
+    ) {
+      throw new BadRequestException(
+        'A data final deve ser igual ou posterior à data inicial',
+      );
+    }
+
     const visible = isAdmin(viewer)
       ? filters
       : { ...filters, status: 'published' as const };
-    return this.eventRepository.findAll(visible);
+    const { data, total } = await this.eventRepository.findAll(visible, {
+      page,
+      limit,
+    });
+
+    return {
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   findUpcomingSummaries() {
