@@ -1,5 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, gt, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  eq,
+  getTableColumns,
+  gt,
+  gte,
+  ilike,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
@@ -17,18 +30,76 @@ import {
 } from '../database/schema';
 
 export interface FindAllEventsFilters {
+  search?: string;
+  category?: string;
+  city?: string;
+  startDate?: Date;
+  endDate?: Date;
   organizerId?: string;
   venueId?: string;
   status?: EventStatus;
   featured?: boolean;
 }
 
+export interface Pagination {
+  page: number;
+  limit: number;
+}
+
+const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
+
+const nullableNumber = (value: unknown) =>
+  value === null ? null : Number(value);
+
+const soldInBatch = sql`(
+  SELECT COUNT(*)
+  FROM ${tickets}
+  INNER JOIN ${orders} ON ${orders.id} = ${tickets.orderId}
+  WHERE ${tickets.ticketTypeId} = ${ticketTypes.id}
+    AND ${orders.status} = 'pago'
+)`;
+
+const cheapestTicketType = (column: AnyPgColumn) => sql`(
+  SELECT ${column}
+  FROM ${ticketTypes}
+  WHERE ${ticketTypes.eventId} = ${events.id}
+  ORDER BY
+    ${ticketTypes.quantity} > ${soldInBatch} DESC,
+    ${ticketTypes.price},
+    ${ticketTypes.createdAt},
+    ${ticketTypes.id}
+  LIMIT 1
+)`;
+
+const minPrice = sql<
+  number | null
+>`${cheapestTicketType(ticketTypes.price)}`.mapWith(nullableNumber);
+const minPriceBatch = sql<
+  string | null
+>`${cheapestTicketType(ticketTypes.batch)}`;
+
 @Injectable()
 export class EventRepository {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDatabase) {}
 
-  async findAll(filters: FindAllEventsFilters, executor: DbExecutor = this.db) {
+  async findAll(
+    filters: FindAllEventsFilters,
+    { page, limit }: Pagination,
+    executor: DbExecutor = this.db,
+  ) {
+    const search = filters.search && `%${escapeLike(filters.search)}%`;
     const conditions = [
+      search
+        ? or(ilike(events.name, search), ilike(events.description, search))
+        : undefined,
+      filters.category
+        ? ilike(events.category, escapeLike(filters.category))
+        : undefined,
+      filters.city
+        ? ilike(addresses.city, escapeLike(filters.city))
+        : undefined,
+      filters.startDate ? gte(events.endDate, filters.startDate) : undefined,
+      filters.endDate ? lte(events.startDate, filters.endDate) : undefined,
       filters.organizerId
         ? eq(events.organizerId, filters.organizerId)
         : undefined,
@@ -38,17 +109,36 @@ export class EventRepository {
         ? eq(events.featured, filters.featured)
         : undefined,
     ].filter((condition) => condition !== undefined);
+    const where = conditions.length ? and(...conditions) : undefined;
 
-    return executor
-      .select()
-      .from(events)
-      .where(conditions.length ? and(...conditions) : undefined);
+    const [data, [{ total }]] = await Promise.all([
+      executor
+        .select({
+          ...getTableColumns(events),
+          venueName: venues.name,
+          venueCity: addresses.city,
+          minPrice,
+          minPriceBatch,
+        })
+        .from(events)
+        .innerJoin(venues, eq(events.venueId, venues.id))
+        .innerJoin(addresses, eq(venues.addressId, addresses.id))
+        .where(where)
+        .orderBy(asc(events.startDate), asc(events.id))
+        .limit(limit)
+        .offset((page - 1) * limit),
+      executor
+        .select({ total: count() })
+        .from(events)
+        .innerJoin(venues, eq(events.venueId, venues.id))
+        .innerJoin(addresses, eq(venues.addressId, addresses.id))
+        .where(where),
+    ]);
+
+    return { data, total };
   }
 
   async findUpcomingSummaries(executor: DbExecutor = this.db) {
-    const nullableNumber = (value: unknown) =>
-      value === null ? null : Number(value);
-
     return executor
       .select({
         id: events.id,
@@ -61,20 +151,8 @@ export class EventRepository {
         organizerName: organizations.name,
         venueName: venues.name,
         venueCity: addresses.city,
-        minPrice: sql<number | null>`(
-          SELECT ${ticketTypes.price}
-          FROM ${ticketTypes}
-          WHERE ${ticketTypes.eventId} = ${events.id}
-          ORDER BY ${ticketTypes.price}, ${ticketTypes.createdAt}, ${ticketTypes.id}
-          LIMIT 1
-        )`.mapWith(nullableNumber),
-        minPriceBatch: sql<string | null>`(
-          SELECT ${ticketTypes.batch}
-          FROM ${ticketTypes}
-          WHERE ${ticketTypes.eventId} = ${events.id}
-          ORDER BY ${ticketTypes.price}, ${ticketTypes.createdAt}, ${ticketTypes.id}
-          LIMIT 1
-        )`,
+        minPrice,
+        minPriceBatch,
         capacity: sql<number>`(
           SELECT COALESCE(SUM(${ticketTypes.quantity}), 0)::integer
           FROM ${ticketTypes}
@@ -93,7 +171,7 @@ export class EventRepository {
       .innerJoin(venues, eq(events.venueId, venues.id))
       .innerJoin(addresses, eq(venues.addressId, addresses.id))
       .where(
-        and(eq(events.status, 'published'), gt(events.startDate, new Date())),
+        and(eq(events.status, 'published'), gt(events.endDate, new Date())),
       )
       .orderBy(asc(events.startDate));
   }

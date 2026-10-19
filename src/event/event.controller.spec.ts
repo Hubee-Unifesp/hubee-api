@@ -1,4 +1,6 @@
 import { jest } from '@jest/globals';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import request from 'supertest';
 import { JwtModule } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -7,6 +9,8 @@ import { EventController } from './event.controller';
 import { EventService } from './event.service';
 import { EventResponseDto } from './dto/event-response.dto';
 import { EventSummaryResponseDto } from './dto/event-summary-response.dto';
+import { EventListItemResponseDto } from './dto/event-list-item-response.dto';
+import { EventPageResponseDto } from './dto/event-page-response.dto';
 
 /** Linha completa do banco, como o service a retorna. */
 const row = {
@@ -83,8 +87,19 @@ describe('EventController', () => {
   });
 
   it('GET /events delega para eventService.findAll() com os filtros da query e o usuário', async () => {
-    const list = [row] as never;
-    service.findAll.mockResolvedValue(list);
+    const page = {
+      data: [
+        {
+          ...row,
+          venueName: 'Espaço Teste',
+          venueCity: 'São Paulo',
+          minPrice: 50,
+          minPriceBatch: '1º Lote',
+        },
+      ],
+      meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    };
+    service.findAll.mockResolvedValue(page as never);
 
     const result = await controller.findAll(
       { organizerId: 'org-1', status: 'draft' },
@@ -95,8 +110,9 @@ describe('EventController', () => {
       { organizerId: 'org-1', status: 'draft' },
       ADMIN,
     );
-    expect(result).toEqual(list);
-    expect(result[0]).toBeInstanceOf(EventResponseDto);
+    expect(result).toEqual(page);
+    expect(result).toBeInstanceOf(EventPageResponseDto);
+    expect(result.data[0]).toBeInstanceOf(EventListItemResponseDto);
   });
 
   it('GET /events/:id delega para eventService.findVisible() sem usuário quando anônimo', async () => {
@@ -154,5 +170,80 @@ describe('EventController', () => {
     await controller.remove('event-1');
 
     expect(service.cancel).toHaveBeenCalledWith('event-1');
+  });
+});
+
+describe('GET /events (validação da query via HTTP)', () => {
+  let app: INestApplication;
+  let findAll: jest.Mock<EventService['findAll']>;
+
+  const emptyPage = {
+    data: [],
+    meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+  };
+
+  beforeAll(async () => {
+    findAll = jest.fn<EventService['findAll']>();
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [JwtModule.register({ secret: 'test-secret' })],
+      controllers: [EventController],
+      providers: [{ provide: EventService, useValue: { findAll } }],
+    }).compile();
+
+    app = module.createNestApplication();
+    // Mesma configuração do main.ts.
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app?.close();
+  });
+
+  beforeEach(() => {
+    findAll.mockReset();
+    findAll.mockResolvedValue(emptyPage);
+  });
+
+  it('?city=São+Paulo&category=shows responde 200 repassando os filtros', async () => {
+    await request(app.getHttpServer())
+      .get('/events?city=S%C3%A3o+Paulo&category=shows')
+      .expect(200);
+
+    expect(findAll).toHaveBeenCalledWith(
+      expect.objectContaining({
+        city: 'São Paulo',
+        category: 'shows',
+        page: 1,
+        limit: 20,
+      }),
+      undefined,
+    );
+  });
+
+  it('sem resultados responde 200 com data vazio e metadados', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/events?search=inexistente')
+      .expect(200);
+
+    expect(response.body).toEqual(emptyPage);
+  });
+
+  it.each([
+    'startDate=2026-99-99',
+    'endDate=amanha',
+    'limit=dez',
+    'page=0',
+    'limit=1000',
+    'parametroDesconhecido=1',
+  ])('?%s responde 400', async (query) => {
+    await request(app.getHttpServer()).get(`/events?${query}`).expect(400);
+    expect(findAll).not.toHaveBeenCalled();
   });
 });
