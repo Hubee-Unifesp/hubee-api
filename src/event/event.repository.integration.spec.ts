@@ -23,7 +23,7 @@ describe('EventRepository (banco em memória)', () => {
   beforeAll(async () => {
     pglite = new PGlite();
     const db = drizzle(pglite, { schema });
-    const { apply } = await pushSchema(schema as never, db);
+    const { apply } = await pushSchema(schema as never, db as never);
     await apply();
     repository = new EventRepository(db as unknown as DrizzleDatabase);
 
@@ -393,6 +393,86 @@ describe('EventRepository (banco em memória)', () => {
 
       const beyond = await repository.findAll({}, { page: 10, limit: 2 });
       expect(beyond).toEqual({ data: [], total: 5 });
+    });
+  });
+
+  describe('findById()', () => {
+    it('retorna o evento com local, endereço, organização e lotes ordenados', async () => {
+      const result = await repository.findById(fixture.futureEventId);
+
+      expect(result).toBeDefined();
+      expect(result).toMatchObject({
+        id: fixture.futureEventId,
+        name: 'Evento Futuro',
+        description: 'Resumo para home',
+        category: 'Música',
+        status: 'published',
+        featured: true,
+        organizerId: fixture.organizationId,
+        venueId: fixture.venueId,
+        organization: {
+          id: fixture.organizationId,
+          name: 'Produtora Teste',
+        },
+        venue: {
+          id: fixture.venueId,
+          name: 'Espaço Teste',
+          maxCapacity: 999,
+          address: {
+            zipCode: '01000-000',
+            street: 'Rua de Teste',
+            number: '10',
+            neighborhood: 'Centro',
+            city: 'São Paulo',
+            state: 'SP',
+          },
+        },
+      });
+      expect(result?.ticketTypes).toHaveLength(2);
+      expect(result?.ticketTypes).toMatchObject([
+        {
+          eventId: fixture.futureEventId,
+          batch: 'Lote gratuito',
+          price: 0,
+          quantity: 50,
+        },
+        {
+          eventId: fixture.futureEventId,
+          batch: 'Lote pago',
+          price: 100,
+          quantity: 150,
+        },
+      ]);
+    });
+
+    it('retorna ticketTypes como array vazio quando o evento não possui lotes', async () => {
+      const result = await repository.findById(fixture.noLotsEventId);
+
+      expect(result).toMatchObject({
+        id: fixture.noLotsEventId,
+        name: 'Evento Sem Lotes',
+        organization: {
+          id: fixture.organizationId,
+          name: 'Produtora Teste',
+        },
+        venue: {
+          id: fixture.venueId,
+          name: 'Espaço Teste',
+          address: {
+            city: 'São Paulo',
+            state: 'SP',
+          },
+        },
+        ticketTypes: [],
+      });
+    });
+
+    it('retorna undefined quando o evento não existe', async () => {
+      const result = await repository.findById(
+        '00000000-0000-0000-0000-000000000000',
+      );
+
+      expect(result).toBeUndefined();
     });
   });
 });

@@ -13,6 +13,9 @@ import { EventRepository } from './event.repository';
 import { EventService } from './event.service';
 
 type Event = typeof events.$inferSelect;
+type EventDetail = NonNullable<
+  Awaited<ReturnType<EventRepository['findById']>>
+>;
 
 const START = new Date('2026-06-20T18:00:00Z');
 const END = new Date('2026-06-20T23:00:00Z');
@@ -33,9 +36,58 @@ function makeEvent(overrides: Partial<Event> = {}): Event {
     category: null,
     edition: null,
     photoUrl: null,
+    featured: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
+  };
+}
+
+function makeEventDetail(overrides: Partial<Event> = {}): EventDetail {
+  const now = new Date();
+  return {
+    ...makeEvent(overrides),
+    organization: {
+      id: 'org-1',
+      name: 'Centro Acadêmico',
+      description: null,
+      representativeId: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+    venue: {
+      id: 'venue-1',
+      name: 'Espaço Teste',
+      maxCapacity: 500,
+      active: true,
+      addressId: 'addr-1',
+      createdAt: now,
+      updatedAt: now,
+      address: {
+        id: 'addr-1',
+        zipCode: '12200-000',
+        street: 'Av. Cesare Mansueto Giulio Lattes',
+        number: '1201',
+        complement: null,
+        neighborhood: 'Eugênio de Melo',
+        city: 'São José dos Campos',
+        state: 'SP',
+        country: 'Brasil',
+        createdAt: now,
+        updatedAt: now,
+      },
+    },
+    ticketTypes: [
+      {
+        id: 'tt-1',
+        eventId: 'event-1',
+        batch: '1º Lote',
+        price: 35,
+        quantity: 100,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
   };
 }
 
@@ -229,8 +281,8 @@ describe('EventService', () => {
   });
 
   describe('findOne()', () => {
-    it('retorna o evento encontrado', async () => {
-      const event = makeEvent();
+    it('retorna o evento encontrado com local, organização e lotes', async () => {
+      const event = makeEventDetail();
       eventRepository.findById.mockResolvedValue(event);
 
       await expect(service.findOne('event-1')).resolves.toEqual(event);
@@ -251,7 +303,7 @@ describe('EventService', () => {
       ['USER', USER],
       ['ADMIN', ADMIN],
     ])('retorna evento publicado para %s', async (_label, viewer) => {
-      const event = makeEvent({ status: 'published' });
+      const event = makeEventDetail({ status: 'published' });
       eventRepository.findById.mockResolvedValue(event);
 
       await expect(service.findVisible('event-1', viewer)).resolves.toEqual(
@@ -262,7 +314,7 @@ describe('EventService', () => {
     it.each(['draft', 'finished', 'cancelled'] as const)(
       'responde 404 para evento %s quando não é ADMIN',
       async (status) => {
-        eventRepository.findById.mockResolvedValue(makeEvent({ status }));
+        eventRepository.findById.mockResolvedValue(makeEventDetail({ status }));
 
         await expect(service.findVisible('event-1')).rejects.toBeInstanceOf(
           NotFoundException,
@@ -274,7 +326,7 @@ describe('EventService', () => {
     );
 
     it('retorna evento não publicado para ADMIN', async () => {
-      const event = makeEvent({ status: 'draft' });
+      const event = makeEventDetail({ status: 'draft' });
       eventRepository.findById.mockResolvedValue(event);
 
       await expect(service.findVisible('event-1', ADMIN)).resolves.toEqual(
@@ -359,7 +411,7 @@ describe('EventService', () => {
 
   describe('update()', () => {
     it('atualiza os campos enviados', async () => {
-      const event = makeEvent();
+      const event = makeEventDetail();
       const updated = makeEvent({
         name: 'Festa Junina 2026 - Edição Especial',
       });
@@ -384,7 +436,7 @@ describe('EventService', () => {
 
     it('recusa alteração de evento cancelado', async () => {
       eventRepository.findById.mockResolvedValue(
-        makeEvent({ status: 'cancelled' }),
+        makeEventDetail({ status: 'cancelled' }),
       );
 
       await expect(
@@ -394,7 +446,7 @@ describe('EventService', () => {
     });
 
     it('valida a nova data contra a data já gravada', async () => {
-      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.findById.mockResolvedValue(makeEventDetail());
 
       await expect(
         service.update('event-1', {
@@ -405,7 +457,7 @@ describe('EventService', () => {
     });
 
     it('valida o novo local quando o evento muda de lugar', async () => {
-      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.findById.mockResolvedValue(makeEventDetail());
       venueService.findOne.mockRejectedValue(new NotFoundException());
 
       await expect(
@@ -415,7 +467,7 @@ describe('EventService', () => {
     });
 
     it('não revalida o local quando ele não muda', async () => {
-      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.findById.mockResolvedValue(makeEventDetail());
       eventRepository.update.mockResolvedValue(makeEvent());
 
       await service.update('event-1', { venueId: 'venue-1' });
@@ -426,7 +478,7 @@ describe('EventService', () => {
 
   describe('cancel()', () => {
     it('marca o evento como cancelado', async () => {
-      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.findById.mockResolvedValue(makeEventDetail());
       eventRepository.update.mockResolvedValue(
         makeEvent({ status: 'cancelled' }),
       );
@@ -449,7 +501,7 @@ describe('EventService', () => {
 
     it('recusa cancelar um evento já cancelado', async () => {
       eventRepository.findById.mockResolvedValue(
-        makeEvent({ status: 'cancelled' }),
+        makeEventDetail({ status: 'cancelled' }),
       );
 
       await expect(service.cancel('event-1')).rejects.toBeInstanceOf(
