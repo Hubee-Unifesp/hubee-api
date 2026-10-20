@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   check,
@@ -10,6 +10,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { organizations } from './organization.schema';
+import { ticketTypes } from './ticket-type.schema';
 import { venues } from './venue.schema';
 
 export const eventStatus = pgEnum('event_status', [
@@ -68,3 +69,15 @@ export const events = pgTable(
     ),
   ],
 );
+
+export const eventsRelations = relations(events, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [events.organizerId],
+    references: [organizations.id],
+  }),
+  venue: one(venues, {
+    fields: [events.venueId],
+    references: [venues.id],
+  }),
+  ticketTypes: many(ticketTypes),
+}));

@@ -80,8 +80,8 @@ export class EventService {
    * 404 para quem não é ADMIN, como se o evento não existisse.
    */
   async findVisible(id: string, viewer?: AuthenticatedUser) {
-    const event = await this.findOne(id);
-    if (!isAdmin(viewer) && event.status !== 'published') {
+    const event = await this.eventRepository.findDetailById(id);
+    if (!event || (!isAdmin(viewer) && event.status !== 'published')) {
       throw new NotFoundException(`Evento ${id} não encontrado`);
     }
     return event;
