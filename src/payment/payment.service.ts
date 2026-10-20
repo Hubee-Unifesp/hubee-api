@@ -99,7 +99,7 @@ export class PaymentService {
    */
   private async findOrder(orderId: string) {
     try {
-      return await this.orderService.findOne(orderId);
+      return await this.orderService.findById(orderId);
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw new NotFoundException(`Pedido ${orderId} não encontrado`);
