@@ -396,9 +396,9 @@ describe('EventRepository (banco em memória)', () => {
     });
   });
 
-  describe('findById()', () => {
+  describe('findDetailById()', () => {
     it('retorna o evento com local, endereço, organização e lotes ordenados', async () => {
-      const result = await repository.findById(fixture.futureEventId);
+      const result = await repository.findDetailById(fixture.futureEventId);
 
       expect(result).toBeDefined();
       expect(result).toMatchObject({
@@ -446,7 +446,7 @@ describe('EventRepository (banco em memória)', () => {
     });
 
     it('retorna ticketTypes como array vazio quando o evento não possui lotes', async () => {
-      const result = await repository.findById(fixture.noLotsEventId);
+      const result = await repository.findDetailById(fixture.noLotsEventId);
 
       expect(result).toMatchObject({
         id: fixture.noLotsEventId,
@@ -468,7 +468,7 @@ describe('EventRepository (banco em memória)', () => {
     });
 
     it('retorna undefined quando o evento não existe', async () => {
-      const result = await repository.findById(
+      const result = await repository.findDetailById(
         '00000000-0000-0000-0000-000000000000',
       );
 

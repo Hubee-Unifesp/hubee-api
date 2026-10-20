@@ -14,7 +14,7 @@ import { EventService } from './event.service';
 
 type Event = typeof events.$inferSelect;
 type EventDetail = NonNullable<
-  Awaited<ReturnType<EventRepository['findById']>>
+  Awaited<ReturnType<EventRepository['findDetailById']>>
 >;
 
 const START = new Date('2026-06-20T18:00:00Z');
@@ -118,6 +118,7 @@ describe('EventService', () => {
     findAll: jest.Mock<EventRepository['findAll']>;
     findUpcomingSummaries: jest.Mock<EventRepository['findUpcomingSummaries']>;
     findById: jest.Mock<EventRepository['findById']>;
+    findDetailById: jest.Mock<EventRepository['findDetailById']>;
     create: jest.Mock<EventRepository['create']>;
     update: jest.Mock<EventRepository['update']>;
   };
@@ -134,6 +135,7 @@ describe('EventService', () => {
       findUpcomingSummaries:
         jest.fn<EventRepository['findUpcomingSummaries']>(),
       findById: jest.fn<EventRepository['findById']>(),
+      findDetailById: jest.fn<EventRepository['findDetailById']>(),
       create: jest.fn<EventRepository['create']>(),
       update: jest.fn<EventRepository['update']>(),
     };
@@ -281,8 +283,8 @@ describe('EventService', () => {
   });
 
   describe('findOne()', () => {
-    it('retorna o evento encontrado com local, organização e lotes', async () => {
-      const event = makeEventDetail();
+    it('retorna o evento encontrado', async () => {
+      const event = makeEvent();
       eventRepository.findById.mockResolvedValue(event);
 
       await expect(service.findOne('event-1')).resolves.toEqual(event);
@@ -304,7 +306,7 @@ describe('EventService', () => {
       ['ADMIN', ADMIN],
     ])('retorna evento publicado para %s', async (_label, viewer) => {
       const event = makeEventDetail({ status: 'published' });
-      eventRepository.findById.mockResolvedValue(event);
+      eventRepository.findDetailById.mockResolvedValue(event);
 
       await expect(service.findVisible('event-1', viewer)).resolves.toEqual(
         event,
@@ -314,7 +316,9 @@ describe('EventService', () => {
     it.each(['draft', 'finished', 'cancelled'] as const)(
       'responde 404 para evento %s quando não é ADMIN',
       async (status) => {
-        eventRepository.findById.mockResolvedValue(makeEventDetail({ status }));
+        eventRepository.findDetailById.mockResolvedValue(
+          makeEventDetail({ status }),
+        );
 
         await expect(service.findVisible('event-1')).rejects.toBeInstanceOf(
           NotFoundException,
@@ -327,7 +331,7 @@ describe('EventService', () => {
 
     it('retorna evento não publicado para ADMIN', async () => {
       const event = makeEventDetail({ status: 'draft' });
-      eventRepository.findById.mockResolvedValue(event);
+      eventRepository.findDetailById.mockResolvedValue(event);
 
       await expect(service.findVisible('event-1', ADMIN)).resolves.toEqual(
         event,
@@ -335,7 +339,7 @@ describe('EventService', () => {
     });
 
     it('lança 404 quando o evento não existe', async () => {
-      eventRepository.findById.mockResolvedValue(undefined);
+      eventRepository.findDetailById.mockResolvedValue(undefined);
 
       await expect(
         service.findVisible('event-404', ADMIN),
@@ -411,7 +415,7 @@ describe('EventService', () => {
 
   describe('update()', () => {
     it('atualiza os campos enviados', async () => {
-      const event = makeEventDetail();
+      const event = makeEvent();
       const updated = makeEvent({
         name: 'Festa Junina 2026 - Edição Especial',
       });
@@ -436,7 +440,7 @@ describe('EventService', () => {
 
     it('recusa alteração de evento cancelado', async () => {
       eventRepository.findById.mockResolvedValue(
-        makeEventDetail({ status: 'cancelled' }),
+        makeEvent({ status: 'cancelled' }),
       );
 
       await expect(
@@ -446,7 +450,7 @@ describe('EventService', () => {
     });
 
     it('valida a nova data contra a data já gravada', async () => {
-      eventRepository.findById.mockResolvedValue(makeEventDetail());
+      eventRepository.findById.mockResolvedValue(makeEvent());
 
       await expect(
         service.update('event-1', {
@@ -457,7 +461,7 @@ describe('EventService', () => {
     });
 
     it('valida o novo local quando o evento muda de lugar', async () => {
-      eventRepository.findById.mockResolvedValue(makeEventDetail());
+      eventRepository.findById.mockResolvedValue(makeEvent());
       venueService.findOne.mockRejectedValue(new NotFoundException());
 
       await expect(
@@ -467,7 +471,7 @@ describe('EventService', () => {
     });
 
     it('não revalida o local quando ele não muda', async () => {
-      eventRepository.findById.mockResolvedValue(makeEventDetail());
+      eventRepository.findById.mockResolvedValue(makeEvent());
       eventRepository.update.mockResolvedValue(makeEvent());
 
       await service.update('event-1', { venueId: 'venue-1' });
@@ -478,7 +482,7 @@ describe('EventService', () => {
 
   describe('cancel()', () => {
     it('marca o evento como cancelado', async () => {
-      eventRepository.findById.mockResolvedValue(makeEventDetail());
+      eventRepository.findById.mockResolvedValue(makeEvent());
       eventRepository.update.mockResolvedValue(
         makeEvent({ status: 'cancelled' }),
       );
@@ -501,7 +505,7 @@ describe('EventService', () => {
 
     it('recusa cancelar um evento já cancelado', async () => {
       eventRepository.findById.mockResolvedValue(
-        makeEventDetail({ status: 'cancelled' }),
+        makeEvent({ status: 'cancelled' }),
       );
 
       await expect(service.cancel('event-1')).rejects.toBeInstanceOf(

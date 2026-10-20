@@ -1,21 +1,55 @@
 import { Expose, Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
-import { OrganizationResponseDto } from '../../organization/dto/organization-response.dto';
+import { AddressResponseDto } from '../../address/dto/address-response.dto';
 import { TicketTypeResponseDto } from '../../ticket-type/dto/ticket-type-response.dto';
-import { VenueResponseDto } from '../../venue/dto/venue-response.dto';
 import { EventResponseDto } from './event-response.dto';
+
+/** Dados públicos da organização exibidos nos detalhes do evento. */
+export class EventDetailOrganizationDto {
+  @Expose()
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @Expose()
+  @ApiProperty()
+  name: string;
+
+  @Expose()
+  @ApiProperty({ nullable: true, required: false })
+  description: string | null;
+}
+
+/** Dados públicos do local exibidos nos detalhes do evento. */
+export class EventDetailVenueDto {
+  @Expose()
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @Expose()
+  @ApiProperty()
+  name: string;
+
+  @Expose()
+  @ApiProperty({ type: Number })
+  maxCapacity: number;
+
+  @Expose()
+  @Type(() => AddressResponseDto)
+  @ApiProperty({ type: AddressResponseDto })
+  address: AddressResponseDto;
+}
 
 /** Contrato de saída (público) dos detalhes de um evento. */
 export class EventDetailResponseDto extends EventResponseDto {
   @Expose()
-  @Type(() => VenueResponseDto)
-  @ApiProperty({ type: VenueResponseDto })
-  venue: VenueResponseDto;
+  @Type(() => EventDetailVenueDto)
+  @ApiProperty({ type: EventDetailVenueDto })
+  venue: EventDetailVenueDto;
 
   @Expose()
-  @Type(() => OrganizationResponseDto)
-  @ApiProperty({ type: OrganizationResponseDto })
-  organization: OrganizationResponseDto;
+  @Type(() => EventDetailOrganizationDto)
+  @ApiProperty({ type: EventDetailOrganizationDto })
+  organization: EventDetailOrganizationDto;
 
   @Expose()
   @Type(() => TicketTypeResponseDto)

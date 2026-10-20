@@ -177,6 +177,10 @@ export class EventRepository {
   }
 
   async findById(id: string, executor: DbExecutor = this.db) {
+    return executor.query.events.findFirst({ where: eq(events.id, id) });
+  }
+
+  async findDetailById(id: string, executor: DbExecutor = this.db) {
     return executor.query.events.findFirst({
       where: eq(events.id, id),
       with: {

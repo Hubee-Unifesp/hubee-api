@@ -8,15 +8,17 @@ import request from 'supertest';
 import { JwtModule } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AddressResponseDto } from '../address/dto/address-response.dto';
-import { OrganizationResponseDto } from '../organization/dto/organization-response.dto';
 import { TicketTypeResponseDto } from '../ticket-type/dto/ticket-type-response.dto';
-import { VenueResponseDto } from '../venue/dto/venue-response.dto';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventController } from './event.controller';
 import { EventService } from './event.service';
 import { EventResponseDto } from './dto/event-response.dto';
-import { EventDetailResponseDto } from './dto/event-detail-response.dto';
+import {
+  EventDetailOrganizationDto,
+  EventDetailResponseDto,
+  EventDetailVenueDto,
+} from './dto/event-detail-response.dto';
 import { EventSummaryResponseDto } from './dto/event-summary-response.dto';
 import { EventListItemResponseDto } from './dto/event-list-item-response.dto';
 import { EventPageResponseDto } from './dto/event-page-response.dto';
@@ -176,12 +178,22 @@ describe('EventController', () => {
     const result = await controller.findOne('event-1');
 
     expect(service.findVisible).toHaveBeenCalledWith('event-1', undefined);
-    expect(result).toEqual(detailRow);
     expect(result).toBeInstanceOf(EventDetailResponseDto);
-    expect(result.venue).toBeInstanceOf(VenueResponseDto);
+    expect(result.venue).toBeInstanceOf(EventDetailVenueDto);
     expect(result.venue.address).toBeInstanceOf(AddressResponseDto);
-    expect(result.organization).toBeInstanceOf(OrganizationResponseDto);
+    expect(result.organization).toBeInstanceOf(EventDetailOrganizationDto);
     expect(result.ticketTypes[0]).toBeInstanceOf(TicketTypeResponseDto);
+    expect(result.organization).toEqual({
+      id: 'org-1',
+      name: 'Centro Acadêmico',
+      description: 'Agremiação estudantil',
+    });
+    expect(result.venue).toEqual({
+      id: 'venue-1',
+      name: 'Espaço Teste',
+      maxCapacity: 500,
+      address: detailRow.venue.address,
+    });
   });
 
   it('GET /events/summary delega para eventService.findUpcomingSummaries()', async () => {
