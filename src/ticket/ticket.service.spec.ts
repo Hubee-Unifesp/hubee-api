@@ -72,6 +72,7 @@ function makeTicketType(overrides: Partial<TicketType> = {}): TicketType {
     eventId: 'event-1',
     batch: '1º lote',
     price: 50,
+    quantity: 100,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
