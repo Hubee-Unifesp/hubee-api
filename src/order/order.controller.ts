@@ -90,12 +90,7 @@ export class OrderController {
    */
   @AdminOnly()
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @ApiOkResponse({ type: OrderResponseDto })
-  @ApiForbiddenResponse({
-    description: 'Apenas administradores alteram pedidos.',
-  })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,

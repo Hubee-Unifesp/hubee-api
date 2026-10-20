@@ -94,7 +94,7 @@ describe('TicketService', () => {
     createMany: jest.Mock<TicketRepository['createMany']>;
     updateStatus: jest.Mock<TicketRepository['updateStatus']>;
   };
-  let orderService: { findOne: jest.Mock<OrderService['findOne']> };
+  let orderService: { findById: jest.Mock<OrderService['findById']> };
   let eventService: { findOne: jest.Mock<EventService['findOne']> };
   let ticketTypeService: {
     findOne: jest.Mock<TicketTypeService['findOne']>;
@@ -108,7 +108,7 @@ describe('TicketService', () => {
       createMany: jest.fn<TicketRepository['createMany']>(),
       updateStatus: jest.fn<TicketRepository['updateStatus']>(),
     };
-    orderService = { findOne: jest.fn<OrderService['findOne']>() };
+    orderService = { findById: jest.fn<OrderService['findById']>() };
     eventService = { findOne: jest.fn<EventService['findOne']>() };
     ticketTypeService = {
       findOne: jest.fn<TicketTypeService['findOne']>(),
@@ -132,18 +132,18 @@ describe('TicketService', () => {
   describe('findAllByOrder()', () => {
     it('lista os ingressos do pedido para o comprador', async () => {
       const rows = [makeTicket()];
-      orderService.findOne.mockResolvedValue(makeOrder());
+      orderService.findById.mockResolvedValue(makeOrder());
       ticketRepository.findAllByOrder.mockResolvedValue(rows);
 
       const result = await service.findAllByOrder('order-1', BUYER);
 
-      expect(orderService.findOne).toHaveBeenCalledWith('order-1');
+      expect(orderService.findById).toHaveBeenCalledWith('order-1');
       expect(ticketRepository.findAllByOrder).toHaveBeenCalledWith('order-1');
       expect(result).toEqual(rows);
     });
 
     it('ADMIN lista os ingressos de qualquer pedido', async () => {
-      orderService.findOne.mockResolvedValue(makeOrder());
+      orderService.findById.mockResolvedValue(makeOrder());
       ticketRepository.findAllByOrder.mockResolvedValue([]);
 
       await expect(service.findAllByOrder('order-1', ADMIN)).resolves.toEqual(
@@ -152,7 +152,7 @@ describe('TicketService', () => {
     });
 
     it('lança NotFound quando o pedido é de outra pessoa', async () => {
-      orderService.findOne.mockResolvedValue(makeOrder());
+      orderService.findById.mockResolvedValue(makeOrder());
 
       await expect(
         service.findAllByOrder('order-1', OTHER_USER),
@@ -161,7 +161,7 @@ describe('TicketService', () => {
     });
 
     it('lança NotFound quando o pedido não existe, em vez de lista vazia', async () => {
-      orderService.findOne.mockRejectedValue(
+      orderService.findById.mockRejectedValue(
         new NotFoundException('Pedido order-1 não encontrado'),
       );
 
@@ -180,16 +180,16 @@ describe('TicketService', () => {
       await expect(service.findOne('ticket-1', OTHER_USER)).resolves.toEqual(
         ticket,
       );
-      expect(orderService.findOne).not.toHaveBeenCalled();
+      expect(orderService.findById).not.toHaveBeenCalled();
     });
 
     it('retorna o ingresso ao comprador do pedido', async () => {
       const ticket = makeTicket();
       ticketRepository.findById.mockResolvedValue(ticket);
-      orderService.findOne.mockResolvedValue(makeOrder());
+      orderService.findById.mockResolvedValue(makeOrder());
 
       await expect(service.findOne('ticket-1', BUYER)).resolves.toEqual(ticket);
-      expect(orderService.findOne).toHaveBeenCalledWith('order-1');
+      expect(orderService.findById).toHaveBeenCalledWith('order-1');
     });
 
     it('retorna qualquer ingresso para ADMIN', async () => {
@@ -201,7 +201,7 @@ describe('TicketService', () => {
 
     it('lança NotFound para quem não é titular nem comprador', async () => {
       ticketRepository.findById.mockResolvedValue(makeTicket());
-      orderService.findOne.mockResolvedValue(makeOrder());
+      orderService.findById.mockResolvedValue(makeOrder());
 
       await expect(
         service.findOne('ticket-1', OTHER_USER),
@@ -226,7 +226,7 @@ describe('TicketService', () => {
     };
 
     beforeEach(() => {
-      orderService.findOne.mockResolvedValue(makeOrder());
+      orderService.findById.mockResolvedValue(makeOrder());
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeService.findOne.mockResolvedValue(makeTicketType());
       usersService.findOne.mockResolvedValue({} as never);
@@ -269,7 +269,7 @@ describe('TicketService', () => {
     });
 
     it('lança NotFound quando o pedido não existe', async () => {
-      orderService.findOne.mockRejectedValue(new NotFoundException());
+      orderService.findById.mockRejectedValue(new NotFoundException());
 
       await expect(service.create('order-1', dto)).rejects.toBeInstanceOf(
         NotFoundException,
@@ -280,7 +280,7 @@ describe('TicketService', () => {
     it.each(['pendente', 'cancelado'] as const)(
       'lança 422 quando o pedido está %s',
       async (status) => {
-        orderService.findOne.mockResolvedValue(makeOrder({ status }));
+        orderService.findById.mockResolvedValue(makeOrder({ status }));
 
         await expect(service.create('order-1', dto)).rejects.toBeInstanceOf(
           UnprocessableEntityException,
