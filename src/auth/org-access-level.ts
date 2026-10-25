@@ -13,7 +13,10 @@ export const ORG_ACCESS_KEY = 'orgAccess';
 export type OrgAccessSource =
   /** Param da rota que já é o id da organização (padrão: `orgId`). */
   | { from: 'org'; param?: string }
-  /** Param da rota que é o id do evento (padrão: `eventId`); usa `events.organizer_id`. */
+  /**
+   * Param da rota que é o id do evento (padrão: `eventId`); usa
+   * `events.organizer_id`. Quem não é membro da organização recebe 404.
+   */
   | { from: 'event'; param?: string }
   /** Campo do body com o id da organização (padrão: `organizerId`). */
   | { from: 'body'; field?: string };

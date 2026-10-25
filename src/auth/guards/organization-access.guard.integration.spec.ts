@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { PGlite } from '@electric-sql/pglite';
-import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import {
+  ExecutionContext,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { pushSchema } from 'drizzle-kit/api';
 import { drizzle } from 'drizzle-orm/pglite';
@@ -149,8 +153,14 @@ describe('OrganizationAccessGuard (banco em memória)', () => {
       }) as unknown as ExecutionContext;
 
     await expect(guard.canActivate(context('full'))).resolves.toBe(true);
-    await expect(guard.canActivate(context('pending'))).rejects.toBeInstanceOf(
+    // Membro só leitura vê o evento, então recebe 403.
+    await expect(guard.canActivate(context('readOnly'))).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+    // Sem vínculo aceito, o evento fica invisível: 404 (GOL-144).
+    for (const userName of ['pending', 'rejected', 'stranger'])
+      await expect(guard.canActivate(context(userName))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
   });
 });

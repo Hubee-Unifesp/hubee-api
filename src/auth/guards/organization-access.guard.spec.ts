@@ -47,6 +47,9 @@ class Routes {
   @OrgAccess('write', { from: 'body', field: 'organizerId' })
   byBody() {}
 
+  @OrgAccess('write', { from: 'event', param: 'id' })
+  writeEvent() {}
+
   open() {}
 }
 
@@ -256,6 +259,55 @@ describe('OrganizationAccessGuard', () => {
           }),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    describe('evento de outra organização', () => {
+      const eventRequest = { user: USER, params: { id: EVENT_ID } };
+
+      it('sem vínculo responde 404, igual a evento inexistente', async () => {
+        const { guard } = guardWith([{ organizerId: ORG_ID }], []);
+        const result = guard.canActivate(
+          contextFor(Routes.prototype.writeEvent, eventRequest),
+        );
+        await expect(result).rejects.toBeInstanceOf(NotFoundException);
+        await expect(result).rejects.toThrow(
+          `Evento ${EVENT_ID} não encontrado`,
+        );
+      });
+
+      it('membro só leitura responde 403, já que ele vê o evento', async () => {
+        const { guard } = guardWith([{ organizerId: ORG_ID }], [member()]);
+        await expect(
+          guard.canActivate(
+            contextFor(Routes.prototype.writeEvent, eventRequest),
+          ),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
+
+      it('membro com permissão full passa', async () => {
+        const { guard } = guardWith(
+          [{ organizerId: ORG_ID }],
+          [member({ permission: 'full' })],
+        );
+        await expect(
+          guard.canActivate(
+            contextFor(Routes.prototype.writeEvent, eventRequest),
+          ),
+        ).resolves.toBe(true);
+      });
+    });
+
+    it('organização do body sem vínculo continua respondendo 403', async () => {
+      const { guard } = guardWith([]);
+      await expect(
+        guard.canActivate(
+          contextFor(Routes.prototype.byBody, {
+            user: USER,
+            params: {},
+            body: { organizerId: ORG_ID },
+          }),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('lê a organização do body', async () => {

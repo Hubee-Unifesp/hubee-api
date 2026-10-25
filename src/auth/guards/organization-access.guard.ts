@@ -9,12 +9,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { isUUID } from 'class-validator';
 import { DRIZZLE } from '../../database/database.constants';
 import type { DrizzleDatabase } from '../../database/database.provider';
-import { events, organizationUsers } from '../../database/schema';
-import { InviteStatus } from '../../organization-users/dto/create-organization-user.dto';
+import { events } from '../../database/schema';
 import type { AuthenticatedUser } from '../decorators/current-user.decorator';
 import {
   effectiveLevel,
@@ -23,6 +22,7 @@ import {
   type OrgAccessMetadata,
   type OrgAccessSource,
 } from '../org-access-level';
+import { findAcceptedMembership } from '../organization-membership';
 
 /**
  * Confere o nível do usuário na organização do recurso (`@OrgAccess`). Roda
@@ -53,21 +53,19 @@ export class OrganizationAccessGuard implements CanActivate {
       request,
     );
 
-    const [membership] = await this.db
-      .select({
-        role: organizationUsers.role,
-        permission: organizationUsers.permission,
-        inviteStatus: organizationUsers.inviteStatus,
-      })
-      .from(organizationUsers)
-      .where(
-        and(
-          eq(organizationUsers.orgId, organizationId),
-          eq(organizationUsers.userId, user.id),
-          eq(organizationUsers.inviteStatus, InviteStatus.ACCEPTED),
-        ),
-      );
+    const membership = await findAcceptedMembership(
+      this.db,
+      user.id,
+      organizationId,
+    );
 
+    // Evento de outra organização responde o mesmo 404 de evento inexistente,
+    // para não revelar que ele existe (CONVENTIONS.md). Membro sem o nível
+    // exigido já vê o evento, então recebe 403.
+    if (!membership && access.source.from === 'event') {
+      const eventId = request.params[access.source.param ?? 'eventId'];
+      throw new NotFoundException(`Evento ${eventId} não encontrado`);
+    }
     if (
       !membership ||
       !satisfiesLevel(effectiveLevel(membership), access.level)
