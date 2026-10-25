@@ -15,6 +15,7 @@ import { UpdateMeDto } from './dto/update-me.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import * as bcrypt from 'bcrypt';
 import { DRIZZLE } from '../database/database.constants';
+import { findUserOrganizations } from '../auth/organization-membership';
 
 @Injectable()
 export class UsersService {
@@ -71,7 +72,7 @@ export class UsersService {
   }
 
   async findMe(id: string) {
-    return this.withProfileStatus(await this.findOne(id));
+    return this.toMe(await this.findOne(id));
   }
 
   async findByEmail(email: string) {
@@ -146,7 +147,7 @@ export class UsersService {
         throw new BadRequestException('CPF não pode ser alterado');
       }
     }
-    return this.withProfileStatus(await this.update(id, data));
+    return this.toMe(await this.update(id, data));
   }
 
   async changePassword(id: string, data: ChangePasswordDto): Promise<void> {
@@ -168,9 +169,14 @@ export class UsersService {
       .where(eq(users.id, id));
   }
 
-  private withProfileStatus<
-    T extends { cpf: string | null; birthDate: string | null },
+  /** Dados da sessão: perfil completo e organizações em que o usuário é membro. */
+  private async toMe<
+    T extends { id: string; cpf: string | null; birthDate: string | null },
   >(user: T) {
-    return { ...user, profileComplete: Boolean(user.cpf && user.birthDate) };
+    return {
+      ...user,
+      profileComplete: Boolean(user.cpf && user.birthDate),
+      organizations: await findUserOrganizations(this.db, user.id),
+    };
   }
 }

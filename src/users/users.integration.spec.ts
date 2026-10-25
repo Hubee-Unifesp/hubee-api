@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { PGlite } from '@electric-sql/pglite';
-import { drizzle } from 'drizzle-orm/pglite';
+import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { readFileSync } from 'node:fs';
 import request from 'supertest';
 import { AuthController } from '../auth/auth.controller';
@@ -20,6 +20,7 @@ const OTHER_VALID_CPF = '11144477735';
 describe('Users /me e controle de acesso (Postgres em memória)', () => {
   let app: INestApplication;
   let pg: PGlite;
+  let db: PgliteDatabase<typeof schema>;
   let jwt: JwtService;
   let adminToken: string;
 
@@ -46,7 +47,7 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
         readFileSync(`src/database/migrations/${migration}.sql`, 'utf8'),
       );
     }
-    const db = drizzle(pg, { schema });
+    db = drizzle(pg, { schema });
     const module = await Test.createTestingModule({
       imports: [
         JwtModule.register({
@@ -92,6 +93,91 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
   afterAll(async () => {
     await app?.close();
     await pg?.close();
+  });
+
+  describe('GET /users/me — organizações', () => {
+    it('lista só as organizações com convite aceito e o nível de cada uma', async () => {
+      const { id, token } = await register('organizador@example.com');
+      const [atletica, bateria, centro, rejeitou] = await db
+        .insert(schema.organizations)
+        .values([
+          { name: 'Atlética' },
+          { name: 'Bateria' },
+          { name: 'Centro Acadêmico' },
+          { name: 'Diretório' },
+        ])
+        .returning();
+      await db.insert(schema.organizationUsers).values([
+        {
+          orgId: atletica.id,
+          userId: id,
+          role: 'admin',
+          permission: 'full',
+          inviteStatus: 'accepted',
+        },
+        {
+          orgId: bateria.id,
+          userId: id,
+          role: 'member',
+          permission: 'read_only',
+          inviteStatus: 'accepted',
+        },
+        {
+          orgId: centro.id,
+          userId: id,
+          role: 'member',
+          permission: 'full',
+          inviteStatus: 'pending',
+        },
+        {
+          orgId: rejeitou.id,
+          userId: id,
+          role: 'member',
+          permission: 'full',
+          inviteStatus: 'rejected',
+        },
+      ]);
+
+      const expected = [
+        {
+          orgId: atletica.id,
+          organizationName: 'Atlética',
+          role: 'admin',
+          permission: 'full',
+          level: 'manage',
+        },
+        {
+          orgId: bateria.id,
+          organizationName: 'Bateria',
+          role: 'member',
+          permission: 'read_only',
+          level: 'read',
+        },
+      ];
+      for (const path of ['/users/me', '/auth/me']) {
+        const response = await http()
+          .get(path)
+          .set('Authorization', `Bearer ${token}`)
+          .expect(200);
+        expect(response.body.organizations).toEqual(expected);
+      }
+
+      const updated = await http()
+        .patch('/users/me')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ fullName: 'Organizador' })
+        .expect(200);
+      expect(updated.body.organizations).toEqual(expected);
+    });
+
+    it('devolve lista vazia para quem não é membro de nenhuma organização', async () => {
+      const { token } = await register('comprador@example.com');
+      const response = await http()
+        .get('/users/me')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(response.body.organizations).toEqual([]);
+    });
   });
 
   describe('PATCH /users/me', () => {

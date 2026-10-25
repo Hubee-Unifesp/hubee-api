@@ -20,6 +20,7 @@ import { TaskResponseDto } from '../../task/dto/task-response.dto';
 import { TicketTypeResponseDto } from '../../ticket-type/dto/ticket-type-response.dto';
 import { TicketResponseDto } from '../../ticket/dto/ticket-response.dto';
 import {
+  MeOrganizationDto,
   MeResponseDto,
   UserResponseDto,
 } from '../../users/dto/user-response.dto';
@@ -59,6 +60,7 @@ const RESPONSE_DTOS: ClassConstructor<unknown>[] = [
   TicketResponseDto,
   UserResponseDto,
   MeResponseDto,
+  MeOrganizationDto,
   VenueResponseDto,
 ];
 
