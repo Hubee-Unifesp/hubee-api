@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -34,7 +35,9 @@ export class EventService {
 
   /**
    * Visitante e USER só veem eventos publicados: o filtro `status` da query
-   * é ignorado e trocado por `published`. ADMIN filtra por qualquer status.
+   * é ignorado e trocado por `published`. ADMIN filtra por qualquer status, e
+   * o membro da organização também, quando filtra por ela (`organizerId`),
+   * para ver os rascunhos dos próprios eventos.
    */
   async findAll(query: QueryEventDto, viewer?: AuthenticatedUser) {
     const { page = DEFAULT_PAGE, limit = DEFAULT_LIMIT, ...filters } = query;
@@ -49,7 +52,11 @@ export class EventService {
       );
     }
 
-    const visible = isAdmin(viewer)
+    const seesAll =
+      isAdmin(viewer) ||
+      (filters.organizerId !== undefined &&
+        (await this.isMember(viewer, filters.organizerId)));
+    const visible = seesAll
       ? filters
       : { ...filters, status: 'published' as const };
     const { data, total } = await this.eventRepository.findAll(visible, {
@@ -77,17 +84,27 @@ export class EventService {
 
   /**
    * Versão pública de `findOne`: rascunho, encerrado ou cancelado responde
-   * 404 para quem não é ADMIN, como se o evento não existisse.
+   * 404, como se o evento não existisse, para quem não é ADMIN nem membro da
+   * organização do evento.
    */
   async findVisible(id: string, viewer?: AuthenticatedUser) {
     const event = await this.findOne(id);
-    if (!isAdmin(viewer) && event.status !== 'published') {
+    if (
+      event.status !== 'published' &&
+      !isAdmin(viewer) &&
+      !(await this.isMember(viewer, event.organizerId))
+    ) {
       throw new NotFoundException(`Evento ${id} não encontrado`);
     }
     return event;
   }
 
-  async create(dto: CreateEventDto) {
+  /**
+   * Quem pode criar (ADMIN ou membro com `write` na organização) é conferido
+   * pelo `@OrgAccess` no controller.
+   */
+  async create(dto: CreateEventDto, actor: AuthenticatedUser) {
+    this.ensureCanFeature(dto, actor);
     this.validatePeriod(dto);
     await this.ensureOrganizerExists(dto.organizerId);
     await this.ensureVenueExists(dto.venueId);
@@ -95,7 +112,12 @@ export class EventService {
     return this.eventRepository.create(dto);
   }
 
-  async update(id: string, dto: UpdateEventDto) {
+  /**
+   * Que o evento é da organização do usuário é conferido pelo `@OrgAccess` no
+   * controller (evento de outra organização responde 404).
+   */
+  async update(id: string, dto: UpdateEventDto, actor: AuthenticatedUser) {
+    this.ensureCanFeature(dto, actor);
     const event = await this.findOne(id);
 
     if (event.status === 'cancelled') {
@@ -125,6 +147,29 @@ export class EventService {
     }
 
     await this.eventRepository.update(id, { status: 'cancelled' });
+  }
+
+  /** Membro com convite aceito (qualquer nível) da organização. */
+  private async isMember(
+    viewer: AuthenticatedUser | undefined,
+    organizationId: string,
+  ): Promise<boolean> {
+    if (!viewer) return false;
+    return Boolean(
+      await this.eventRepository.findMembership(viewer.id, organizationId),
+    );
+  }
+
+  /** O destaque na home (`featured`) é curadoria da plataforma: só ADMIN. */
+  private ensureCanFeature(
+    dto: { featured?: boolean },
+    actor: AuthenticatedUser,
+  ): void {
+    if (dto.featured !== undefined && !isAdmin(actor)) {
+      throw new ForbiddenException(
+        'Apenas administradores podem destacar eventos na página inicial',
+      );
+    }
   }
 
   private validatePeriod(period: EventPeriod): void {
