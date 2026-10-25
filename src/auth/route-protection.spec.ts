@@ -1,4 +1,12 @@
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import { INestApplication, RequestMethod, Type } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -17,10 +25,12 @@ import { TaskController } from '../task/task.controller';
 import { TicketController } from '../ticket/ticket.controller';
 import { TicketTypeController } from '../ticket-type/ticket-type.controller';
 import { VenueController } from '../venue/venue.controller';
+import { DRIZZLE } from '../database/database.constants';
+import { events } from '../database/schema';
 
 /**
- * Controllers cobertos pela GOL-114. Users fica na GOL-105; o resto de orders
- * (checagem de dono) na GOL-103.
+ * Controllers cobertos pela GOL-114 (rotas de organizador na GOL-144). Users
+ * fica na GOL-105; o resto de orders (checagem de dono) na GOL-103.
  */
 const CONTROLLERS: Type[] = [
   EventController,
@@ -40,7 +50,7 @@ const CONTROLLERS: Type[] = [
 /**
  * Únicas rotas desses controllers que continuam públicas: a home do front
  * lista eventos, organizações, locais e tipos de ingresso sem login.
- * Qualquer rota fora das listas abaixo precisa exigir token de ADMIN.
+ * Qualquer rota fora das listas deste arquivo precisa exigir token de ADMIN.
  */
 const PUBLIC_ROUTES = [
   'GET /events',
@@ -64,6 +74,17 @@ const AUTHENTICATED_ROUTES = [
   'GET /orders/:orderId/payments',
   'GET /orders/:orderId/tickets',
   'GET /tickets/:id',
+];
+
+/**
+ * ADMIN ou membro da organização com `write` (`@OrgAccess`, GOL-144). Em
+ * `POST /events` a organização vem do body; nas demais, do evento, e quem é
+ * de fora da organização recebe 404 em vez de 403.
+ */
+const ORGANIZER_ROUTES = [
+  'POST /events',
+  'PATCH /events/:id',
+  'DELETE /events/:id',
 ];
 
 /** Rotas de pedido que ganham proteção com checagem de dono na GOL-103. */
@@ -133,14 +154,34 @@ const publicRoutes = ROUTES.filter((r) => PUBLIC_ROUTES.includes(r.label));
 const authenticatedRoutes = ROUTES.filter((r) =>
   AUTHENTICATED_ROUTES.includes(r.label),
 );
+const organizerRoutes = ROUTES.filter((r) =>
+  ORGANIZER_ROUTES.includes(r.label),
+);
 const protectedRoutes = ROUTES.filter(
   (r) =>
     ![
       ...PUBLIC_ROUTES,
       ...AUTHENTICATED_ROUTES,
+      ...ORGANIZER_ROUTES,
       ...PENDING_GOL_103_ROUTES,
     ].includes(r.label),
 );
+
+/**
+ * Banco falso para o `OrganizationAccessGuard`: todo evento é da organização
+ * `ID`, e o vínculo do usuário com ela é o que estiver em `membership.current`.
+ */
+const membership: { current?: Record<string, string> } = {};
+const fakeDrizzle = {
+  select: () => ({
+    from: (table: unknown) => ({
+      where: async () => {
+        if (table === events) return [{ organizerId: ID }];
+        return membership.current ? [membership.current] : [];
+      },
+    }),
+  }),
+};
 
 describe('Proteção de rotas (GOL-114)', () => {
   let app: INestApplication;
@@ -158,7 +199,10 @@ describe('Proteção de rotas (GOL-114)', () => {
     const module = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: CONTROLLERS,
-      providers: CONTROLLERS.map(mockServiceOf),
+      providers: [
+        ...CONTROLLERS.map(mockServiceOf),
+        { provide: DRIZZLE, useValue: fakeDrizzle },
+      ],
     }).compile();
     app = module.createNestApplication();
     await app.init();
@@ -202,6 +246,17 @@ describe('Proteção de rotas (GOL-114)', () => {
       },
     );
 
+    it.each(organizerRoutes.map((r) => [r.label, r] as const))(
+      '%s documenta Bearer e respostas 401/403',
+      (_label, route) => {
+        const operation = operationOf(route);
+        expect(operation?.security).toEqual([{ bearer: [] }]);
+        const statuses = Object.keys(operation?.responses ?? {});
+        expect(statuses).toEqual(expect.arrayContaining(['401', '403']));
+        if (route.template.includes(':id')) expect(statuses).toContain('404');
+      },
+    );
+
     it.each(authenticatedRoutes.map((r) => [r.label, r] as const))(
       '%s documenta Bearer e resposta 401',
       (_label, route) => {
@@ -226,6 +281,7 @@ describe('Proteção de rotas (GOL-114)', () => {
     for (const route of [
       ...PUBLIC_ROUTES,
       ...AUTHENTICATED_ROUTES,
+      ...ORGANIZER_ROUTES,
       ...PENDING_GOL_103_ROUTES,
     ])
       expect(labels).toContain(route);
@@ -308,6 +364,53 @@ describe('Proteção de rotas (GOL-114)', () => {
         ['ADMIN', () => adminToken],
       ])('2xx com token de %s', async (_role, token) => {
         const response = await call(route, token());
+        expect(response.status).toBeLessThan(300);
+      });
+    },
+  );
+
+  describe.each(organizerRoutes.map((r) => [r.label, r] as const))(
+    '%s (ADMIN ou organizador)',
+    (_label, route) => {
+      const send = (token?: string) =>
+        call(route, token).send({ organizerId: ID });
+      const asMember = (permission?: string) => {
+        membership.current = permission && {
+          role: 'member',
+          permission,
+          inviteStatus: 'accepted',
+        };
+        return send(userToken);
+      };
+      const byEvent = route.template.includes(':id');
+
+      afterEach(() => {
+        membership.current = undefined;
+      });
+
+      it('401 sem token', async () => {
+        await send().expect(401);
+      });
+
+      it('401 com token inválido', async () => {
+        await send('token-invalido').expect(401);
+      });
+
+      it(`${byEvent ? '404' : '403'} para USER sem vínculo com a organização`, async () => {
+        await asMember(undefined).expect(byEvent ? 404 : 403);
+      });
+
+      it('403 para membro só leitura', async () => {
+        await asMember('read_only').expect(403);
+      });
+
+      it('2xx para membro com permissão full', async () => {
+        const response = await asMember('full');
+        expect(response.status).toBeLessThan(300);
+      });
+
+      it('2xx com token de ADMIN, sem vínculo', async () => {
+        const response = await send(adminToken);
         expect(response.status).toBeLessThan(300);
       });
     },
