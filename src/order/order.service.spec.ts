@@ -99,12 +99,38 @@ describe('OrderService', () => {
     });
   });
 
-  describe('findOne()', () => {
-    it('retorna o pedido quando ele existe', async () => {
+  describe('findById()', () => {
+    it('retorna o pedido quando ele existe sem checagem de usuário', async () => {
       const order = makeOrder();
       orderRepository.findById.mockResolvedValue(order);
 
+      await expect(service.findById('order-1')).resolves.toEqual(order);
+    });
+
+    it('lança NotFound quando o pedido não existe', async () => {
+      orderRepository.findById.mockResolvedValue(undefined);
+
+      await expect(service.findById('order-1')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('findOne()', () => {
+    it('retorna o pedido quando ele pertence ao usuário autenticado', async () => {
+      const order = makeOrder({ userId: 'user-1' });
+      orderRepository.findById.mockResolvedValue(order);
+
       await expect(service.findOne('order-1', mockAuthUser)).resolves.toEqual(
+        order,
+      );
+    });
+
+    it('retorna o pedido para ADMIN mesmo sendo de outro usuário', async () => {
+      const order = makeOrder({ userId: 'outro-usuario' });
+      orderRepository.findById.mockResolvedValue(order);
+
+      await expect(service.findOne('order-1', mockAdmin)).resolves.toEqual(
         order,
       );
     });
