@@ -21,11 +21,16 @@ export class OrderService {
     return this.orderRepository.findAll(filters);
   }
 
-  async findOne(id: string, user: AuthenticatedUser) {
+  async findById(id: string) {
     const order = await this.orderRepository.findById(id);
     if (!order) {
       throw new NotFoundException(`Pedido ${id} não encontrado`);
     }
+    return order;
+  }
+
+  async findOne(id: string, user: AuthenticatedUser) {
+    const order = await this.findById(id);
 
     if (order.userId !== user.id && user.role !== 'ADMIN') {
       throw new NotFoundException(`Pedido ${id} não encontrado`);

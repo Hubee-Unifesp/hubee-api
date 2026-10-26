@@ -6,6 +6,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { EventResponseDto } from './dto/event-response.dto';
+import { EventDetailResponseDto } from './dto/event-detail-response.dto';
 import { EventPageResponseDto } from './dto/event-page-response.dto';
 import { EventSummaryResponseDto } from './dto/event-summary-response.dto';
 import {
@@ -80,13 +81,13 @@ export class EventController {
   /** Público; evento não publicado responde 404 para quem não é ADMIN nem membro da organização. */
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
-  @ApiOkResponse({ type: EventResponseDto })
+  @ApiOkResponse({ type: EventDetailResponseDto })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
     return toResponse(
-      EventResponseDto,
+      EventDetailResponseDto,
       await this.eventService.findVisible(id, user),
     );
   }

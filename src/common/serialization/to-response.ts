@@ -6,8 +6,8 @@ import { type ClassConstructor, plainToInstance } from 'class-transformer';
  * saem na resposta, então campos internos (`password`, `deletedAt`, ...)
  * nunca vazam, e a resposta real fica igual ao schema documentado no OpenAPI.
  */
-export function toResponse<T>(dto: ClassConstructor<T>, data: object): T;
 export function toResponse<T>(dto: ClassConstructor<T>, data: object[]): T[];
+export function toResponse<T>(dto: ClassConstructor<T>, data: object): T;
 export function toResponse<T>(
   dto: ClassConstructor<T>,
   data: object | object[],

@@ -95,6 +95,8 @@ export class EventService {
       !isAdmin(viewer) &&
       !(await this.isMember(viewer, event.organizerId))
     ) {
+    const event = await this.eventRepository.findDetailById(id);
+    if (!event || (!isAdmin(viewer) && event.status !== 'published')) {
       throw new NotFoundException(`Evento ${id} não encontrado`);
     }
     return event;

@@ -5,6 +5,11 @@ import { AddressResponseDto } from '../../address/dto/address-response.dto';
 import { LoginResponseDto } from '../../auth/dto/login-response.dto';
 import { RegisterResponseDto } from '../../auth/dto/register-response.dto';
 import { EventResponseDto } from '../../event/dto/event-response.dto';
+import {
+  EventDetailOrganizationDto,
+  EventDetailResponseDto,
+  EventDetailVenueDto,
+} from '../../event/dto/event-detail-response.dto';
 import { EventSummaryResponseDto } from '../../event/dto/event-summary-response.dto';
 import { EventListItemResponseDto } from '../../event/dto/event-list-item-response.dto';
 import { EventPageResponseDto } from '../../event/dto/event-page-response.dto';
@@ -44,6 +49,9 @@ const RESPONSE_DTOS: ClassConstructor<unknown>[] = [
   LoginResponseDto,
   RegisterResponseDto,
   EventResponseDto,
+  EventDetailOrganizationDto,
+  EventDetailVenueDto,
+  EventDetailResponseDto,
   EventSummaryResponseDto,
   EventListItemResponseDto,
   EventPageResponseDto,
@@ -160,6 +168,85 @@ describe('toResponse(EventPageResponseDto)', () => {
     expect(JSON.parse(JSON.stringify(result))).toStrictEqual({
       data: [],
       meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+    });
+  });
+});
+
+describe('toResponse(EventDetailResponseDto)', () => {
+  it('mapeia evento, local com endereço, organização e lotes sem campos internos', () => {
+    const result = toResponse(EventDetailResponseDto, {
+      id: 'event-1',
+      name: 'Semana da Computação',
+      internalSecret: 'x',
+      venue: {
+        id: 'venue-1',
+        name: 'Auditório Talim',
+        maxCapacity: 300,
+        active: true,
+        addressId: 'addr-1',
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+        internalVenueField: 'y',
+        address: {
+          id: 'addr-1',
+          city: 'São José dos Campos',
+          state: 'SP',
+          internalAddressField: 'z',
+        },
+      },
+      organization: {
+        id: 'org-1',
+        name: 'CACOMP',
+        description: 'Centro Acadêmico',
+        representativeId: 'user-1',
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+        internalOrgField: 'w',
+      },
+      ticketTypes: [
+        {
+          id: 'tt-1',
+          eventId: 'event-1',
+          batch: '1º Lote',
+          price: 25,
+          quantity: 100,
+          internalBatchField: 'k',
+        },
+      ],
+    });
+
+    expect(result).toBeInstanceOf(EventDetailResponseDto);
+    expect(result.venue).toBeInstanceOf(EventDetailVenueDto);
+    expect(result.venue.address).toBeInstanceOf(AddressResponseDto);
+    expect(result.organization).toBeInstanceOf(EventDetailOrganizationDto);
+    expect(result.ticketTypes[0]).toBeInstanceOf(TicketTypeResponseDto);
+    expect(JSON.parse(JSON.stringify(result))).toStrictEqual({
+      id: 'event-1',
+      name: 'Semana da Computação',
+      venue: {
+        id: 'venue-1',
+        name: 'Auditório Talim',
+        maxCapacity: 300,
+        address: {
+          id: 'addr-1',
+          city: 'São José dos Campos',
+          state: 'SP',
+        },
+      },
+      organization: {
+        id: 'org-1',
+        name: 'CACOMP',
+        description: 'Centro Acadêmico',
+      },
+      ticketTypes: [
+        {
+          id: 'tt-1',
+          eventId: 'event-1',
+          batch: '1º Lote',
+          price: 25,
+          quantity: 100,
+        },
+      ],
     });
   });
 });

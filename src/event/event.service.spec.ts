@@ -14,6 +14,9 @@ import { EventRepository } from './event.repository';
 import { EventService } from './event.service';
 
 type Event = typeof events.$inferSelect;
+type EventDetail = NonNullable<
+  Awaited<ReturnType<EventRepository['findDetailById']>>
+>;
 
 const START = new Date('2026-06-20T18:00:00Z');
 const END = new Date('2026-06-20T23:00:00Z');
@@ -34,9 +37,58 @@ function makeEvent(overrides: Partial<Event> = {}): Event {
     category: null,
     edition: null,
     photoUrl: null,
+    featured: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
+  };
+}
+
+function makeEventDetail(overrides: Partial<Event> = {}): EventDetail {
+  const now = new Date();
+  return {
+    ...makeEvent(overrides),
+    organization: {
+      id: 'org-1',
+      name: 'Centro Acadêmico',
+      description: null,
+      representativeId: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+    venue: {
+      id: 'venue-1',
+      name: 'Espaço Teste',
+      maxCapacity: 500,
+      active: true,
+      addressId: 'addr-1',
+      createdAt: now,
+      updatedAt: now,
+      address: {
+        id: 'addr-1',
+        zipCode: '12200-000',
+        street: 'Av. Cesare Mansueto Giulio Lattes',
+        number: '1201',
+        complement: null,
+        neighborhood: 'Eugênio de Melo',
+        city: 'São José dos Campos',
+        state: 'SP',
+        country: 'Brasil',
+        createdAt: now,
+        updatedAt: now,
+      },
+    },
+    ticketTypes: [
+      {
+        id: 'tt-1',
+        eventId: 'event-1',
+        batch: '1º Lote',
+        price: 35,
+        quantity: 100,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
   };
 }
 
@@ -73,6 +125,7 @@ describe('EventService', () => {
     findAll: jest.Mock<EventRepository['findAll']>;
     findUpcomingSummaries: jest.Mock<EventRepository['findUpcomingSummaries']>;
     findById: jest.Mock<EventRepository['findById']>;
+    findDetailById: jest.Mock<EventRepository['findDetailById']>;
     create: jest.Mock<EventRepository['create']>;
     update: jest.Mock<EventRepository['update']>;
     findMembership: jest.Mock<EventRepository['findMembership']>;
@@ -90,6 +143,7 @@ describe('EventService', () => {
       findUpcomingSummaries:
         jest.fn<EventRepository['findUpcomingSummaries']>(),
       findById: jest.fn<EventRepository['findById']>(),
+      findDetailById: jest.fn<EventRepository['findDetailById']>(),
       create: jest.fn<EventRepository['create']>(),
       update: jest.fn<EventRepository['update']>(),
       findMembership: jest
@@ -310,8 +364,8 @@ describe('EventService', () => {
       ['USER', USER],
       ['ADMIN', ADMIN],
     ])('retorna evento publicado para %s', async (_label, viewer) => {
-      const event = makeEvent({ status: 'published' });
-      eventRepository.findById.mockResolvedValue(event);
+      const event = makeEventDetail({ status: 'published' });
+      eventRepository.findDetailById.mockResolvedValue(event);
 
       await expect(service.findVisible('event-1', viewer)).resolves.toEqual(
         event,
@@ -321,7 +375,9 @@ describe('EventService', () => {
     it.each(['draft', 'finished', 'cancelled'] as const)(
       'responde 404 para evento %s quando não é ADMIN',
       async (status) => {
-        eventRepository.findById.mockResolvedValue(makeEvent({ status }));
+        eventRepository.findDetailById.mockResolvedValue(
+          makeEventDetail({ status }),
+        );
 
         await expect(service.findVisible('event-1')).rejects.toBeInstanceOf(
           NotFoundException,
@@ -357,8 +413,8 @@ describe('EventService', () => {
     });
 
     it('retorna evento não publicado para ADMIN', async () => {
-      const event = makeEvent({ status: 'draft' });
-      eventRepository.findById.mockResolvedValue(event);
+      const event = makeEventDetail({ status: 'draft' });
+      eventRepository.findDetailById.mockResolvedValue(event);
 
       await expect(service.findVisible('event-1', ADMIN)).resolves.toEqual(
         event,
@@ -366,7 +422,7 @@ describe('EventService', () => {
     });
 
     it('lança 404 quando o evento não existe', async () => {
-      eventRepository.findById.mockResolvedValue(undefined);
+      eventRepository.findDetailById.mockResolvedValue(undefined);
 
       await expect(
         service.findVisible('event-404', ADMIN),

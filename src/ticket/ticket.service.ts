@@ -40,7 +40,7 @@ export class TicketService {
    * Pedido de outra pessoa também dá 404, para não revelar quais ids existem.
    */
   async findAllByOrder(orderId: string, user: AuthenticatedUser) {
-    const order = await this.orderService.findOne(orderId);
+    const order = await this.orderService.findById(orderId);
     if (!canAccess(user, order.userId)) {
       throw new NotFoundException(`Pedido ${orderId} não encontrado`);
     }
@@ -52,7 +52,7 @@ export class TicketService {
     const ticket = await this.findById(id);
     if (canAccess(user, ticket.holderUserId)) return ticket;
 
-    const order = await this.orderService.findOne(ticket.orderId);
+    const order = await this.orderService.findById(ticket.orderId);
     if (!canAccess(user, order.userId)) {
       throw new NotFoundException(`Ingresso ${id} não encontrado`);
     }
@@ -60,7 +60,7 @@ export class TicketService {
   }
 
   async create(orderId: string, dto: CreateTicketsDto) {
-    const order = await this.orderService.findOne(orderId);
+    const order = await this.orderService.findById(orderId);
     if (order.status !== 'pago') {
       throw new UnprocessableEntityException(
         'Só pedidos pagos podem ter ingressos emitidos',

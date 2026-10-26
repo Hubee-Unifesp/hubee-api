@@ -1,13 +1,24 @@
 import { jest } from '@jest/globals';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import {
+  INestApplication,
+  NotFoundException,
+  ValidationPipe,
+} from '@nestjs/common';
 import request from 'supertest';
 import { JwtModule } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
+import { AddressResponseDto } from '../address/dto/address-response.dto';
+import { TicketTypeResponseDto } from '../ticket-type/dto/ticket-type-response.dto';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventController } from './event.controller';
 import { EventService } from './event.service';
 import { EventResponseDto } from './dto/event-response.dto';
+import {
+  EventDetailOrganizationDto,
+  EventDetailResponseDto,
+  EventDetailVenueDto,
+} from './dto/event-detail-response.dto';
 import { EventSummaryResponseDto } from './dto/event-summary-response.dto';
 import { EventListItemResponseDto } from './dto/event-list-item-response.dto';
 import { EventPageResponseDto } from './dto/event-page-response.dto';
@@ -34,6 +45,52 @@ const row = {
   featured: false,
   createdAt: new Date('2026-01-01T00:00:00Z'),
   updatedAt: new Date('2026-01-01T00:00:00Z'),
+};
+
+const detailRow = {
+  ...row,
+  status: 'published' as const,
+  organization: {
+    id: 'org-1',
+    name: 'Centro Acadêmico',
+    description: 'Agremiação estudantil',
+    representativeId: null,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
+  },
+  venue: {
+    id: 'venue-1',
+    name: 'Espaço Teste',
+    maxCapacity: 500,
+    active: true,
+    addressId: 'addr-1',
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
+    address: {
+      id: 'addr-1',
+      zipCode: '12200-000',
+      street: 'Av. Cesare Mansueto Giulio Lattes',
+      number: '1201',
+      complement: null,
+      neighborhood: 'Eugênio de Melo',
+      city: 'São José dos Campos',
+      state: 'SP',
+      country: 'Brasil',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+    },
+  },
+  ticketTypes: [
+    {
+      id: 'tt-1',
+      eventId: 'event-1',
+      batch: '1º Lote',
+      price: 35,
+      quantity: 100,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+    },
+  ],
 };
 
 const ADMIN = {
@@ -119,15 +176,28 @@ describe('EventController', () => {
     expect(result.data[0]).toBeInstanceOf(EventListItemResponseDto);
   });
 
-  it('GET /events/:id delega para eventService.findVisible() sem usuário quando anônimo', async () => {
-    const event = row as never;
-    service.findVisible.mockResolvedValue(event);
+  it('GET /events/:id delega para eventService.findVisible() e retorna EventDetailResponseDto', async () => {
+    service.findVisible.mockResolvedValue(detailRow);
 
     const result = await controller.findOne('event-1');
 
     expect(service.findVisible).toHaveBeenCalledWith('event-1', undefined);
-    expect(result).toEqual(event);
-    expect(result).toBeInstanceOf(EventResponseDto);
+    expect(result).toBeInstanceOf(EventDetailResponseDto);
+    expect(result.venue).toBeInstanceOf(EventDetailVenueDto);
+    expect(result.venue.address).toBeInstanceOf(AddressResponseDto);
+    expect(result.organization).toBeInstanceOf(EventDetailOrganizationDto);
+    expect(result.ticketTypes[0]).toBeInstanceOf(TicketTypeResponseDto);
+    expect(result.organization).toEqual({
+      id: 'org-1',
+      name: 'Centro Acadêmico',
+      description: 'Agremiação estudantil',
+    });
+    expect(result.venue).toEqual({
+      id: 'venue-1',
+      name: 'Espaço Teste',
+      maxCapacity: 500,
+      address: detailRow.venue.address,
+    });
   });
 
   it('GET /events/summary delega para eventService.findUpcomingSummaries()', async () => {
@@ -177,9 +247,10 @@ describe('EventController', () => {
   });
 });
 
-describe('GET /events (validação da query via HTTP)', () => {
+describe('GET /events e GET /events/:id (validação via HTTP)', () => {
   let app: INestApplication;
   let findAll: jest.Mock<EventService['findAll']>;
+  let findVisible: jest.Mock<EventService['findVisible']>;
 
   const emptyPage = {
     data: [],
@@ -188,12 +259,14 @@ describe('GET /events (validação da query via HTTP)', () => {
 
   beforeAll(async () => {
     findAll = jest.fn<EventService['findAll']>();
+    findVisible = jest.fn<EventService['findVisible']>();
     const module: TestingModule = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [EventController],
       providers: [
         { provide: EventService, useValue: { findAll } },
         fakeDrizzle,
+        { provide: EventService, useValue: { findAll, findVisible } },
       ],
     }).compile();
 
@@ -216,6 +289,7 @@ describe('GET /events (validação da query via HTTP)', () => {
   beforeEach(() => {
     findAll.mockReset();
     findAll.mockResolvedValue(emptyPage);
+    findVisible.mockReset();
   });
 
   it('?city=São+Paulo&category=shows responde 200 repassando os filtros', async () => {
@@ -252,5 +326,57 @@ describe('GET /events (validação da query via HTTP)', () => {
   ])('?%s responde 400', async (query) => {
     await request(app.getHttpServer()).get(`/events?${query}`).expect(400);
     expect(findAll).not.toHaveBeenCalled();
+  });
+
+  it('GET /events/:id com UUID válido retorna 200 OK com dados aninhados', async () => {
+    const validId = '11111111-1111-4111-8111-111111111111';
+    findVisible.mockResolvedValue({ ...detailRow, id: validId });
+
+    const response = await request(app.getHttpServer())
+      .get(`/events/${validId}`)
+      .expect(200);
+
+    expect(findVisible).toHaveBeenCalledWith(validId, undefined);
+    expect(response.body).toMatchObject({
+      id: validId,
+      name: 'Festa Junina 2026',
+      status: 'published',
+      organization: {
+        id: 'org-1',
+        name: 'Centro Acadêmico',
+      },
+      venue: {
+        id: 'venue-1',
+        name: 'Espaço Teste',
+        address: {
+          id: 'addr-1',
+          city: 'São José dos Campos',
+          state: 'SP',
+        },
+      },
+      ticketTypes: [
+        {
+          id: 'tt-1',
+          batch: '1º Lote',
+          price: 35,
+          quantity: 100,
+        },
+      ],
+    });
+  });
+
+  it('GET /events/:id com UUID inválido responde 400 Bad Request pelo ParseUUIDPipe', async () => {
+    await request(app.getHttpServer()).get('/events/uuid-invalido').expect(400);
+    expect(findVisible).not.toHaveBeenCalled();
+  });
+
+  it('GET /events/:id para evento inexistente ou não publicado responde 404 Not Found', async () => {
+    const missingId = '22222222-2222-4222-8222-222222222222';
+    findVisible.mockRejectedValue(
+      new NotFoundException(`Evento ${missingId} não encontrado`),
+    );
+
+    await request(app.getHttpServer()).get(`/events/${missingId}`).expect(404);
+    expect(findVisible).toHaveBeenCalledWith(missingId, undefined);
   });
 });

@@ -39,7 +39,7 @@ describe('PaymentService', () => {
     create: jest.Mock<PaymentRepository['create']>;
     update: jest.Mock<PaymentRepository['update']>;
   };
-  let orderService: { findOne: jest.Mock<OrderService['findOne']> };
+  let orderService: { findById: jest.Mock<OrderService['findById']> };
 
   beforeEach(async () => {
     paymentRepository = {
@@ -47,7 +47,7 @@ describe('PaymentService', () => {
       create: jest.fn<PaymentRepository['create']>(),
       update: jest.fn<PaymentRepository['update']>(),
     };
-    orderService = { findOne: jest.fn<OrderService['findOne']>() };
+    orderService = { findById: jest.fn<OrderService['findById']>() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -59,7 +59,7 @@ describe('PaymentService', () => {
 
     service = module.get(PaymentService);
 
-    orderService.findOne.mockResolvedValue({
+    orderService.findById.mockResolvedValue({
       id: ORDER_ID,
       userId: BUYER.id,
     } as never);
@@ -71,11 +71,11 @@ describe('PaymentService', () => {
       paymentRepository.findByOrderId.mockResolvedValue(payment);
 
       await expect(service.findOne(ORDER_ID, BUYER)).resolves.toEqual(payment);
-      expect(orderService.findOne).toHaveBeenCalledWith(ORDER_ID);
+      expect(orderService.findById).toHaveBeenCalledWith(ORDER_ID);
     });
 
     it('lança NotFound quando o pedido não existe', async () => {
-      orderService.findOne.mockRejectedValue(new NotFoundException());
+      orderService.findById.mockRejectedValue(new NotFoundException());
 
       await expect(service.findOne(ORDER_ID, BUYER)).rejects.toBeInstanceOf(
         NotFoundException,
@@ -118,7 +118,7 @@ describe('PaymentService', () => {
 
       const result = await service.create(ORDER_ID, dto, BUYER);
 
-      expect(orderService.findOne).toHaveBeenCalledWith(ORDER_ID);
+      expect(orderService.findById).toHaveBeenCalledWith(ORDER_ID);
       expect(paymentRepository.create).toHaveBeenCalledWith({
         ...dto,
         orderId: ORDER_ID,
@@ -143,7 +143,7 @@ describe('PaymentService', () => {
     });
 
     it('lança NotFound quando o pedido não existe', async () => {
-      orderService.findOne.mockRejectedValue(new NotFoundException());
+      orderService.findById.mockRejectedValue(new NotFoundException());
 
       await expect(service.create(ORDER_ID, dto, BUYER)).rejects.toBeInstanceOf(
         NotFoundException,
