@@ -72,12 +72,13 @@ O contrato também é aplicado em **runtime** (task **GOL-112**):
 ## Autenticação e autorização
 
 As rotas usam JWT (`Authorization: Bearer <token>`, obtido em `POST /auth/login`
-ou `POST /auth/register`). A regra atual (task **GOL-114**) é **provisória**,
-até o spike **GOL-109** definir as permissões por organização:
+ou `POST /auth/register`). A regra base veio da task **GOL-114**; o modelo de
+permissões por organização (spike **GOL-109**) já vale para eventos
+(**GOL-144**) e ainda vai chegar aos demais recursos de organizador:
 
 | Recurso | Leitura (`GET`) | Escrita (`POST`/`PATCH`/`DELETE`) |
 | ------- | --------------- | --------------------------------- |
-| `events` | pública, mas sem token de `ADMIN` só eventos `published` (o filtro `?status=` é ignorado e `GET /events/:id` de evento não publicado dá `404`) | só `ADMIN` |
+| `events` | pública, mas só `ADMIN` e membros da organização do evento veem eventos não publicados: para os demais o filtro `?status=` é ignorado e `GET /events/:id` de evento não publicado dá `404`. O membro vê os rascunhos filtrando por `?organizerId=` da sua organização | `ADMIN` ou membro com `write` na organização (`POST`: a do `organizerId` do body; `PATCH`: a dona do evento, e quem é de fora recebe `404`). Cancelar (`DELETE` ou `PATCH` com `status: cancelled`) exige `manage` (administrador da organização). `featured` (destaque na home) só `ADMIN` |
 | `events/:eventId/ticket-types`, `organizations`, `venues` | pública (a home usa sem login) | só `ADMIN` |
 | `suppliers`, `expenses`, `tasks`, `organization-users`, `organization-events` | só `ADMIN` | só `ADMIN` |
 | `orders/:orderId/payments` | dono do pedido ou `ADMIN` | `POST`: dono do pedido ou `ADMIN`; `PATCH` (status): só `ADMIN` |
@@ -93,6 +94,15 @@ quais ids existem.
   [`@AdminOnly()`](../src/auth/decorators/admin-only.decorator.ts), na rota ou
   no controller inteiro. Ele aplica `JwtAuthGuard` + `RolesGuard` e documenta o
   Bearer e as respostas `401`/`403` no Swagger.
+- Para restringir a membros de uma organização, use
+  [`@OrgAccess(level, source)`](../src/auth/decorators/org-access.decorator.ts).
+  Os níveis são cumulativos: `read` (qualquer membro com convite aceito),
+  `write` (`permission = full`) e `manage` (`role = admin` com `permission = full`;
+  `admin` com `read_only` fica em `read`). O `ADMIN` global
+  passa sempre. Com `source` `{ from: 'event' }`, quem não é membro da
+  organização do evento recebe `404`; nas outras origens, `403`. As
+  organizações do usuário logado saem em `GET /users/me` (`organizations`, com
+  o `level` de cada uma).
 - Para exigir só login (qualquer role), use
   [`@Authenticated()`](../src/auth/decorators/authenticated.decorator.ts) e
   confira o dono no service com
@@ -106,7 +116,9 @@ quais ids existem.
   lê as rotas direto dos controllers: **toda rota nova é tratada como só ADMIN**
   e o teste falha se ela não estiver protegida. Para tornar uma rota pública,
   adicione-a a `PUBLIC_ROUTES` nesse teste; para liberar a qualquer usuário
-  logado, a `AUTHENTICATED_ROUTES`.
+  logado, a `AUTHENTICATED_ROUTES`; para liberar a organizadores com
+  `@OrgAccess('write')`, a `ORGANIZER_WRITE_ROUTES`, e com
+  `@OrgAccess('manage')`, a `ORGANIZER_MANAGE_ROUTES`.
 
 ## Documentação (OpenAPI / Swagger)
 

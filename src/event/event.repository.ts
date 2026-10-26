@@ -13,6 +13,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
+import { findAcceptedMembership } from '../auth/organization-membership';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
@@ -174,6 +175,15 @@ export class EventRepository {
         and(eq(events.status, 'published'), gt(events.endDate, new Date())),
       )
       .orderBy(asc(events.startDate));
+  }
+
+  /** Vínculo aceito do usuário com a organização, ou `undefined`. */
+  findMembership(
+    userId: string,
+    organizationId: string,
+    executor: DbExecutor = this.db,
+  ) {
+    return findAcceptedMembership(executor, userId, organizationId);
   }
 
   async findById(id: string, executor: DbExecutor = this.db) {

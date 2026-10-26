@@ -1,4 +1,4 @@
-import { Expose } from 'class-transformer';
+import { Expose, Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 /** Contrato de saída (público) de um usuário. Omite `password` e `deletedAt`. */
@@ -48,8 +48,40 @@ export class UserResponseDto {
   updatedAt: Date;
 }
 
+/** Organização em que o usuário logado é membro (convite aceito). */
+export class MeOrganizationDto {
+  @Expose()
+  @ApiProperty({ format: 'uuid' })
+  orgId: string;
+
+  @Expose()
+  @ApiProperty({ example: 'Atlética Unifesp' })
+  organizationName: string;
+
+  @Expose()
+  @ApiProperty({ example: 'member', description: 'Papel na organização' })
+  role: string;
+
+  @Expose()
+  @ApiProperty({ example: 'full', description: 'Permissão na organização' })
+  permission: string;
+
+  @Expose()
+  @ApiProperty({
+    enum: ['read', 'write', 'manage'],
+    description:
+      'Nível efetivo: `read` só consulta, `write` cria e altera eventos, `manage` também administra a organização',
+  })
+  level: 'read' | 'write' | 'manage';
+}
+
 export class MeResponseDto extends UserResponseDto {
   @Expose()
   @ApiProperty()
   profileComplete: boolean;
+
+  @Expose()
+  @Type(() => MeOrganizationDto)
+  @ApiProperty({ type: MeOrganizationDto, isArray: true })
+  organizations: MeOrganizationDto[];
 }

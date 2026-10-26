@@ -28,7 +28,7 @@ import { QueryEventDto } from './dto/query-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventService } from './event.service';
 import { toResponse } from '../common/serialization/to-response';
-import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import { OrgAccess } from '../auth/decorators/org-access.decorator';
 import {
   type AuthenticatedUser,
   CurrentUser,
@@ -40,12 +40,19 @@ import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 export class EventController {
   constructor(private readonly eventService: EventService) {}
 
-  @AdminOnly()
+  /** ADMIN ou membro com `write` na organização informada em `organizerId`. */
+  @OrgAccess('write', { from: 'body', field: 'organizerId' })
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: EventResponseDto })
-  async create(@Body() dto: CreateEventDto) {
-    return toResponse(EventResponseDto, await this.eventService.create(dto));
+  async create(
+    @Body() dto: CreateEventDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return toResponse(
+      EventResponseDto,
+      await this.eventService.create(dto, user),
+    );
   }
 
   @UseGuards(OptionalJwtAuthGuard)
@@ -71,7 +78,7 @@ export class EventController {
     );
   }
 
-  /** Público; sem token de ADMIN, evento não publicado responde 404. */
+  /** Público; evento não publicado responde 404 para quem não é ADMIN nem membro da organização. */
   @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
   @ApiOkResponse({ type: EventDetailResponseDto })
@@ -85,20 +92,29 @@ export class EventController {
     );
   }
 
-  @AdminOnly()
+  /**
+   * ADMIN ou membro com `write` na organização do evento; de fora dá 404.
+   * Mudar o status para `cancelled` exige `manage`, como o `DELETE`.
+   */
+  @OrgAccess('write', { from: 'event', param: 'id' })
   @Patch(':id')
   @ApiOkResponse({ type: EventResponseDto })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateEventDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return toResponse(
       EventResponseDto,
-      await this.eventService.update(id, dto),
+      await this.eventService.update(id, dto, user),
     );
   }
 
-  @AdminOnly()
+  /**
+   * Cancela o evento. ADMIN ou administrador da organização (`manage`), pela
+   * matriz RBAC (GOL-143); de fora dá 404.
+   */
+  @OrgAccess('manage', { from: 'event', param: 'id' })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()

@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import {
   BadRequestException,
+  ForbiddenException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -112,6 +113,12 @@ const ADMIN = {
   role: 'ADMIN' as const,
 };
 
+const MEMBERSHIP = {
+  role: 'member',
+  permission: 'read_only',
+  inviteStatus: 'accepted',
+};
+
 describe('EventService', () => {
   let service: EventService;
   let eventRepository: {
@@ -121,6 +128,7 @@ describe('EventService', () => {
     findDetailById: jest.Mock<EventRepository['findDetailById']>;
     create: jest.Mock<EventRepository['create']>;
     update: jest.Mock<EventRepository['update']>;
+    findMembership: jest.Mock<EventRepository['findMembership']>;
   };
   let organizationService: {
     findOne: jest.Mock<OrganizationService['findOne']>;
@@ -138,6 +146,9 @@ describe('EventService', () => {
       findDetailById: jest.fn<EventRepository['findDetailById']>(),
       create: jest.fn<EventRepository['create']>(),
       update: jest.fn<EventRepository['update']>(),
+      findMembership: jest
+        .fn<EventRepository['findMembership']>()
+        .mockResolvedValue(undefined),
     };
     organizationService = {
       findOne: jest.fn<OrganizationService['findOne']>(),
@@ -205,6 +216,54 @@ describe('EventService', () => {
         );
       },
     );
+
+    it('membro da organização filtrada vê todos os status, inclusive rascunhos', async () => {
+      eventRepository.findAll.mockResolvedValue({ data: [], total: 0 });
+      eventRepository.findMembership.mockResolvedValue(MEMBERSHIP);
+
+      await service.findAll({ organizerId: 'org-1', status: 'draft' }, USER);
+
+      expect(eventRepository.findMembership).toHaveBeenCalledWith(
+        'user-1',
+        'org-1',
+      );
+      expect(eventRepository.findAll).toHaveBeenCalledWith(
+        { organizerId: 'org-1', status: 'draft' },
+        { page: 1, limit: 20 },
+      );
+    });
+
+    it('membro sem filtro de status recebe os eventos da organização em qualquer status', async () => {
+      eventRepository.findAll.mockResolvedValue({ data: [], total: 0 });
+      eventRepository.findMembership.mockResolvedValue(MEMBERSHIP);
+
+      await service.findAll({ organizerId: 'org-1' }, USER);
+
+      expect(eventRepository.findAll).toHaveBeenCalledWith(
+        { organizerId: 'org-1' },
+        { page: 1, limit: 20 },
+      );
+    });
+
+    it('membro sem filtrar pela própria organização continua vendo só publicados', async () => {
+      eventRepository.findAll.mockResolvedValue({ data: [], total: 0 });
+
+      await service.findAll({ status: 'draft' }, USER);
+
+      expect(eventRepository.findMembership).not.toHaveBeenCalled();
+      expect(eventRepository.findAll).toHaveBeenCalledWith(
+        { status: 'published' },
+        { page: 1, limit: 20 },
+      );
+    });
+
+    it('não consulta vínculo de visitante anônimo', async () => {
+      eventRepository.findAll.mockResolvedValue({ data: [], total: 0 });
+
+      await service.findAll({ organizerId: 'org-1' });
+
+      expect(eventRepository.findMembership).not.toHaveBeenCalled();
+    });
 
     it('repassa busca, categoria, cidade e período separados da paginação', async () => {
       eventRepository.findAll.mockResolvedValue({ data: [], total: 0 });
@@ -329,6 +388,30 @@ describe('EventService', () => {
       },
     );
 
+    it('retorna evento não publicado para membro da organização do evento', async () => {
+      const event = makeEventDetail({ status: 'draft' });
+      eventRepository.findDetailById.mockResolvedValue(event);
+      eventRepository.findMembership.mockResolvedValue(MEMBERSHIP);
+
+      await expect(service.findVisible('event-1', USER)).resolves.toEqual(
+        event,
+      );
+      expect(eventRepository.findMembership).toHaveBeenCalledWith(
+        'user-1',
+        'org-1',
+      );
+    });
+
+    it('não consulta vínculo quando o evento está publicado', async () => {
+      eventRepository.findDetailById.mockResolvedValue(
+        makeEventDetail({ status: 'published' }),
+      );
+
+      await service.findVisible('event-1', USER);
+
+      expect(eventRepository.findMembership).not.toHaveBeenCalled();
+    });
+
     it('retorna evento não publicado para ADMIN', async () => {
       const event = makeEventDetail({ status: 'draft' });
       eventRepository.findDetailById.mockResolvedValue(event);
@@ -355,7 +438,7 @@ describe('EventService', () => {
       venueService.findOne.mockResolvedValue({} as never);
       eventRepository.create.mockResolvedValue(created);
 
-      const result = await service.create(dto);
+      const result = await service.create(dto, ADMIN);
 
       expect(organizationService.findOne).toHaveBeenCalledWith('org-1');
       expect(venueService.findOne).toHaveBeenCalledWith('venue-1');
@@ -363,10 +446,42 @@ describe('EventService', () => {
       expect(result).toEqual(created);
     });
 
+    it('organizador cria evento sem `featured`', async () => {
+      organizationService.findOne.mockResolvedValue({} as never);
+      venueService.findOne.mockResolvedValue({} as never);
+      eventRepository.create.mockResolvedValue(makeEvent());
+
+      await expect(
+        service.create(makeCreateDto(), USER),
+      ).resolves.toBeDefined();
+    });
+
+    it.each([true, false])(
+      'recusa com 403 organizador que envia featured=%s',
+      async (featured) => {
+        await expect(
+          service.create(makeCreateDto({ featured }), USER),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        expect(eventRepository.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it('ADMIN pode destacar o evento', async () => {
+      organizationService.findOne.mockResolvedValue({} as never);
+      venueService.findOne.mockResolvedValue({} as never);
+      eventRepository.create.mockResolvedValue(makeEvent());
+
+      await service.create(makeCreateDto({ featured: true }), ADMIN);
+
+      expect(eventRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ featured: true }),
+      );
+    });
+
     it('lança 400 quando a data de término não é posterior à de início', async () => {
       const dto = makeCreateDto({ endDate: START });
 
-      await expect(service.create(dto)).rejects.toBeInstanceOf(
+      await expect(service.create(dto, ADMIN)).rejects.toBeInstanceOf(
         BadRequestException,
       );
       expect(eventRepository.create).not.toHaveBeenCalled();
@@ -377,7 +492,7 @@ describe('EventService', () => {
         salesStartDate: new Date('2026-06-21T00:00:00Z'),
       });
 
-      await expect(service.create(dto)).rejects.toBeInstanceOf(
+      await expect(service.create(dto, ADMIN)).rejects.toBeInstanceOf(
         BadRequestException,
       );
       expect(eventRepository.create).not.toHaveBeenCalled();
@@ -389,16 +504,16 @@ describe('EventService', () => {
       venueService.findOne.mockResolvedValue({} as never);
       eventRepository.create.mockResolvedValue(makeEvent());
 
-      await expect(service.create(dto)).resolves.toBeDefined();
+      await expect(service.create(dto, ADMIN)).resolves.toBeDefined();
       expect(eventRepository.create).toHaveBeenCalledWith(dto);
     });
 
     it('lança 404 quando a organização organizadora não existe', async () => {
       organizationService.findOne.mockRejectedValue(new NotFoundException());
 
-      await expect(service.create(makeCreateDto())).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.create(makeCreateDto(), ADMIN),
+      ).rejects.toBeInstanceOf(NotFoundException);
       expect(eventRepository.create).not.toHaveBeenCalled();
     });
 
@@ -406,9 +521,9 @@ describe('EventService', () => {
       organizationService.findOne.mockResolvedValue({} as never);
       venueService.findOne.mockRejectedValue(new NotFoundException());
 
-      await expect(service.create(makeCreateDto())).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.create(makeCreateDto(), ADMIN),
+      ).rejects.toBeInstanceOf(NotFoundException);
       expect(eventRepository.create).not.toHaveBeenCalled();
     });
   });
@@ -423,17 +538,82 @@ describe('EventService', () => {
       eventRepository.update.mockResolvedValue(updated);
 
       const dto = { name: 'Festa Junina 2026 - Edição Especial' };
-      const result = await service.update('event-1', dto);
+      const result = await service.update('event-1', dto, ADMIN);
 
       expect(eventRepository.update).toHaveBeenCalledWith('event-1', dto);
       expect(result).toEqual(updated);
+    });
+
+    it('organizador altera os campos do evento', async () => {
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.update.mockResolvedValue(makeEvent({ name: 'Novo' }));
+
+      await service.update('event-1', { name: 'Novo' }, USER);
+
+      expect(eventRepository.update).toHaveBeenCalledWith('event-1', {
+        name: 'Novo',
+      });
+    });
+
+    it('recusa com 403 organizador que tenta mudar o destaque', async () => {
+      await expect(
+        service.update('event-1', { featured: true }, USER),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(eventRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('recusa com 403 membro `write` que tenta cancelar pelo status', async () => {
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.findMembership.mockResolvedValue({
+        ...MEMBERSHIP,
+        permission: 'full',
+      });
+
+      await expect(
+        service.update('event-1', { status: 'cancelled' }, USER),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(eventRepository.findMembership).toHaveBeenCalledWith(
+        USER.id,
+        'org-1',
+      );
+      expect(eventRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('administrador da organização cancela pelo status', async () => {
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.findMembership.mockResolvedValue({
+        ...MEMBERSHIP,
+        role: 'admin',
+        permission: 'full',
+      });
+      eventRepository.update.mockResolvedValue(
+        makeEvent({ status: 'cancelled' }),
+      );
+
+      await service.update('event-1', { status: 'cancelled' }, USER);
+
+      expect(eventRepository.update).toHaveBeenCalledWith('event-1', {
+        status: 'cancelled',
+      });
+    });
+
+    it('ADMIN cancela pelo status sem consultar vínculo', async () => {
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.update.mockResolvedValue(
+        makeEvent({ status: 'cancelled' }),
+      );
+
+      await service.update('event-1', { status: 'cancelled' }, ADMIN);
+
+      expect(eventRepository.findMembership).not.toHaveBeenCalled();
+      expect(eventRepository.update).toHaveBeenCalled();
     });
 
     it('lança 404 quando o evento não existe', async () => {
       eventRepository.findById.mockResolvedValue(undefined);
 
       await expect(
-        service.update('event-404', { name: 'Novo nome' }),
+        service.update('event-404', { name: 'Novo nome' }, ADMIN),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(eventRepository.update).not.toHaveBeenCalled();
     });
@@ -444,7 +624,7 @@ describe('EventService', () => {
       );
 
       await expect(
-        service.update('event-1', { name: 'Novo nome' }),
+        service.update('event-1', { name: 'Novo nome' }, ADMIN),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
       expect(eventRepository.update).not.toHaveBeenCalled();
     });
@@ -453,9 +633,13 @@ describe('EventService', () => {
       eventRepository.findById.mockResolvedValue(makeEvent());
 
       await expect(
-        service.update('event-1', {
-          startDate: new Date('2026-06-21T00:00:00Z'),
-        }),
+        service.update(
+          'event-1',
+          {
+            startDate: new Date('2026-06-21T00:00:00Z'),
+          },
+          ADMIN,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(eventRepository.update).not.toHaveBeenCalled();
     });
@@ -465,7 +649,7 @@ describe('EventService', () => {
       venueService.findOne.mockRejectedValue(new NotFoundException());
 
       await expect(
-        service.update('event-1', { venueId: 'venue-404' }),
+        service.update('event-1', { venueId: 'venue-404' }, ADMIN),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(eventRepository.update).not.toHaveBeenCalled();
     });
@@ -474,7 +658,7 @@ describe('EventService', () => {
       eventRepository.findById.mockResolvedValue(makeEvent());
       eventRepository.update.mockResolvedValue(makeEvent());
 
-      await service.update('event-1', { venueId: 'venue-1' });
+      await service.update('event-1', { venueId: 'venue-1' }, ADMIN);
 
       expect(venueService.findOne).not.toHaveBeenCalled();
     });

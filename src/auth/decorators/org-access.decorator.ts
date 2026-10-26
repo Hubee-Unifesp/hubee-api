@@ -2,6 +2,7 @@ import { applyDecorators, SetMetadata, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
+  ApiNotFoundResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
@@ -42,5 +43,14 @@ export function OrgAccess(
       description: `Usuário sem o nível de acesso "${level}" na organização.`,
       schema: errorSchema,
     }),
+    ...(source.from === 'event'
+      ? [
+          ApiNotFoundResponse({
+            description:
+              'Evento inexistente ou de uma organização da qual o usuário não é membro.',
+            schema: errorSchema,
+          }),
+        ]
+      : []),
   );
 }

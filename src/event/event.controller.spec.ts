@@ -22,6 +22,10 @@ import {
 import { EventSummaryResponseDto } from './dto/event-summary-response.dto';
 import { EventListItemResponseDto } from './dto/event-list-item-response.dto';
 import { EventPageResponseDto } from './dto/event-page-response.dto';
+import { DRIZZLE } from '../database/database.constants';
+
+/** O `OrganizationAccessGuard` do `@OrgAccess` injeta o banco; aqui ele não roda. */
+const fakeDrizzle = { provide: DRIZZLE, useValue: {} };
 
 /** Linha completa do banco, como o service a retorna. */
 const row = {
@@ -119,7 +123,7 @@ describe('EventController', () => {
     const module: TestingModule = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [EventController],
-      providers: [{ provide: EventService, useValue: service }],
+      providers: [{ provide: EventService, useValue: service }, fakeDrizzle],
     }).compile();
 
     controller = module.get(EventController);
@@ -136,9 +140,9 @@ describe('EventController', () => {
     const created = row as never;
     service.create.mockResolvedValue(created);
 
-    const result = await controller.create(dto);
+    const result = await controller.create(dto, ADMIN);
 
-    expect(service.create).toHaveBeenCalledWith(dto);
+    expect(service.create).toHaveBeenCalledWith(dto, ADMIN);
     expect(result).toEqual(created);
     expect(result).toBeInstanceOf(EventResponseDto);
   });
@@ -227,9 +231,9 @@ describe('EventController', () => {
     const updated = row as never;
     service.update.mockResolvedValue(updated);
 
-    const result = await controller.update('event-1', dto);
+    const result = await controller.update('event-1', dto, ADMIN);
 
-    expect(service.update).toHaveBeenCalledWith('event-1', dto);
+    expect(service.update).toHaveBeenCalledWith('event-1', dto, ADMIN);
     expect(result).toEqual(updated);
     expect(result).toBeInstanceOf(EventResponseDto);
   });
@@ -260,6 +264,8 @@ describe('GET /events e GET /events/:id (validação via HTTP)', () => {
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [EventController],
       providers: [
+        { provide: EventService, useValue: { findAll } },
+        fakeDrizzle,
         { provide: EventService, useValue: { findAll, findVisible } },
       ],
     }).compile();
