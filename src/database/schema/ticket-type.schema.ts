@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   check,
   index,
@@ -40,3 +40,10 @@ export const ticketTypes = pgTable(
     check('ticket_types_price_positive', sql`${table.price} >= 0`),
   ],
 );
+
+export const ticketTypesRelations = relations(ticketTypes, ({ one }) => ({
+  event: one(events, {
+    fields: [ticketTypes.eventId],
+    references: [events.id],
+  }),
+}));

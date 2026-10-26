@@ -180,6 +180,23 @@ export class EventRepository {
     return executor.query.events.findFirst({ where: eq(events.id, id) });
   }
 
+  async findDetailById(id: string, executor: DbExecutor = this.db) {
+    return executor.query.events.findFirst({
+      where: eq(events.id, id),
+      with: {
+        venue: { with: { address: true } },
+        organization: true,
+        ticketTypes: {
+          orderBy: [
+            asc(ticketTypes.createdAt),
+            asc(ticketTypes.price),
+            asc(ticketTypes.id),
+          ],
+        },
+      },
+    });
+  }
+
   async create(
     data: typeof events.$inferInsert,
     executor: DbExecutor = this.db,
