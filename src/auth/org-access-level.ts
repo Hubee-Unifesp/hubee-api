@@ -39,17 +39,18 @@ export interface OrganizationMembership {
 }
 
 /**
- * Nível efetivo do vínculo: só convite aceito conta; `role = admin` dá
- * `manage` (e implica `write`), `permission = full` dá `write` e o resto
- * fica em `read`.
+ * Nível efetivo do vínculo: só convite aceito conta; sem `permission = full`
+ * fica em `read`; com `full`, `role = admin` dá `manage` e o resto `write`.
+ * A `permission` vem antes do `role` para que uma linha inconsistente
+ * (`admin` com `read_only`) não ganhe `manage`.
  */
 export function effectiveLevel(
   membership: OrganizationMembership,
 ): OrgAccessLevel | null {
   if (membership.inviteStatus !== InviteStatus.ACCEPTED) return null;
+  if (membership.permission !== OrganizationPermission.FULL) return 'read';
   if (membership.role === OrganizationRole.ADMIN) return 'manage';
-  if (membership.permission === OrganizationPermission.FULL) return 'write';
-  return 'read';
+  return 'write';
 }
 
 export function satisfiesLevel(

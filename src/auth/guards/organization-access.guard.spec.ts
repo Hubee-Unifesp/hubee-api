@@ -143,10 +143,16 @@ describe('OrganizationAccessGuard', () => {
         allowed: false,
       },
       {
-        name: 'write: admin implica write mesmo com read_only',
+        name: 'write: admin com read_only (linha inconsistente) fica em read',
         route: 'write',
         membership: member({ role: 'admin' }),
-        allowed: true,
+        allowed: false,
+      },
+      {
+        name: 'manage: admin com read_only (linha inconsistente) é negado',
+        route: 'manage',
+        membership: member({ role: 'admin' }),
+        allowed: false,
       },
       {
         name: 'manage: admin',

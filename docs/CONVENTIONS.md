@@ -97,7 +97,8 @@ quais ids existem.
 - Para restringir a membros de uma organização, use
   [`@OrgAccess(level, source)`](../src/auth/decorators/org-access.decorator.ts).
   Os níveis são cumulativos: `read` (qualquer membro com convite aceito),
-  `write` (`permission = full`) e `manage` (`role = admin`). O `ADMIN` global
+  `write` (`permission = full`) e `manage` (`role = admin` com `permission = full`;
+  `admin` com `read_only` fica em `read`). O `ADMIN` global
   passa sempre. Com `source` `{ from: 'event' }`, quem não é membro da
   organização do evento recebe `404`; nas outras origens, `403`. As
   organizações do usuário logado saem em `GET /users/me` (`organizations`, com
