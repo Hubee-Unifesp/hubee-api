@@ -89,7 +89,7 @@ describe('Eventos por organizadores (banco em memória)', () => {
       .values({ addressId: address.id, name: 'Ginásio', maxCapacity: 500 })
       .returning();
 
-    const names = ['organizer', 'readOnly', 'buyer', 'admin'];
+    const names = ['organizer', 'readOnly', 'buyer', 'admin', 'orgAdmin'];
     const users = await db
       .insert(schema.users)
       .values(
@@ -114,6 +114,13 @@ describe('Eventos por organizadores (banco em memória)', () => {
         userId: users[1].id,
         role: 'member',
         permission: 'read_only',
+        inviteStatus: 'accepted',
+      },
+      {
+        orgId: orgA,
+        userId: users[4].id,
+        role: 'admin',
+        permission: 'full',
         inviteStatus: 'accepted',
       },
     ]);
@@ -141,7 +148,7 @@ describe('Eventos por organizadores (banco em memória)', () => {
     await pglite?.close();
   });
 
-  it('organizador cria, edita e cancela evento da própria organização', async () => {
+  it('organizador cria e edita evento da própria organização, mas não cancela', async () => {
     const created = await http()
       .post('/events')
       .set(as('organizer'))
@@ -162,7 +169,36 @@ describe('Eventos por organizadores (banco em memória)', () => {
     await http()
       .delete(`/events/${created.body.id}`)
       .set(as('organizer'))
+      .expect(403);
+    await http()
+      .patch(`/events/${created.body.id}`)
+      .set(as('organizer'))
+      .send({ status: 'cancelled' })
+      .expect(403);
+  });
+
+  it('administrador da organização cancela evento por DELETE e por PATCH', async () => {
+    const first = await http()
+      .post('/events')
+      .set(as('orgAdmin'))
+      .send(newEvent(orgA))
+      .expect(201);
+    await http()
+      .delete(`/events/${first.body.id}`)
+      .set(as('orgAdmin'))
       .expect(204);
+
+    const second = await http()
+      .post('/events')
+      .set(as('orgAdmin'))
+      .send(newEvent(orgA))
+      .expect(201);
+    const cancelled = await http()
+      .patch(`/events/${second.body.id}`)
+      .set(as('orgAdmin'))
+      .send({ status: 'cancelled' })
+      .expect(200);
+    expect(cancelled.body.status).toBe('cancelled');
   });
 
   it('comprador sem vínculo recebe 403 ao criar evento', async () => {

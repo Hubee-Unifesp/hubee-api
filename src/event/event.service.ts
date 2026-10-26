@@ -6,6 +6,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { effectiveLevel, satisfiesLevel } from '../auth/org-access-level';
 import { OrganizationService } from '../organization/organization.service';
 import { VenueService } from '../venue/venue.service';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -114,7 +115,8 @@ export class EventService {
 
   /**
    * Que o evento é da organização do usuário é conferido pelo `@OrgAccess` no
-   * controller (evento de outra organização responde 404).
+   * controller (evento de outra organização responde 404). Cancelar pelo
+   * `PATCH` (`status: 'cancelled'`) segue a regra do `DELETE`.
    */
   async update(id: string, dto: UpdateEventDto, actor: AuthenticatedUser) {
     this.ensureCanFeature(dto, actor);
@@ -124,6 +126,10 @@ export class EventService {
       throw new UnprocessableEntityException(
         'Evento cancelado não pode ser alterado',
       );
+    }
+
+    if (dto.status === 'cancelled') {
+      await this.ensureCanCancel(actor, event.organizerId);
     }
 
     this.validatePeriod({
@@ -158,6 +164,26 @@ export class EventService {
     return Boolean(
       await this.eventRepository.findMembership(viewer.id, organizationId),
     );
+  }
+
+  /**
+   * Cancelar evento é só do ADMIN ou do administrador da organização
+   * (`manage`), pela matriz RBAC (GOL-143).
+   */
+  private async ensureCanCancel(
+    actor: AuthenticatedUser,
+    organizationId: string,
+  ): Promise<void> {
+    if (isAdmin(actor)) return;
+    const membership = await this.eventRepository.findMembership(
+      actor.id,
+      organizationId,
+    );
+    if (!membership || !satisfiesLevel(effectiveLevel(membership), 'manage')) {
+      throw new ForbiddenException(
+        'Apenas administradores da organização podem cancelar o evento',
+      );
+    }
   }
 
   /** O destaque na home (`featured`) é curadoria da plataforma: só ADMIN. */

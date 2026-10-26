@@ -506,6 +506,53 @@ describe('EventService', () => {
       expect(eventRepository.update).not.toHaveBeenCalled();
     });
 
+    it('recusa com 403 membro `write` que tenta cancelar pelo status', async () => {
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.findMembership.mockResolvedValue({
+        ...MEMBERSHIP,
+        permission: 'full',
+      });
+
+      await expect(
+        service.update('event-1', { status: 'cancelled' }, USER),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(eventRepository.findMembership).toHaveBeenCalledWith(
+        USER.id,
+        'org-1',
+      );
+      expect(eventRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('administrador da organização cancela pelo status', async () => {
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.findMembership.mockResolvedValue({
+        ...MEMBERSHIP,
+        role: 'admin',
+        permission: 'full',
+      });
+      eventRepository.update.mockResolvedValue(
+        makeEvent({ status: 'cancelled' }),
+      );
+
+      await service.update('event-1', { status: 'cancelled' }, USER);
+
+      expect(eventRepository.update).toHaveBeenCalledWith('event-1', {
+        status: 'cancelled',
+      });
+    });
+
+    it('ADMIN cancela pelo status sem consultar vínculo', async () => {
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.update.mockResolvedValue(
+        makeEvent({ status: 'cancelled' }),
+      );
+
+      await service.update('event-1', { status: 'cancelled' }, ADMIN);
+
+      expect(eventRepository.findMembership).not.toHaveBeenCalled();
+      expect(eventRepository.update).toHaveBeenCalled();
+    });
+
     it('lança 404 quando o evento não existe', async () => {
       eventRepository.findById.mockResolvedValue(undefined);
 

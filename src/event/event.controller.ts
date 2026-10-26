@@ -91,7 +91,10 @@ export class EventController {
     );
   }
 
-  /** ADMIN ou membro com `write` na organização do evento; de fora dá 404. */
+  /**
+   * ADMIN ou membro com `write` na organização do evento; de fora dá 404.
+   * Mudar o status para `cancelled` exige `manage`, como o `DELETE`.
+   */
   @OrgAccess('write', { from: 'event', param: 'id' })
   @Patch(':id')
   @ApiOkResponse({ type: EventResponseDto })
@@ -106,8 +109,11 @@ export class EventController {
     );
   }
 
-  /** Cancela o evento. Mesma regra de acesso do `PATCH`. */
-  @OrgAccess('write', { from: 'event', param: 'id' })
+  /**
+   * Cancela o evento. ADMIN ou administrador da organização (`manage`), pela
+   * matriz RBAC (GOL-143); de fora dá 404.
+   */
+  @OrgAccess('manage', { from: 'event', param: 'id' })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()

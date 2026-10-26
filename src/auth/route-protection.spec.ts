@@ -81,10 +81,17 @@ const AUTHENTICATED_ROUTES = [
  * `POST /events` a organização vem do body; nas demais, do evento, e quem é
  * de fora da organização recebe 404 em vez de 403.
  */
+const ORGANIZER_WRITE_ROUTES = ['POST /events', 'PATCH /events/:id'];
+
+/**
+ * Como `ORGANIZER_WRITE_ROUTES`, mas exige `manage` (administrador da
+ * organização), pela matriz RBAC (GOL-143): membro com `full` recebe 403.
+ */
+const ORGANIZER_MANAGE_ROUTES = ['DELETE /events/:id'];
+
 const ORGANIZER_ROUTES = [
-  'POST /events',
-  'PATCH /events/:id',
-  'DELETE /events/:id',
+  ...ORGANIZER_WRITE_ROUTES,
+  ...ORGANIZER_MANAGE_ROUTES,
 ];
 
 /** Rotas de pedido que ganham proteção com checagem de dono na GOL-103. */
@@ -374,15 +381,16 @@ describe('Proteção de rotas (GOL-114)', () => {
     (_label, route) => {
       const send = (token?: string) =>
         call(route, token).send({ organizerId: ID });
-      const asMember = (permission?: string) => {
+      const asMember = (permission?: string, role = 'member') => {
         membership.current = permission && {
-          role: 'member',
+          role,
           permission,
           inviteStatus: 'accepted',
         };
         return send(userToken);
       };
       const byEvent = route.template.includes(':id');
+      const needsManage = ORGANIZER_MANAGE_ROUTES.includes(route.label);
 
       afterEach(() => {
         membership.current = undefined;
@@ -404,10 +412,21 @@ describe('Proteção de rotas (GOL-114)', () => {
         await asMember('read_only').expect(403);
       });
 
-      it('2xx para membro com permissão full', async () => {
-        const response = await asMember('full');
-        expect(response.status).toBeLessThan(300);
-      });
+      if (needsManage) {
+        it('403 para membro com permissão full que não é administrador', async () => {
+          await asMember('full').expect(403);
+        });
+
+        it('2xx para administrador da organização', async () => {
+          const response = await asMember('full', 'admin');
+          expect(response.status).toBeLessThan(300);
+        });
+      } else {
+        it('2xx para membro com permissão full', async () => {
+          const response = await asMember('full');
+          expect(response.status).toBeLessThan(300);
+        });
+      }
 
       it('2xx com token de ADMIN, sem vínculo', async () => {
         const response = await send(adminToken);
