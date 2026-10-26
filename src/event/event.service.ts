@@ -89,14 +89,13 @@ export class EventService {
    * organização do evento.
    */
   async findVisible(id: string, viewer?: AuthenticatedUser) {
-    const event = await this.findOne(id);
-    if (
-      event.status !== 'published' &&
-      !isAdmin(viewer) &&
-      !(await this.isMember(viewer, event.organizerId))
-    ) {
     const event = await this.eventRepository.findDetailById(id);
-    if (!event || (!isAdmin(viewer) && event.status !== 'published')) {
+    if (
+      !event ||
+      (event.status !== 'published' &&
+        !isAdmin(viewer) &&
+        !(await this.isMember(viewer, event.organizerId)))
+    ) {
       throw new NotFoundException(`Evento ${id} não encontrado`);
     }
     return event;

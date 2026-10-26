@@ -389,8 +389,8 @@ describe('EventService', () => {
     );
 
     it('retorna evento não publicado para membro da organização do evento', async () => {
-      const event = makeEvent({ status: 'draft' });
-      eventRepository.findById.mockResolvedValue(event);
+      const event = makeEventDetail({ status: 'draft' });
+      eventRepository.findDetailById.mockResolvedValue(event);
       eventRepository.findMembership.mockResolvedValue(MEMBERSHIP);
 
       await expect(service.findVisible('event-1', USER)).resolves.toEqual(
@@ -403,8 +403,8 @@ describe('EventService', () => {
     });
 
     it('não consulta vínculo quando o evento está publicado', async () => {
-      eventRepository.findById.mockResolvedValue(
-        makeEvent({ status: 'published' }),
+      eventRepository.findDetailById.mockResolvedValue(
+        makeEventDetail({ status: 'published' }),
       );
 
       await service.findVisible('event-1', USER);
