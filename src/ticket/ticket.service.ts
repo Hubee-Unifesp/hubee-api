@@ -4,6 +4,8 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { canAccess } from '../auth/ownership';
 import type { TicketStatus } from '../database/schema';
 import { EventService } from '../event/event.service';
 import { OrderService } from '../order/order.service';
@@ -33,22 +35,32 @@ export class TicketService {
     private readonly usersService: UsersService,
   ) {}
 
-  /** Consulta o pedido antes para que um pedido inexistente dê 404, e não `[]`. */
-  async findAllByOrder(orderId: string) {
-    await this.orderService.findOne(orderId);
+  /**
+   * Consulta o pedido antes para que um pedido inexistente dê 404, e não `[]`.
+   * Pedido de outra pessoa também dá 404, para não revelar quais ids existem.
+   */
+  async findAllByOrder(orderId: string, user: AuthenticatedUser) {
+    const order = await this.orderService.findById(orderId);
+    if (!canAccess(user, order.userId)) {
+      throw new NotFoundException(`Pedido ${orderId} não encontrado`);
+    }
     return this.ticketRepository.findAllByOrder(orderId);
   }
 
-  async findOne(id: string) {
-    const ticket = await this.ticketRepository.findById(id);
-    if (!ticket) {
+  /** O titular e o comprador do pedido veem o ingresso; os demais recebem 404. */
+  async findOne(id: string, user: AuthenticatedUser) {
+    const ticket = await this.findById(id);
+    if (canAccess(user, ticket.holderUserId)) return ticket;
+
+    const order = await this.orderService.findById(ticket.orderId);
+    if (!canAccess(user, order.userId)) {
       throw new NotFoundException(`Ingresso ${id} não encontrado`);
     }
     return ticket;
   }
 
   async create(orderId: string, dto: CreateTicketsDto) {
-    const order = await this.orderService.findOne(orderId);
+    const order = await this.orderService.findById(orderId);
     if (order.status !== 'pago') {
       throw new UnprocessableEntityException(
         'Só pedidos pagos podem ter ingressos emitidos',
@@ -76,7 +88,7 @@ export class TicketService {
   }
 
   async update(id: string, dto: UpdateTicketDto) {
-    const ticket = await this.findOne(id);
+    const ticket = await this.findById(id);
 
     if (!ALLOWED_TRANSITIONS[ticket.status].includes(dto.status)) {
       throw new UnprocessableEntityException(
@@ -95,6 +107,14 @@ export class TicketService {
       );
     }
     return updated;
+  }
+
+  private async findById(id: string) {
+    const ticket = await this.ticketRepository.findById(id);
+    if (!ticket) {
+      throw new NotFoundException(`Ingresso ${id} não encontrado`);
+    }
+    return ticket;
   }
 
   /** Evento cancelado não vende ingresso, na mesma regra de `EventService.update`. */

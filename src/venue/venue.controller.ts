@@ -22,37 +22,48 @@ import { CreateVenueDto } from './dto/create-venue.dto';
 import { QueryVenueDto } from './dto/query-venue.dto';
 import { UpdateVenueDto } from './dto/update-venue.dto';
 import { VenueService } from './venue.service';
+import { toResponse } from '../common/serialization/to-response';
+import { AdminOnly } from '../auth/decorators/admin-only.decorator';
 
 @ApiTags('venues')
 @Controller('venues')
 export class VenueController {
   constructor(private readonly venueService: VenueService) {}
 
+  @AdminOnly()
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: VenueResponseDto })
-  create(@Body() dto: CreateVenueDto) {
-    return this.venueService.create(dto);
+  async create(@Body() dto: CreateVenueDto) {
+    return toResponse(VenueResponseDto, await this.venueService.create(dto));
   }
 
   @Get()
   @ApiOkResponse({ type: VenueResponseDto, isArray: true })
-  findAll(@Query() query: QueryVenueDto) {
-    return this.venueService.findAll(query);
+  async findAll(@Query() query: QueryVenueDto) {
+    return toResponse(VenueResponseDto, await this.venueService.findAll(query));
   }
 
   @Get(':id')
   @ApiOkResponse({ type: VenueResponseDto })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.venueService.findOne(id);
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return toResponse(VenueResponseDto, await this.venueService.findOne(id));
   }
 
+  @AdminOnly()
   @Patch(':id')
   @ApiOkResponse({ type: VenueResponseDto })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateVenueDto) {
-    return this.venueService.update(id, dto);
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateVenueDto,
+  ) {
+    return toResponse(
+      VenueResponseDto,
+      await this.venueService.update(id, dto),
+    );
   }
 
+  @AdminOnly()
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()

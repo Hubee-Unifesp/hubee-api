@@ -19,6 +19,17 @@ Este é um projeto acadêmico desenvolvido para a disciplina de **Engenharia de 
 - PostgreSQL (Neon)
 - Drizzle ORM
 
+## Arquitetura
+
+A API roda no Render e é chamada direto pelo navegador, a partir da Webpage
+(Next.js na Vercel). Ela acessa o PostgreSQL no Neon pelo Drizzle e autentica as
+rotas protegidas com um token JWT enviado no header `Authorization: Bearer <token>`.
+
+O diagrama e a explicação completa estão na documentação do time (Alexandrita):
+
+- [Arquitetura do sistema](https://alexandrita-docs.vercel.app/infra/arquitetura) (site, pede login do time)
+- [Arquivo da página no GitHub](https://github.com/Hubee-Unifesp/alexandrita-docs/blob/main/docs/infra/arquitetura.md)
+
 ## Como executar
 
 ### Pré-requisitos
@@ -51,6 +62,7 @@ Preencha o `.env` com os dados de conexão do banco:
 | `DB_NAME`     | Nome do banco                                               |
 | `DB_SSL`      | `true` para o Neon (exige TLS), `false` para Postgres local |
 | `JWT_SECRET`  | Segredo para assinar os tokens JWT (obrigatório)            |
+| `CORS_ORIGINS` | Origens permitidas pelo CORS, separadas por vírgula (padrão `http://localhost:3001`) |
 
 No Neon, esses valores estão em **Dashboard > Connect > Parameters only**.
 

@@ -20,47 +20,64 @@ import {
 import { CreateTicketTypeDto } from './dto/create-ticket-type.dto';
 import { UpdateTicketTypeDto } from './dto/update-ticket-type.dto';
 import { TicketTypeService } from './ticket-type.service';
+import { toResponse } from '../common/serialization/to-response';
+import { AdminOnly } from '../auth/decorators/admin-only.decorator';
 
 @ApiTags('ticket-types')
 @Controller('events/:eventId/ticket-types')
 export class TicketTypeController {
   constructor(private readonly ticketTypeService: TicketTypeService) {}
 
+  @AdminOnly()
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: TicketTypeResponseDto })
-  create(
+  async create(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Body() dto: CreateTicketTypeDto,
   ) {
-    return this.ticketTypeService.create(eventId, dto);
+    return toResponse(
+      TicketTypeResponseDto,
+      await this.ticketTypeService.create(eventId, dto),
+    );
   }
 
   @Get()
   @ApiOkResponse({ type: TicketTypeResponseDto, isArray: true })
-  findAll(@Param('eventId', ParseUUIDPipe) eventId: string) {
-    return this.ticketTypeService.findAll(eventId);
+  async findAll(@Param('eventId', ParseUUIDPipe) eventId: string) {
+    return toResponse(
+      TicketTypeResponseDto,
+      await this.ticketTypeService.findAll(eventId),
+    );
   }
 
   @Get(':id')
   @ApiOkResponse({ type: TicketTypeResponseDto })
-  findOne(
+  async findOne(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.ticketTypeService.findOne(eventId, id);
+    return toResponse(
+      TicketTypeResponseDto,
+      await this.ticketTypeService.findOne(eventId, id),
+    );
   }
 
+  @AdminOnly()
   @Patch(':id')
   @ApiOkResponse({ type: TicketTypeResponseDto })
-  update(
+  async update(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTicketTypeDto,
   ) {
-    return this.ticketTypeService.update(eventId, id, dto);
+    return toResponse(
+      TicketTypeResponseDto,
+      await this.ticketTypeService.update(eventId, id, dto),
+    );
   }
 
+  @AdminOnly()
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()

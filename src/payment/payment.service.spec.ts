@@ -10,6 +10,13 @@ import { PaymentService } from './payment.service';
 type Payment = typeof payments.$inferSelect;
 
 const ORDER_ID = 'pedido-1';
+const BUYER = {
+  id: 'buyer-1',
+  email: 'buyer@example.com',
+  role: 'USER' as const,
+};
+const OTHER_USER = { ...BUYER, id: 'other-1' };
+const ADMIN = { ...BUYER, id: 'admin-1', role: 'ADMIN' as const };
 
 function makePayment(overrides: Partial<Payment> = {}): Payment {
   return {
@@ -32,7 +39,7 @@ describe('PaymentService', () => {
     create: jest.Mock<PaymentRepository['create']>;
     update: jest.Mock<PaymentRepository['update']>;
   };
-  let orderService: { findOne: jest.Mock<OrderService['findOne']> };
+  let orderService: { findById: jest.Mock<OrderService['findById']> };
 
   beforeEach(async () => {
     paymentRepository = {
@@ -40,7 +47,7 @@ describe('PaymentService', () => {
       create: jest.fn<PaymentRepository['create']>(),
       update: jest.fn<PaymentRepository['update']>(),
     };
-    orderService = { findOne: jest.fn<OrderService['findOne']>() };
+    orderService = { findById: jest.fn<OrderService['findById']>() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -52,7 +59,10 @@ describe('PaymentService', () => {
 
     service = module.get(PaymentService);
 
-    orderService.findOne.mockResolvedValue({ id: ORDER_ID } as never);
+    orderService.findById.mockResolvedValue({
+      id: ORDER_ID,
+      userId: BUYER.id,
+    } as never);
   });
 
   describe('findOne()', () => {
@@ -60,23 +70,36 @@ describe('PaymentService', () => {
       const payment = makePayment();
       paymentRepository.findByOrderId.mockResolvedValue(payment);
 
-      await expect(service.findOne(ORDER_ID)).resolves.toEqual(payment);
-      expect(orderService.findOne).toHaveBeenCalledWith(ORDER_ID);
+      await expect(service.findOne(ORDER_ID, BUYER)).resolves.toEqual(payment);
+      expect(orderService.findById).toHaveBeenCalledWith(ORDER_ID);
     });
 
     it('lança NotFound quando o pedido não existe', async () => {
-      orderService.findOne.mockRejectedValue(new NotFoundException());
+      orderService.findById.mockRejectedValue(new NotFoundException());
 
-      await expect(service.findOne(ORDER_ID)).rejects.toBeInstanceOf(
+      await expect(service.findOne(ORDER_ID, BUYER)).rejects.toBeInstanceOf(
         NotFoundException,
       );
+      expect(paymentRepository.findByOrderId).not.toHaveBeenCalled();
+    });
+
+    it('ADMIN consulta o pagamento de qualquer pedido', async () => {
+      paymentRepository.findByOrderId.mockResolvedValue(makePayment());
+
+      await expect(service.findOne(ORDER_ID, ADMIN)).resolves.toBeDefined();
+    });
+
+    it('lança NotFound quando o pedido é de outra pessoa', async () => {
+      await expect(
+        service.findOne(ORDER_ID, OTHER_USER),
+      ).rejects.toBeInstanceOf(NotFoundException);
       expect(paymentRepository.findByOrderId).not.toHaveBeenCalled();
     });
 
     it('lança NotFound quando o payment não existe para o pedido', async () => {
       paymentRepository.findByOrderId.mockResolvedValue(undefined);
 
-      await expect(service.findOne(ORDER_ID)).rejects.toBeInstanceOf(
+      await expect(service.findOne(ORDER_ID, BUYER)).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });
@@ -93,9 +116,9 @@ describe('PaymentService', () => {
       const created = makePayment();
       paymentRepository.create.mockResolvedValue(created);
 
-      const result = await service.create(ORDER_ID, dto);
+      const result = await service.create(ORDER_ID, dto, BUYER);
 
-      expect(orderService.findOne).toHaveBeenCalledWith(ORDER_ID);
+      expect(orderService.findById).toHaveBeenCalledWith(ORDER_ID);
       expect(paymentRepository.create).toHaveBeenCalledWith({
         ...dto,
         orderId: ORDER_ID,
@@ -103,19 +126,26 @@ describe('PaymentService', () => {
       expect(result).toEqual(created);
     });
 
+    it('lança NotFound e não cria quando o pedido é de outra pessoa', async () => {
+      await expect(
+        service.create(ORDER_ID, dto, OTHER_USER),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(paymentRepository.create).not.toHaveBeenCalled();
+    });
+
     it('lança 409 quando o pedido já tem payment registrado', async () => {
       paymentRepository.findByOrderId.mockResolvedValue(makePayment());
 
-      await expect(service.create(ORDER_ID, dto)).rejects.toBeInstanceOf(
+      await expect(service.create(ORDER_ID, dto, BUYER)).rejects.toBeInstanceOf(
         ConflictException,
       );
       expect(paymentRepository.create).not.toHaveBeenCalled();
     });
 
     it('lança NotFound quando o pedido não existe', async () => {
-      orderService.findOne.mockRejectedValue(new NotFoundException());
+      orderService.findById.mockRejectedValue(new NotFoundException());
 
-      await expect(service.create(ORDER_ID, dto)).rejects.toBeInstanceOf(
+      await expect(service.create(ORDER_ID, dto, BUYER)).rejects.toBeInstanceOf(
         NotFoundException,
       );
       expect(paymentRepository.create).not.toHaveBeenCalled();

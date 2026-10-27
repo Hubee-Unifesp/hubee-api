@@ -1,8 +1,8 @@
 import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { NormalizeEmail } from '../../common/validation/normalize-email';
 
 export class LoginDto {
-  @Transform(({ value }) => value?.trim().toLowerCase())
+  @NormalizeEmail()
   @IsEmail({}, { message: 'E-mail inválido' })
   email: string;
 

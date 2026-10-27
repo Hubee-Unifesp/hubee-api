@@ -1,5 +1,7 @@
+import { NormalizeEmail } from '../../common/validation/normalize-email';
 import {
   IsEmail,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -8,19 +10,17 @@ import {
   IsNumberString,
 } from 'class-validator';
 import { TrimString } from '../../common/validation/update-validation';
+import { IsCpf } from '../../common/validation/cpf';
+import { IsNotFutureDate } from '../../common/validation/not-future-date';
 
 export class CreateUserDto {
   @TrimString()
   @IsString()
-  @IsNotEmpty({ message: 'O primeiro nome é obrigatório' })
-  firstName: string;
+  @IsNotEmpty({ message: 'O nome completo é obrigatório' })
+  @Length(1, 200)
+  fullName: string;
 
-  @TrimString()
-  @IsString()
-  @IsNotEmpty({ message: 'O sobrenome é obrigatório' })
-  lastName: string;
-
-  @TrimString()
+  @NormalizeEmail()
   @IsEmail({}, { message: 'Forneça um e-mail válido' })
   email: string;
 
@@ -37,14 +37,17 @@ export class CreateUserDto {
   @IsOptional()
   @IsNumberString({}, { message: 'O CPF deve conter apenas números' })
   @Length(11, 11, { message: 'O CPF deve ter 11 dígitos' })
+  @IsCpf()
   cpf?: string;
 
   @IsOptional()
   @IsDateString({}, { message: 'Data de nascimento inválida' })
+  @IsNotFutureDate({
+    message: 'A data de nascimento não pode estar no futuro',
+  })
   birthDate?: string;
 
-  @TrimString()
   @IsOptional()
-  @IsString()
-  profileType?: string;
+  @IsIn(['BUY', 'ORGANIZE'])
+  signupIntent?: 'BUY' | 'ORGANIZE';
 }

@@ -1,4 +1,5 @@
 import {
+  index,
   pgTable,
   uuid,
   varchar,
@@ -34,5 +35,8 @@ export const organizationUsers = pgTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.orgId, table.userId] }),
+    // O OrganizationAccessGuard filtra por user_id, mas a PK começa por
+    // organization_id.
+    userIdIdx: index('organization_users_user_id_idx').on(table.userId),
   }),
 );

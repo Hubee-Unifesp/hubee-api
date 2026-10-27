@@ -2,11 +2,13 @@ import {
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { FindAllOrdersFilters, OrderRepository } from './order.repository';
+import { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 
 @Injectable()
 export class OrderService {
@@ -19,7 +21,7 @@ export class OrderService {
     return this.orderRepository.findAll(filters);
   }
 
-  async findOne(id: string) {
+  async findById(id: string) {
     const order = await this.orderRepository.findById(id);
     if (!order) {
       throw new NotFoundException(`Pedido ${id} não encontrado`);
@@ -27,13 +29,43 @@ export class OrderService {
     return order;
   }
 
-  async create(dto: CreateOrderDto) {
-    await this.ensureUserExists(dto.userId);
-    return this.orderRepository.create(dto);
+  async findOne(id: string, user: AuthenticatedUser) {
+    const order = await this.findById(id);
+
+    if (order.userId !== user.id && user.role !== 'ADMIN') {
+      throw new NotFoundException(`Pedido ${id} não encontrado`);
+    }
+
+    return order;
   }
 
-  async update(id: string, dto: UpdateOrderDto) {
-    const order = await this.findOne(id);
+  async create(authUser: AuthenticatedUser, dto: CreateOrderDto) {
+    const user = await this.usersService.findOne(authUser.id);
+
+    const missing: string[] = [];
+    if (!user.cpf) missing.push('cpf');
+    if (!user.birthDate) missing.push('birthDate');
+
+    if (missing.length > 0) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: 'Complete o perfil antes de comprar',
+        error: 'Forbidden',
+        code: 'PROFILE_INCOMPLETE',
+        missing,
+      });
+    }
+    return this.orderRepository.create({ ...dto, userId: authUser.id });
+  }
+
+  async update(id: string, dto: UpdateOrderDto, user: AuthenticatedUser) {
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException(
+        'Apenas administradores podem alterar pedidos',
+      );
+    }
+
+    const order = await this.findOne(id, user);
     if (order.status === 'cancelado') {
       throw new UnprocessableEntityException(
         'Pedido cancelado não pode ser alterado',
@@ -43,12 +75,8 @@ export class OrderService {
     return this.orderRepository.update(id, dto);
   }
 
-  /**
-   * O DELETE da API cancela o pedido em vez de apagar a linha: pedido é
-   * registro financeiro e precisa continuar auditável depois de cancelado.
-   */
-  async cancel(id: string): Promise<void> {
-    const order = await this.findOne(id);
+  async cancel(id: string, user: AuthenticatedUser): Promise<void> {
+    const order = await this.findOne(id, user);
 
     if (order.status === 'cancelado') {
       throw new UnprocessableEntityException('Pedido já está cancelado');
@@ -61,20 +89,5 @@ export class OrderService {
     }
 
     await this.orderRepository.update(id, { status: 'cancelado' });
-  }
-
-  /**
-   * A FK garante que o comprador existe, mas só na hora do INSERT: sem esta
-   * checagem o erro do Postgres subiria como 500 em vez de 404.
-   */
-  private async ensureUserExists(userId: string): Promise<void> {
-    try {
-      await this.usersService.findOne(userId);
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw new NotFoundException(`Usuário ${userId} não encontrado`);
-      }
-      throw error;
-    }
   }
 }

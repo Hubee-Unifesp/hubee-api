@@ -9,12 +9,12 @@ describe('UpdateUserDto', () => {
     await expect(validate(dto)).resolves.toEqual([]);
   });
 
-  it.each([null, ' '])('rejeita firstName=%j', async (firstName) => {
-    const dto = plainToInstance(UpdateUserDto, { firstName });
+  it.each([null, ' '])('rejeita fullName=%j', async (fullName) => {
+    const dto = plainToInstance(UpdateUserDto, { fullName });
 
     await expect(validate(dto)).resolves.toEqual([
       expect.objectContaining({
-        property: 'firstName',
+        property: 'fullName',
         constraints: expect.objectContaining({
           isNotEmpty: expect.any(String),
         }),

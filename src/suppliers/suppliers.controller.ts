@@ -20,37 +20,52 @@ import {
 import { SuppliersService } from './suppliers.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
+import { toResponse } from '../common/serialization/to-response';
+import { AdminOnly } from '../auth/decorators/admin-only.decorator';
 
 @ApiTags('suppliers')
+@AdminOnly()
 @Controller('suppliers')
 export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
 
   @Post()
   @ApiCreatedResponse({ type: SupplierResponseDto })
-  create(@Body() createSupplierDto: CreateSupplierDto) {
-    return this.suppliersService.create(createSupplierDto);
+  async create(@Body() createSupplierDto: CreateSupplierDto) {
+    return toResponse(
+      SupplierResponseDto,
+      await this.suppliersService.create(createSupplierDto),
+    );
   }
 
   @Get()
   @ApiOkResponse({ type: SupplierResponseDto, isArray: true })
-  findAll() {
-    return this.suppliersService.findAll();
+  async findAll() {
+    return toResponse(
+      SupplierResponseDto,
+      await this.suppliersService.findAll(),
+    );
   }
 
   @Get(':id')
   @ApiOkResponse({ type: SupplierResponseDto })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.suppliersService.findOne(id);
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+    return toResponse(
+      SupplierResponseDto,
+      await this.suppliersService.findOne(id),
+    );
   }
 
   @Patch(':id')
   @ApiOkResponse({ type: SupplierResponseDto })
-  update(
+  async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateSupplierDto: UpdateSupplierDto,
   ) {
-    return this.suppliersService.update(id, updateSupplierDto);
+    return toResponse(
+      SupplierResponseDto,
+      await this.suppliersService.update(id, updateSupplierDto),
+    );
   }
 
   @Delete(':id')
