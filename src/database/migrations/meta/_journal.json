@@ -29,6 +29,13 @@
       "when": 1792451695121,
       "tag": "0003_organization_users_user_id_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793283367435,
+      "tag": "0004_ticket_types_quantity_integer",
+      "breakpoints": true
     }
   ]
 }
