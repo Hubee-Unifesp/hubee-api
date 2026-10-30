@@ -2,7 +2,6 @@ import { jest } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
-import { NotImplementedException } from '@nestjs/common';
 import { OrderService } from '../order/order.service';
 import { OrderResponseDto } from '../order/dto/order-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -115,10 +114,6 @@ describe('UsersController', () => {
     expect(result).toEqual([expect.any(OrderResponseDto)]);
   });
 
-  it('GET /me/tickets responde 501 enquanto não está implementada', () => {
-    expect(() => controller.getMyTickets()).toThrow(NotImplementedException);
-  });
-
   describe('resposta segue o UserResponseDto (sem password/deletedAt)', () => {
     it.each([
       ['create', () => controller.create(row as never)],
@@ -167,7 +162,6 @@ describe('UsersController', () => {
         'changePassword',
         'removeMe',
         'getMyOrders',
-        'getMyTickets',
       ].map((name) => methods.indexOf(name)),
     );
     const firstById = Math.min(
