@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
@@ -17,6 +17,18 @@ export class TicketRepository {
       .from(tickets)
       .where(eq(tickets.orderId, orderId))
       .orderBy(asc(tickets.createdAt));
+  }
+
+  /** Com evento, local e lote aninhados, que é o que a tela de ingressos mostra. */
+  async findAllByHolder(holderUserId: string, executor: DbExecutor = this.db) {
+    return executor.query.tickets.findMany({
+      where: eq(tickets.holderUserId, holderUserId),
+      with: {
+        event: { with: { venue: { with: { address: true } } } },
+        ticketType: true,
+      },
+      orderBy: [desc(tickets.createdAt), asc(tickets.id)],
+    });
   }
 
   async findById(id: string, executor: DbExecutor = this.db) {

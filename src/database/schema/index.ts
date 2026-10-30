@@ -7,6 +7,7 @@
  */
 export * from './user';
 export * from './order.schema';
+export * from './order-item.schema';
 export * from './event.schema';
 export * from './task.schema';
 export * from './ticket-type.schema';
