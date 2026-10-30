@@ -29,6 +29,13 @@
       "when": 1792451695121,
       "tag": "0003_organization_users_user_id_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793326778769,
+      "tag": "0004_order_items",
+      "breakpoints": true
     }
   ]
 }
