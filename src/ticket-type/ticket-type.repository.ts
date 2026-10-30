@@ -1,11 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
   DrizzleDatabase,
 } from '../database/database.provider';
-import { ticketTypes } from '../database/schema';
+import { events, ticketTypes } from '../database/schema';
 
 /**
  * Toda leitura e escrita recebe o `eventId` junto do `id`: o tipo de ingresso
@@ -28,6 +28,22 @@ export class TicketTypeRepository {
     return executor.query.ticketTypes.findFirst({
       where: and(eq(ticketTypes.id, id), eq(ticketTypes.eventId, eventId)),
     });
+  }
+
+  /**
+   * Trava os lotes (`FOR UPDATE`) até o fim da transaction: duas compras do
+   * último ingresso ao mesmo tempo passam uma depois da outra, e a segunda já
+   * enxerga o saldo descontado. A ordenação por id evita deadlock entre
+   * compras que pedem os mesmos lotes em ordens diferentes.
+   */
+  async findManyForPurchase(ids: string[], executor: DbExecutor = this.db) {
+    return executor
+      .select({ ticketType: ticketTypes, event: events })
+      .from(ticketTypes)
+      .innerJoin(events, eq(events.id, ticketTypes.eventId))
+      .where(inArray(ticketTypes.id, ids))
+      .orderBy(asc(ticketTypes.id))
+      .for('update', { of: ticketTypes });
   }
 
   async create(
