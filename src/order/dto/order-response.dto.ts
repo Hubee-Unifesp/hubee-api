@@ -1,6 +1,25 @@
-import { Expose } from 'class-transformer';
+import { Expose, Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { orderStatus } from '../../database/schema';
+
+/** Contrato de saída (público) de um item (lote comprado) do pedido. */
+export class OrderItemResponseDto {
+  @Expose()
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @Expose()
+  @ApiProperty({ format: 'uuid' })
+  ticketTypeId: string;
+
+  @Expose()
+  @ApiProperty()
+  quantity: number;
+
+  @Expose()
+  @ApiProperty({ type: Number })
+  unitPrice: number;
+}
 
 /** Contrato de saída (público) de um pedido. */
 export class OrderResponseDto {
@@ -27,4 +46,9 @@ export class OrderResponseDto {
   @Expose()
   @ApiProperty()
   updatedAt: Date;
+
+  @Expose()
+  @Type(() => OrderItemResponseDto)
+  @ApiProperty({ type: OrderItemResponseDto, isArray: true, required: false })
+  items?: OrderItemResponseDto[];
 }

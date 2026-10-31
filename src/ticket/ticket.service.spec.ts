@@ -91,6 +91,7 @@ describe('TicketService', () => {
   let service: TicketService;
   let ticketRepository: {
     findAllByOrder: jest.Mock<TicketRepository['findAllByOrder']>;
+    findAllByHolder: jest.Mock<TicketRepository['findAllByHolder']>;
     findById: jest.Mock<TicketRepository['findById']>;
     createMany: jest.Mock<TicketRepository['createMany']>;
     updateStatus: jest.Mock<TicketRepository['updateStatus']>;
@@ -105,6 +106,7 @@ describe('TicketService', () => {
   beforeEach(async () => {
     ticketRepository = {
       findAllByOrder: jest.fn<TicketRepository['findAllByOrder']>(),
+      findAllByHolder: jest.fn<TicketRepository['findAllByHolder']>(),
       findById: jest.fn<TicketRepository['findById']>(),
       createMany: jest.fn<TicketRepository['createMany']>(),
       updateStatus: jest.fn<TicketRepository['updateStatus']>(),
@@ -128,6 +130,85 @@ describe('TicketService', () => {
     }).compile();
 
     service = module.get(TicketService);
+  });
+
+  describe('findAllByHolder()', () => {
+    it('lista só os ingressos em que o usuário é titular', async () => {
+      const rows = [makeTicket({ holderUserId: BUYER.id })] as never;
+      ticketRepository.findAllByHolder.mockResolvedValue(rows);
+
+      await expect(service.findAllByHolder(BUYER.id)).resolves.toEqual(rows);
+      expect(ticketRepository.findAllByHolder).toHaveBeenCalledWith(BUYER.id);
+    });
+
+    it('devolve lista vazia quando o usuário não tem ingressos', async () => {
+      ticketRepository.findAllByHolder.mockResolvedValue([]);
+
+      await expect(service.findAllByHolder(BUYER.id)).resolves.toEqual([]);
+    });
+  });
+
+  describe('issueForPaidOrder()', () => {
+    const tx = { tx: true } as never;
+    const items = [
+      {
+        ticketTypeId: 'type-1',
+        quantity: 2,
+        ticketType: { eventId: 'event-1' },
+      },
+      {
+        ticketTypeId: 'type-2',
+        quantity: 1,
+        ticketType: { eventId: 'event-2' },
+      },
+    ];
+
+    beforeEach(() => {
+      ticketRepository.createMany.mockImplementation(async (data) =>
+        data.map((item, index) => makeTicket({ ...item, id: `t-${index}` })),
+      );
+    });
+
+    it('emite um ingresso por unidade comprada, com o comprador como titular', async () => {
+      await service.issueForPaidOrder(makeOrder(), items, tx);
+
+      const [data, executor] = ticketRepository.createMany.mock.calls[0];
+      expect(executor).toBe(tx);
+      expect(data).toHaveLength(3);
+      expect(data.map((ticket) => ticket.ticketTypeId)).toEqual([
+        'type-1',
+        'type-1',
+        'type-2',
+      ]);
+      expect(data.map((ticket) => ticket.eventId)).toEqual([
+        'event-1',
+        'event-1',
+        'event-2',
+      ]);
+      expect(data.every((ticket) => ticket.holderUserId === 'buyer-1')).toBe(
+        true,
+      );
+      expect(data.every((ticket) => ticket.orderId === 'order-1')).toBe(true);
+    });
+
+    it('gera um QR code único de 64 caracteres por ingresso', async () => {
+      await service.issueForPaidOrder(makeOrder(), items, tx);
+
+      const [data] = ticketRepository.createMany.mock.calls[0];
+      const codes = data.map((ticket) => ticket.qrCode);
+      expect(new Set(codes).size).toBe(3);
+      expect(codes.every((code) => /^[0-9a-f]{64}$/.test(code))).toBe(true);
+    });
+
+    it.each(['pendente', 'cancelado'] as const)(
+      'não emite para pedido %s',
+      async (status) => {
+        await expect(
+          service.issueForPaidOrder(makeOrder({ status }), items, tx),
+        ).rejects.toBeInstanceOf(UnprocessableEntityException);
+        expect(ticketRepository.createMany).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('findAllByOrder()', () => {

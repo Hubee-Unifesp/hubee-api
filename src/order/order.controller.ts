@@ -3,7 +3,9 @@ import {
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNoContentResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
+  ApiUnprocessableEntityResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { OrderResponseDto } from './dto/order-response.dto';
@@ -34,21 +36,26 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { toResponse } from '../common/serialization/to-response';
 import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import { Authenticated } from '../auth/decorators/authenticated.decorator';
 
 @ApiTags('orders')
 @Controller('orders')
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}
 
+  @Authenticated()
   @Post()
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrderResponseDto })
   @ApiForbiddenResponse({
     description:
       'Perfil incompleto: `code` = PROFILE_INCOMPLETE e `missing` lista os campos que faltam.',
   })
+  @ApiUnprocessableEntityResponse({
+    description:
+      'Lote esgotado, quantidade maior que o saldo ou vendas do evento fechadas.',
+  })
+  @ApiNotFoundResponse({ description: 'Lote não encontrado.' })
   async create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateOrderDto,

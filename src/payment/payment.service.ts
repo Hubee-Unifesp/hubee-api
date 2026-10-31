@@ -1,12 +1,17 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { canAccess } from '../auth/ownership';
+import { DRIZZLE } from '../database/database.constants';
+import type { DrizzleDatabase } from '../database/database.provider';
 import { OrderService } from '../order/order.service';
+import { TicketService } from '../ticket/ticket.service';
+import { CheckoutDto } from './dto/checkout.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { PaymentRepository } from './payment.repository';
@@ -22,13 +27,58 @@ const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
 @Injectable()
 export class PaymentService {
   constructor(
+    @Inject(DRIZZLE) private readonly db: DrizzleDatabase,
     private readonly paymentRepository: PaymentRepository,
     private readonly orderService: OrderService,
+    private readonly ticketService: TicketService,
   ) {}
 
   async findOne(orderId: string, user: AuthenticatedUser) {
     await this.ensureOrderAccessible(orderId, user);
     return this.findByOrder(orderId);
+  }
+
+  /**
+   * Paga o pedido do usuário. O gateway ainda é simulado (fora do escopo da
+   * GOL-175) e sempre aprova; quando houver um real, é aqui que ele entra.
+   *
+   * Pagamento, mudança de status do pedido e emissão dos ingressos acontecem
+   * na mesma transaction: se algo falhar, o pedido continua pendente e nenhum
+   * ingresso é emitido. O pedido fica travado, então dois checkouts ao mesmo
+   * tempo não emitem os ingressos duas vezes.
+   */
+  checkout(dto: CheckoutDto, user: AuthenticatedUser) {
+    return this.db.transaction(async (tx) => {
+      const order = await this.orderService.lockPendingForCheckout(
+        dto.orderId,
+        user,
+        tx,
+      );
+
+      const existing = await this.paymentRepository.findByOrderId(order.id, tx);
+      if (existing) {
+        throw new ConflictException(
+          `Pedido ${order.id} já possui um pagamento registrado`,
+        );
+      }
+
+      const payment = await this.paymentRepository.create(
+        {
+          orderId: order.id,
+          paymentMethod: dto.paymentMethod,
+          amount: order.totalAmount,
+          status: 'confirmado',
+          paidAt: new Date(),
+        },
+        tx,
+      );
+
+      const paidOrder = await this.orderService.markAsPaid(order.id, tx);
+      const items = await this.orderService.findItems(order.id, tx);
+      await this.ticketService.issueForPaidOrder(paidOrder, items, tx);
+
+      return payment;
+    });
   }
 
   async create(

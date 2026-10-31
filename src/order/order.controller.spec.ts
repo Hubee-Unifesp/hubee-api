@@ -60,8 +60,10 @@ describe('OrderController', () => {
   });
 
   it('POST /orders delega para orderService.create() passando o utilizador', async () => {
-    const dto: CreateOrderDto = { totalAmount: 150.5 };
-    const created = { id: 'order-1', userId: mockUser.id, ...dto } as never;
+    const dto: CreateOrderDto = {
+      items: [{ ticketTypeId: 'type-1', quantity: 2 }],
+    };
+    const created = { ...row, items: [] } as never;
     service.create.mockResolvedValue(created);
 
     const result = await controller.create(mockUser, dto);

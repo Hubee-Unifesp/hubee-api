@@ -11,7 +11,6 @@ import {
   HttpStatus,
   UseGuards,
   Query,
-  NotImplementedException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -35,7 +34,6 @@ import {
   ApiOkResponse,
   ApiCreatedResponse,
   ApiNoContentResponse,
-  ApiNotImplementedResponse,
 } from '@nestjs/swagger';
 import { toResponse } from '../common/serialization/to-response';
 
@@ -110,14 +108,6 @@ export class UsersController {
     return toResponse(
       OrderResponseDto,
       await this.orderService.findAll({ ...query, userId: user.id }),
-    );
-  }
-
-  @Get('me/tickets')
-  @ApiNotImplementedResponse({ description: 'Rota ainda não implementada.' })
-  getMyTickets(): never {
-    throw new NotImplementedException(
-      'Listagem de ingressos ainda não disponível',
     );
   }
 
