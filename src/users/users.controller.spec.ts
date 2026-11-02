@@ -15,6 +15,7 @@ const row = {
   fullName: 'Pessoa Teste',
   email: 'user@example.com',
   phone: null,
+  avatarUrl: null,
   password: '$2b$10$hash',
   cpf: '52998224725',
   birthDate: '1990-05-20',
@@ -43,6 +44,7 @@ describe('UsersController', () => {
     findMe: jest.fn(),
     update: jest.fn(),
     updateMe: jest.fn(),
+    updateAvatar: jest.fn(),
     changePassword: jest.fn(),
     remove: jest.fn(),
     removeMe: jest.fn(),
@@ -76,14 +78,21 @@ describe('UsersController', () => {
   it('rotas /me usam o id do usuário autenticado', async () => {
     const body = { fullName: 'Novo Nome' };
     const passwords = { currentPassword: 'old123', newPassword: 'new123' };
+    const file = {
+      mimetype: 'image/png',
+      buffer: Buffer.from('img'),
+      size: 3,
+    };
 
     await controller.findMe(user);
     await controller.updateMe(user, body);
+    await controller.updateAvatar(user, file);
     await controller.changePassword(user, passwords);
     await controller.removeMe(user);
 
     expect(mockUsersService.findMe).toHaveBeenCalledWith('user-id');
     expect(mockUsersService.updateMe).toHaveBeenCalledWith('user-id', body);
+    expect(mockUsersService.updateAvatar).toHaveBeenCalledWith('user-id', file);
     expect(mockUsersService.changePassword).toHaveBeenCalledWith(
       'user-id',
       passwords,
@@ -140,6 +149,15 @@ describe('UsersController', () => {
     it.each([
       ['findMe', () => controller.findMe(user)],
       ['updateMe', () => controller.updateMe(user, {})],
+      [
+        'updateAvatar',
+        () =>
+          controller.updateAvatar(user, {
+            mimetype: 'image/png',
+            buffer: Buffer.from('img'),
+            size: 3,
+          }),
+      ],
     ] as const)('%s inclui profileComplete', async (method, call) => {
       mockUsersService[method].mockResolvedValue({
         ...row,
@@ -159,6 +177,7 @@ describe('UsersController', () => {
       ...[
         'findMe',
         'updateMe',
+        'updateAvatar',
         'changePassword',
         'removeMe',
         'getMyOrders',
