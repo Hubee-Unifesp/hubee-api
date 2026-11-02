@@ -41,12 +41,6 @@ describe('Auth endpoints (Postgres em memória)', () => {
       ),
     );
     await pg.exec(
-      readFileSync(
-        'src/database/migrations/0006_user_avatar_url.sql',
-        'utf8',
-      ),
-    );
-    await pg.exec(
       readFileSync('src/database/migrations/0006_user_avatar_url.sql', 'utf8'),
     );
     db = drizzle(pg, { schema });
