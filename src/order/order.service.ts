@@ -48,21 +48,7 @@ export class OrderService {
   }
 
   async create(authUser: AuthenticatedUser, dto: CreateOrderDto) {
-    const user = await this.usersService.findOne(authUser.id);
-
-    const missing: string[] = [];
-    if (!user.cpf) missing.push('cpf');
-    if (!user.birthDate) missing.push('birthDate');
-
-    if (missing.length > 0) {
-      throw new ForbiddenException({
-        statusCode: 403,
-        message: 'Complete o perfil antes de comprar',
-        error: 'Forbidden',
-        code: 'PROFILE_INCOMPLETE',
-        missing,
-      });
-    }
+    await this.usersService.findOne(authUser.id);
 
     return this.placeOrder(authUser.id, dto);
   }

@@ -1,7 +1,6 @@
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
-  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -47,10 +46,6 @@ export class OrderController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrderResponseDto })
-  @ApiForbiddenResponse({
-    description:
-      'Perfil incompleto: `code` = PROFILE_INCOMPLETE e `missing` lista os campos que faltam.',
-  })
   @ApiUnprocessableEntityResponse({
     description:
       'Lote esgotado, quantidade maior que o saldo ou vendas do evento fechadas.',
