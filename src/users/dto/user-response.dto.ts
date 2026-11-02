@@ -20,6 +20,14 @@ export class UserResponseDto {
   phone: string | null;
 
   @Expose()
+  @ApiProperty({
+    description: 'URL ou Data URI da foto de perfil do usuário',
+    nullable: true,
+    required: false,
+  })
+  avatarUrl: string | null;
+
+  @Expose()
   @ApiProperty({ description: 'CPF do usuário', nullable: true })
   cpf: string | null;
 
