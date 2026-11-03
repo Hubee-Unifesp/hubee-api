@@ -42,6 +42,7 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
     for (const migration of [
       '0000_lyrical_spencer_smythe',
       '0001_authentication_base',
+      '0006_user_avatar_url',
     ]) {
       await pg.exec(
         readFileSync(`src/database/migrations/${migration}.sql`, 'utf8'),
@@ -315,6 +316,73 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
     });
   });
 
+  describe('PATCH /users/me/avatar', () => {
+    it('salva a foto de perfil como Data URI e retorna no perfil do usuário', async () => {
+      const { token } = await register('avatar@example.com');
+      const imageBuffer = Buffer.from('fake-png-content');
+      const expectedDataUri = `data:image/png;base64,${imageBuffer.toString('base64')}`;
+
+      const response = await http()
+        .patch('/users/me/avatar')
+        .set('Authorization', `Bearer ${token}`)
+        .attach('file', imageBuffer, {
+          filename: 'avatar.png',
+          contentType: 'image/png',
+        })
+        .expect(200);
+
+      expect(response.body.avatarUrl).toBe(expectedDataUri);
+
+      const me = await http()
+        .get('/users/me')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(me.body.avatarUrl).toBe(expectedDataUri);
+    });
+
+    it('retorna 400 quando nenhum arquivo é enviado', async () => {
+      const { token } = await register('sem-avatar@example.com');
+      const response = await http()
+        .patch('/users/me/avatar')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+      expect(response.body.message).toBe('Arquivo de imagem é obrigatório.');
+    });
+
+    it('retorna 400 para formato de arquivo inválido', async () => {
+      const { token } = await register('avatar-invalido@example.com');
+      const response = await http()
+        .patch('/users/me/avatar')
+        .set('Authorization', `Bearer ${token}`)
+        .attach('file', Buffer.from('gif-data'), {
+          filename: 'avatar.gif',
+          contentType: 'image/gif',
+        })
+        .expect(400);
+      expect(response.body.message).toBe(
+        'Formato inválido. Use uma imagem .jpg, .png ou .jpeg.',
+      );
+    });
+
+    it('retorna 400 quando o arquivo excede 2MB', async () => {
+      const { token } = await register('avatar-grande@example.com');
+      const oversized = Buffer.alloc(2 * 1024 * 1024 + 1, 1);
+      const response = await http()
+        .patch('/users/me/avatar')
+        .set('Authorization', `Bearer ${token}`)
+        .attach('file', oversized, {
+          filename: 'avatar.jpg',
+          contentType: 'image/jpeg',
+        })
+        .expect(400);
+      expect(response.body.message).toBe('A imagem deve ter no máximo 2MB.');
+    });
+
+    it('exige token', async () => {
+      await http().patch('/users/me/avatar').expect(401);
+    });
+  });
+
   describe('PATCH /users/me/password', () => {
     it('recusa senha atual incorreta com 401', async () => {
       const { token } = await register('senha-errada@example.com');
@@ -442,6 +510,7 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
 
     it('ADMIN acessa a listagem e o detalhe no formato do UserResponseDto', async () => {
       const userResponseKeys = [
+        'avatarUrl',
         'birthDate',
         'cpf',
         'createdAt',

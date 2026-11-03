@@ -1,5 +1,8 @@
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { TicketResponseDto } from './dto/ticket-response.dto';
+import {
+  MyTicketResponseDto,
+  TicketResponseDto,
+} from './dto/ticket-response.dto';
 import {
   Body,
   Controller,
@@ -26,6 +29,8 @@ import {
  * Sem prefixo no `@Controller`: a emissão e a listagem são sub-recursos do
  * pedido (`/orders/:orderId/tickets`), mas a consulta e a mudança de status
  * usam o ingresso direto (`/tickets/:id`), que é o que a portaria lê.
+ * `users/me/tickets` mora aqui, e não no controller de usuários, para o módulo
+ * de usuários não depender do de ingressos (que já depende dele).
  *
  * Emitir e mudar status é só ADMIN: o service não confere a quantidade
  * emitida contra o valor pago, então o comprador não pode emitir sozinho.
@@ -49,6 +54,24 @@ export class TicketController {
       TicketResponseDto,
       await this.ticketService.create(orderId, dto),
     );
+  }
+
+  @Authenticated()
+  @Get('tickets')
+  @ApiOkResponse({ type: MyTicketResponseDto, isArray: true })
+  async findMine(@CurrentUser() user: AuthenticatedUser) {
+    return toResponse(
+      MyTicketResponseDto,
+      await this.ticketService.findAllByHolder(user.id),
+    );
+  }
+
+  /** Mesma lista de `GET /tickets`, sob o perfil do usuário (`/users/me/*`). */
+  @Authenticated()
+  @Get('users/me/tickets')
+  @ApiOkResponse({ type: MyTicketResponseDto, isArray: true })
+  findMyTickets(@CurrentUser() user: AuthenticatedUser) {
+    return this.findMine(user);
   }
 
   @Authenticated()

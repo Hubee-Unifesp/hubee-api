@@ -23,16 +23,18 @@ import {
 } from '../auth/decorators/current-user.decorator';
 
 /**
- * O comprador paga e consulta o pagamento do próprio pedido; o service
- * responde 404 para pedido de outra pessoa. Mudar o status (confirmar,
- * recusar, estornar) é só ADMIN.
+ * O comprador paga pelo checkout (`POST /payments`) e consulta o pagamento do
+ * próprio pedido; o service responde 404 para pedido de outra pessoa. Registrar
+ * um pagamento à mão aqui e mudar o status (confirmar, recusar, estornar) é só
+ * ADMIN: o corpo aceita `amount` e `status`, e confirmar o pagamento é o que
+ * libera ingressos.
  */
 @ApiTags('payments')
 @Controller('orders/:orderId/payments')
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
-  @Authenticated()
+  @AdminOnly()
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: PaymentResponseDto })

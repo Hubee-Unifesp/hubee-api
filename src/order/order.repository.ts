@@ -32,6 +32,16 @@ export class OrderRepository {
     return executor.query.orders.findFirst({ where: eq(orders.id, id) });
   }
 
+  /** Trava o pedido até o fim da transaction: dois checkouts não pagam o mesmo pedido. */
+  async findByIdForUpdate(id: string, executor: DbExecutor) {
+    const [order] = await executor
+      .select()
+      .from(orders)
+      .where(eq(orders.id, id))
+      .for('update');
+    return order;
+  }
+
   async create(
     data: typeof orders.$inferInsert,
     executor: DbExecutor = this.db,

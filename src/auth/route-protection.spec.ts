@@ -19,6 +19,7 @@ import { OrganizationEventController } from '../organization-event/organization-
 import { OrganizationUsersController } from '../organization-users/organization-users.controller';
 import { OrderController } from '../order/order.controller';
 import { OrganizationController } from '../organization/organization.controller';
+import { CheckoutController } from '../payment/checkout.controller';
 import { PaymentController } from '../payment/payment.controller';
 import { SuppliersController } from '../suppliers/suppliers.controller';
 import { TaskController } from '../task/task.controller';
@@ -41,6 +42,7 @@ const CONTROLLERS: Type[] = [
   ExpensesController,
   TaskController,
   PaymentController,
+  CheckoutController,
   TicketController,
   OrderController,
   OrganizationUsersController,
@@ -65,14 +67,19 @@ const PUBLIC_ROUTES = [
 ];
 
 /**
- * Qualquer usuário logado: o comprador paga e consulta o próprio pedido. O
- * service responde 404 para recurso de outra pessoa (coberto nos specs dos
- * services, já que aqui o service é falso).
+ * Qualquer usuário logado: o comprador cria o pedido, paga pelo checkout e
+ * consulta o que é seu. O service responde 404 para recurso de outra pessoa
+ * (coberto nos specs dos services, já que aqui o service é falso).
+ * `POST /orders/:orderId/payments` não está aqui de propósito: o corpo aceita
+ * `amount` e `status`, então registrar pagamento à mão é só ADMIN.
  */
 const AUTHENTICATED_ROUTES = [
-  'POST /orders/:orderId/payments',
+  'POST /orders',
+  'POST /payments',
   'GET /orders/:orderId/payments',
   'GET /orders/:orderId/tickets',
+  'GET /tickets',
+  'GET /users/me/tickets',
   'GET /tickets/:id',
 ];
 
@@ -96,7 +103,6 @@ const ORGANIZER_ROUTES = [
 
 /** Rotas de pedido que ganham proteção com checagem de dono na GOL-103. */
 const PENDING_GOL_103_ROUTES = [
-  'POST /orders',
   'GET /orders',
   'GET /orders/:id',
   'DELETE /orders/:id',

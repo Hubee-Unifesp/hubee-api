@@ -11,9 +11,11 @@ import {
   HttpStatus,
   UseGuards,
   Query,
-  NotImplementedException,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
-import { UsersService } from './users.service';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { UsersService, type AvatarUploadFile } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
@@ -35,7 +37,8 @@ import {
   ApiOkResponse,
   ApiCreatedResponse,
   ApiNoContentResponse,
-  ApiNotImplementedResponse,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { toResponse } from '../common/serialization/to-response';
 
@@ -64,6 +67,33 @@ export class UsersController {
     return toResponse(
       MeResponseDto,
       await this.usersService.updateMe(user.id, updateMeDto),
+    );
+  }
+
+  @Patch('me/avatar')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Imagem de perfil (.jpg, .jpeg ou .png, até 2MB)',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({ type: MeResponseDto })
+  async updateAvatar(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile() file?: AvatarUploadFile,
+  ) {
+    return toResponse(
+      MeResponseDto,
+      await this.usersService.updateAvatar(user.id, file),
     );
   }
 
@@ -110,14 +140,6 @@ export class UsersController {
     return toResponse(
       OrderResponseDto,
       await this.orderService.findAll({ ...query, userId: user.id }),
-    );
-  }
-
-  @Get('me/tickets')
-  @ApiNotImplementedResponse({ description: 'Rota ainda não implementada.' })
-  getMyTickets(): never {
-    throw new NotImplementedException(
-      'Listagem de ingressos ainda não disponível',
     );
   }
 

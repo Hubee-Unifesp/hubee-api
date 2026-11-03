@@ -69,6 +69,23 @@ O contrato também é aplicado em **runtime** (task **GOL-112**):
   garante que cada `*ResponseDto` expõe exatamente as propriedades documentadas
   no OpenAPI. Ao criar um DTO de resposta novo, adicione-o à lista desse teste.
 
+## Compra, checkout e ingressos
+
+Regras da GOL-175 que atravessam `orders`, `payments` e `tickets`:
+
+- `POST /orders` recebe `items` (`ticketTypeId` e `quantity`); o **total é
+  sempre calculado no servidor** a partir do preço atual do lote, e o preço
+  fica gravado em `order_items.unit_price`.
+- O saldo de um lote é `ticket_types.quantity` menos os itens de pedidos
+  `pendente` e `pago`: pedido pendente reserva o estoque e cancelar devolve.
+  Lote esgotado ou quantidade acima do saldo responde `422`.
+- Pedido e itens são gravados numa transação, com os lotes travados
+  (`FOR UPDATE`). Quem precisar de várias escritas atômicas passa o `tx` aos
+  repositories pelo parâmetro `executor`.
+- `POST /payments` paga o total do pedido e, **na mesma transação**, passa o
+  pedido para `pago` e emite os ingressos (um por unidade, `qr_code` aleatório
+  de 64 caracteres). Ingresso só é emitido para pedido `pago`.
+
 ## Autenticação e autorização
 
 As rotas usam JWT (`Authorization: Bearer <token>`, obtido em `POST /auth/login`
@@ -81,9 +98,10 @@ permissões por organização (spike **GOL-109**) já vale para eventos
 | `events` | pública, mas só `ADMIN` e membros da organização do evento veem eventos não publicados: para os demais o filtro `?status=` é ignorado e `GET /events/:id` de evento não publicado dá `404`. O membro vê os rascunhos filtrando por `?organizerId=` da sua organização | `ADMIN` ou membro com `write` na organização (`POST`: a do `organizerId` do body; `PATCH`: a dona do evento, e quem é de fora recebe `404`). Cancelar (`DELETE` ou `PATCH` com `status: cancelled`) exige `manage` (administrador da organização). `featured` (destaque na home) só `ADMIN` |
 | `events/:eventId/ticket-types`, `organizations`, `venues` | pública (a home usa sem login) | só `ADMIN` |
 | `suppliers`, `expenses`, `tasks`, `organization-users`, `organization-events` | só `ADMIN` | só `ADMIN` |
-| `orders/:orderId/payments` | dono do pedido ou `ADMIN` | `POST`: dono do pedido ou `ADMIN`; `PATCH` (status): só `ADMIN` |
-| `tickets` | titular do ingresso, dono do pedido ou `ADMIN` | só `ADMIN` (emissão e mudança de status) |
-| `orders` | ver GOL-103 | `PATCH` (status): só `ADMIN`; demais, ver GOL-103 |
+| `orders/:orderId/payments` | dono do pedido ou `ADMIN` | só `ADMIN` (`POST` registra pagamento à mão e `PATCH` muda o status: o body aceita `amount` e `status`, e confirmar o pagamento libera ingressos) |
+| `payments` (checkout) | não tem | `POST /payments`: qualquer usuário logado paga o **próprio** pedido pendente (pedido de outra pessoa responde `404`, pedido já pago ou cancelado `422`) |
+| `tickets` | `GET /tickets` e `GET /users/me/tickets`: só os ingressos em que o usuário é titular, inclusive para `ADMIN`. `GET /tickets/:id` e `GET /orders/:orderId/tickets`: titular, dono do pedido ou `ADMIN` | só `ADMIN` (emissão manual e mudança de status) |
+| `orders` | ver GOL-103 | `POST /orders`: qualquer usuário logado com perfil completo; `PATCH` (status): só `ADMIN`; demais, ver GOL-103 |
 | `users` | ver GOL-105 | ver GOL-105 |
 
 Continuam públicos `POST /auth/login`, `POST /auth/register` e `GET /health`.

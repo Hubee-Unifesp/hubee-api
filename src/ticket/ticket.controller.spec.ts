@@ -5,7 +5,10 @@ import { CreateTicketsDto } from './dto/create-tickets.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { TicketController } from './ticket.controller';
 import { TicketService } from './ticket.service';
-import { TicketResponseDto } from './dto/ticket-response.dto';
+import {
+  MyTicketResponseDto,
+  TicketResponseDto,
+} from './dto/ticket-response.dto';
 
 /** Linha completa do banco, como o service a retorna. */
 const row = {
@@ -27,6 +30,7 @@ describe('TicketController', () => {
   let service: {
     create: jest.Mock<TicketService['create']>;
     findAllByOrder: jest.Mock<TicketService['findAllByOrder']>;
+    findAllByHolder: jest.Mock<TicketService['findAllByHolder']>;
     findOne: jest.Mock<TicketService['findOne']>;
     update: jest.Mock<TicketService['update']>;
   };
@@ -35,6 +39,7 @@ describe('TicketController', () => {
     service = {
       create: jest.fn<TicketService['create']>(),
       findAllByOrder: jest.fn<TicketService['findAllByOrder']>(),
+      findAllByHolder: jest.fn<TicketService['findAllByHolder']>(),
       findOne: jest.fn<TicketService['findOne']>(),
       update: jest.fn<TicketService['update']>(),
     };
@@ -46,6 +51,49 @@ describe('TicketController', () => {
     }).compile();
 
     controller = module.get(TicketController);
+  });
+
+  it('GET /tickets lista os ingressos do usuário logado com evento, local e lote', async () => {
+    const mine = [
+      {
+        ...row,
+        event: {
+          id: 'event-1',
+          name: 'Festa Junina',
+          startDate: new Date('2026-06-20T18:00:00Z'),
+          endDate: new Date('2026-06-20T23:00:00Z'),
+          photoUrl: null,
+          organizerId: 'campo-interno',
+          venue: {
+            id: 'venue-1',
+            name: 'Ginásio',
+            maxCapacity: 100,
+            address: { id: 'address-1', city: 'São Paulo' },
+          },
+        },
+        ticketType: { id: 'type-1', batch: '1º lote', price: 50, quantity: 9 },
+      },
+    ] as never;
+    service.findAllByHolder.mockResolvedValue(mine);
+
+    const result = await controller.findMine(USER);
+
+    expect(service.findAllByHolder).toHaveBeenCalledWith(USER.id);
+    expect(result[0]).toBeInstanceOf(MyTicketResponseDto);
+    expect(result[0].event.name).toBe('Festa Junina');
+    expect(result[0].event.venue.name).toBe('Ginásio');
+    expect(result[0].ticketType.batch).toBe('1º lote');
+    expect(result[0].event).not.toHaveProperty('organizerId');
+    expect(result[0].ticketType).not.toHaveProperty('quantity');
+  });
+
+  it('GET /users/me/tickets devolve a mesma lista de GET /tickets', async () => {
+    service.findAllByHolder.mockResolvedValue([] as never);
+
+    const result = await controller.findMyTickets(USER);
+
+    expect(service.findAllByHolder).toHaveBeenCalledWith(USER.id);
+    expect(result).toEqual([]);
   });
 
   it('POST /orders/:orderId/tickets delega para ticketService.create()', async () => {

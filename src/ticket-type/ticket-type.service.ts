@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { DbExecutor } from '../database/database.provider';
 import { EventService } from '../event/event.service';
 import { CreateTicketTypeDto } from './dto/create-ticket-type.dto';
 import { UpdateTicketTypeDto } from './dto/update-ticket-type.dto';
@@ -20,6 +21,14 @@ export class TicketTypeService {
   async findOne(eventId: string, id: string) {
     await this.eventService.findOne(eventId);
     return this.findTicketTypeOfEvent(eventId, id);
+  }
+
+  /**
+   * Lotes de qualquer evento, travados para a compra. Só faz sentido dentro de
+   * uma transaction, que é quem solta a trava.
+   */
+  lockForPurchase(ids: string[], executor: DbExecutor) {
+    return this.ticketTypeRepository.findManyForPurchase(ids, executor);
   }
 
   async create(eventId: string, dto: CreateTicketTypeDto) {

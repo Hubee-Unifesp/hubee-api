@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import {
   Injectable,
   NotFoundException,
@@ -6,7 +6,8 @@ import {
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { canAccess } from '../auth/ownership';
-import type { TicketStatus } from '../database/schema';
+import type { DbExecutor } from '../database/database.provider';
+import type { TicketStatus, orders } from '../database/schema';
 import { EventService } from '../event/event.service';
 import { OrderService } from '../order/order.service';
 import { TicketTypeService } from '../ticket-type/ticket-type.service';
@@ -24,6 +25,18 @@ const ALLOWED_TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
   usado: [],
   cancelado: [],
 };
+
+/** Item de pedido com o lote junto, de onde sai o evento do ingresso. */
+interface IssuableItem {
+  ticketTypeId: string;
+  quantity: number;
+  ticketType: { eventId: string };
+}
+
+/** 256 bits aleatórios em hexadecimal (64 caracteres, o tamanho da coluna). */
+function generateQrCode(): string {
+  return randomBytes(32).toString('hex');
+}
 
 @Injectable()
 export class TicketService {
@@ -85,6 +98,41 @@ export class TicketService {
         qrCode: randomUUID(),
       })),
     );
+  }
+
+  /**
+   * Emite os ingressos de um pedido que acabou de ser pago, um por unidade
+   * comprada, com o comprador como titular. Recebe o executor da transaction
+   * do checkout: se qualquer INSERT falhar, o pagamento também é desfeito.
+   */
+  async issueForPaidOrder(
+    order: Pick<typeof orders.$inferSelect, 'id' | 'userId' | 'status'>,
+    items: IssuableItem[],
+    executor: DbExecutor,
+  ) {
+    if (order.status !== 'pago') {
+      throw new UnprocessableEntityException(
+        'Só pedidos pagos podem ter ingressos emitidos',
+      );
+    }
+
+    return this.ticketRepository.createMany(
+      items.flatMap((item) =>
+        Array.from({ length: item.quantity }, () => ({
+          orderId: order.id,
+          eventId: item.ticketType.eventId,
+          ticketTypeId: item.ticketTypeId,
+          holderUserId: order.userId,
+          qrCode: generateQrCode(),
+        })),
+      ),
+      executor,
+    );
+  }
+
+  /** Só os ingressos em que o usuário é titular, mesmo para ADMIN. */
+  findAllByHolder(userId: string) {
+    return this.ticketRepository.findAllByHolder(userId);
   }
 
   async update(id: string, dto: UpdateTicketDto) {

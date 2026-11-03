@@ -1,3 +1,4 @@
+import { relations } from 'drizzle-orm';
 import {
   index,
   pgEnum,
@@ -57,3 +58,14 @@ export const tickets = pgTable(
     index('tickets_holder_user_id_idx').on(table.holderUserId),
   ],
 );
+
+export const ticketsRelations = relations(tickets, ({ one }) => ({
+  event: one(events, {
+    fields: [tickets.eventId],
+    references: [events.id],
+  }),
+  ticketType: one(ticketTypes, {
+    fields: [tickets.ticketTypeId],
+    references: [ticketTypes.id],
+  }),
+}));
