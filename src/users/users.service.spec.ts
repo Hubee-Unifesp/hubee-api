@@ -65,6 +65,24 @@ describe('UsersService', () => {
     expect(service).toBeDefined();
   });
 
+  describe('findActiveUser', () => {
+    it('retorna o usuário quando está ativo e não foi excluído', async () => {
+      const result = await service.findActiveUser('user-1');
+
+      expect(mockDb.select).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockUserRow);
+    });
+
+    it('retorna null quando o usuário não existe, está inativo ou foi excluído', async () => {
+      selectResult = [];
+
+      const result = await service.findActiveUser('user-inativo');
+
+      expect(mockDb.select).toHaveBeenCalledTimes(1);
+      expect(result).toBeNull();
+    });
+  });
+
   describe('updateAvatar', () => {
     it('converte imagem válida para Data URI e persiste avatarUrl no usuário', async () => {
       const buffer = Buffer.from('fake-png-bytes');
