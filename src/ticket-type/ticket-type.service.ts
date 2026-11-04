@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import type { DbExecutor } from '../database/database.provider';
 import { EventService } from '../event/event.service';
@@ -44,6 +45,15 @@ export class TicketTypeService {
   async update(eventId: string, id: string, dto: UpdateTicketTypeDto) {
     await this.eventService.findOne(eventId);
     await this.findTicketTypeOfEvent(eventId, id);
+
+    if (dto.quantity !== undefined) {
+      const committed = await this.ticketTypeRepository.countCommitted(id);
+      if (dto.quantity < committed) {
+        throw new UnprocessableEntityException(
+          'A capacidade do lote não pode ser menor do que a quantidade já reservada ou vendida.',
+        );
+      }
+    }
 
     return this.ticketTypeRepository.update(eventId, id, dto);
   }

@@ -1,5 +1,9 @@
 import { jest } from '@jest/globals';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { events, ticketTypes } from '../database/schema';
 import { EventService } from '../event/event.service';
@@ -55,6 +59,7 @@ describe('TicketTypeService', () => {
     hasLinkedTicketsOrOrders: jest.Mock<
       TicketTypeRepository['hasLinkedTicketsOrOrders']
     >;
+    countCommitted: jest.Mock<TicketTypeRepository['countCommitted']>;
   };
   let eventService: {
     findOne: jest.Mock<EventService['findOne']>;
@@ -70,6 +75,7 @@ describe('TicketTypeService', () => {
       delete: jest.fn<TicketTypeRepository['delete']>(),
       hasLinkedTicketsOrOrders:
         jest.fn<TicketTypeRepository['hasLinkedTicketsOrOrders']>(),
+      countCommitted: jest.fn<TicketTypeRepository['countCommitted']>(),
     };
     eventService = {
       findOne: jest.fn<EventService['findOne']>(),
@@ -198,6 +204,7 @@ describe('TicketTypeService', () => {
       const updated = makeTicketType(dto);
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeRepository.findById.mockResolvedValue(makeTicketType());
+      ticketTypeRepository.countCommitted.mockResolvedValue(50);
       ticketTypeRepository.update.mockResolvedValue(updated);
 
       const result = await service.update('event-1', 'ticket-type-1', dto);
@@ -207,6 +214,41 @@ describe('TicketTypeService', () => {
         'event-1',
         'ticket-type-1',
       );
+      expect(ticketTypeRepository.countCommitted).toHaveBeenCalledWith(
+        'ticket-type-1',
+      );
+      expect(ticketTypeRepository.update).toHaveBeenCalledWith(
+        'event-1',
+        'ticket-type-1',
+        dto,
+      );
+      expect(result).toEqual(updated);
+    });
+
+    it('lança UnprocessableEntityException quando a quantidade é menor do que a já vendida/reservada', async () => {
+      eventService.findOne.mockResolvedValue(makeEvent());
+      ticketTypeRepository.findById.mockResolvedValue(makeTicketType());
+      ticketTypeRepository.countCommitted.mockResolvedValue(10);
+
+      await expect(
+        service.update('event-1', 'ticket-type-1', { quantity: 5 }),
+      ).rejects.toThrow(UnprocessableEntityException);
+      expect(ticketTypeRepository.countCommitted).toHaveBeenCalledWith(
+        'ticket-type-1',
+      );
+      expect(ticketTypeRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('atualiza sem consultar countCommitted quando a quantidade não for informada', async () => {
+      const dto = { price: 150 };
+      const updated = makeTicketType(dto);
+      eventService.findOne.mockResolvedValue(makeEvent());
+      ticketTypeRepository.findById.mockResolvedValue(makeTicketType());
+      ticketTypeRepository.update.mockResolvedValue(updated);
+
+      const result = await service.update('event-1', 'ticket-type-1', dto);
+
+      expect(ticketTypeRepository.countCommitted).not.toHaveBeenCalled();
       expect(ticketTypeRepository.update).toHaveBeenCalledWith(
         'event-1',
         'ticket-type-1',
