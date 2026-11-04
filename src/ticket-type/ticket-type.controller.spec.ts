@@ -6,6 +6,7 @@ import { UpdateTicketTypeDto } from './dto/update-ticket-type.dto';
 import { TicketTypeController } from './ticket-type.controller';
 import { TicketTypeService } from './ticket-type.service';
 import { TicketTypeResponseDto } from './dto/ticket-type-response.dto';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 
 /** Linha completa do banco, como o service a retorna. */
 const row = {
@@ -64,22 +65,36 @@ describe('TicketTypeController', () => {
 
   it('GET /events/:eventId/ticket-types delega para ticketTypeService.findAll()', async () => {
     const list = [row] as never;
+    const viewer: AuthenticatedUser = {
+      id: 'u-1',
+      email: 'user@example.com',
+      role: 'USER',
+    };
     service.findAll.mockResolvedValue(list);
 
-    const result = await controller.findAll('event-1');
+    const result = await controller.findAll('event-1', viewer);
 
-    expect(service.findAll).toHaveBeenCalledWith('event-1');
+    expect(service.findAll).toHaveBeenCalledWith('event-1', viewer);
     expect(result).toEqual(list);
     expect(result[0]).toBeInstanceOf(TicketTypeResponseDto);
   });
 
   it('GET /events/:eventId/ticket-types/:id delega para ticketTypeService.findOne()', async () => {
     const ticketType = row as never;
+    const viewer: AuthenticatedUser = {
+      id: 'u-1',
+      email: 'user@example.com',
+      role: 'USER',
+    };
     service.findOne.mockResolvedValue(ticketType);
 
-    const result = await controller.findOne('event-1', 'ticket-type-1');
+    const result = await controller.findOne('event-1', 'ticket-type-1', viewer);
 
-    expect(service.findOne).toHaveBeenCalledWith('event-1', 'ticket-type-1');
+    expect(service.findOne).toHaveBeenCalledWith(
+      'event-1',
+      'ticket-type-1',
+      viewer,
+    );
     expect(result).toEqual(ticketType);
     expect(result).toBeInstanceOf(TicketTypeResponseDto);
   });

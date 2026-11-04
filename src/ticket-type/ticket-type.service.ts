@@ -4,6 +4,7 @@ import { EventService } from '../event/event.service';
 import { CreateTicketTypeDto } from './dto/create-ticket-type.dto';
 import { UpdateTicketTypeDto } from './dto/update-ticket-type.dto';
 import { TicketTypeRepository } from './ticket-type.repository';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 
 @Injectable()
 export class TicketTypeService {
@@ -12,14 +13,14 @@ export class TicketTypeService {
     private readonly eventService: EventService,
   ) {}
 
-  /** Consulta o evento antes para que um evento inexistente dê 404, e não `[]`. */
-  async findAll(eventId: string) {
-    await this.eventService.findOne(eventId);
+  /** Consulta o evento visível para que rascunhos sem permissão e eventos inexistentes dêem 404. */
+  async findAll(eventId: string, viewer?: AuthenticatedUser) {
+    await this.eventService.findVisible(eventId, viewer);
     return this.ticketTypeRepository.findAll(eventId);
   }
 
-  async findOne(eventId: string, id: string) {
-    await this.eventService.findOne(eventId);
+  async findOne(eventId: string, id: string, viewer?: AuthenticatedUser) {
+    await this.eventService.findVisible(eventId, viewer);
     return this.findTicketTypeOfEvent(eventId, id);
   }
 

@@ -5,6 +5,7 @@ import { events, ticketTypes } from '../database/schema';
 import { EventService } from '../event/event.service';
 import { TicketTypeRepository } from './ticket-type.repository';
 import { TicketTypeService } from './ticket-type.service';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 
 type TicketTypeRow = typeof ticketTypes.$inferSelect;
 type Event = typeof events.$inferSelect;
@@ -54,6 +55,7 @@ describe('TicketTypeService', () => {
   };
   let eventService: {
     findOne: jest.Mock<EventService['findOne']>;
+    findVisible: jest.Mock<EventService['findVisible']>;
   };
 
   beforeEach(async () => {
@@ -66,6 +68,7 @@ describe('TicketTypeService', () => {
     };
     eventService = {
       findOne: jest.fn<EventService['findOne']>(),
+      findVisible: jest.fn<EventService['findVisible']>(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -80,20 +83,25 @@ describe('TicketTypeService', () => {
   });
 
   describe('findAll()', () => {
-    it('repassa o evento para o repositório', async () => {
+    it('repassa o evento e viewer para findVisible e chama o repositório', async () => {
       const rows = [makeTicketType()];
-      eventService.findOne.mockResolvedValue(makeEvent());
+      const viewer: AuthenticatedUser = {
+        id: 'u-1',
+        email: 'user@example.com',
+        role: 'USER',
+      };
+      eventService.findVisible.mockResolvedValue(makeEvent() as never);
       ticketTypeRepository.findAll.mockResolvedValue(rows);
 
-      const result = await service.findAll('event-1');
+      const result = await service.findAll('event-1', viewer);
 
-      expect(eventService.findOne).toHaveBeenCalledWith('event-1');
+      expect(eventService.findVisible).toHaveBeenCalledWith('event-1', viewer);
       expect(ticketTypeRepository.findAll).toHaveBeenCalledWith('event-1');
       expect(result).toEqual(rows);
     });
 
-    it('lança NotFound quando o evento não existe, em vez de lista vazia', async () => {
-      eventService.findOne.mockRejectedValue(
+    it('lança NotFound quando o evento não existe ou é rascunho sem permissão', async () => {
+      eventService.findVisible.mockRejectedValue(
         new NotFoundException('Evento event-1 não encontrado'),
       );
 
@@ -105,14 +113,20 @@ describe('TicketTypeService', () => {
   });
 
   describe('findOne()', () => {
-    it('retorna o tipo de ingresso quando ele pertence ao evento', async () => {
+    it('retorna o tipo de ingresso quando ele pertence ao evento visível', async () => {
       const ticketType = makeTicketType();
-      eventService.findOne.mockResolvedValue(makeEvent());
+      const viewer: AuthenticatedUser = {
+        id: 'admin-1',
+        email: 'admin@example.com',
+        role: 'ADMIN',
+      };
+      eventService.findVisible.mockResolvedValue(makeEvent() as never);
       ticketTypeRepository.findById.mockResolvedValue(ticketType);
 
       await expect(
-        service.findOne('event-1', 'ticket-type-1'),
+        service.findOne('event-1', 'ticket-type-1', viewer),
       ).resolves.toEqual(ticketType);
+      expect(eventService.findVisible).toHaveBeenCalledWith('event-1', viewer);
       expect(ticketTypeRepository.findById).toHaveBeenCalledWith(
         'event-1',
         'ticket-type-1',
@@ -120,7 +134,7 @@ describe('TicketTypeService', () => {
     });
 
     it('lança NotFound quando o tipo de ingresso não existe no evento', async () => {
-      eventService.findOne.mockResolvedValue(makeEvent());
+      eventService.findVisible.mockResolvedValue(makeEvent() as never);
       ticketTypeRepository.findById.mockResolvedValue(undefined);
 
       await expect(
@@ -128,8 +142,8 @@ describe('TicketTypeService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('lança NotFound quando o evento não existe', async () => {
-      eventService.findOne.mockRejectedValue(
+    it('lança NotFound quando o evento não existe ou não está visível', async () => {
+      eventService.findVisible.mockRejectedValue(
         new NotFoundException('Evento event-1 não encontrado'),
       );
 
@@ -141,28 +155,23 @@ describe('TicketTypeService', () => {
   });
 
   describe('create()', () => {
-    it('cria o tipo de ingresso no evento depois de validar o evento', async () => {
-      const created = makeTicketType();
+    it('cria o tipo de ingresso associado ao evento', async () => {
+      const dto = { batch: '1º Lote', price: 100, quantity: 100 };
+      const created = makeTicketType(dto);
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeRepository.create.mockResolvedValue(created);
 
-      const result = await service.create('event-1', {
-        batch: '1º Lote',
-        price: 100,
-        quantity: 100,
-      });
+      const result = await service.create('event-1', dto);
 
       expect(eventService.findOne).toHaveBeenCalledWith('event-1');
       expect(ticketTypeRepository.create).toHaveBeenCalledWith({
+        ...dto,
         eventId: 'event-1',
-        batch: '1º Lote',
-        price: 100,
-        quantity: 100,
       });
       expect(result).toEqual(created);
     });
 
-    it('lança NotFound e não cria quando o evento não existe', async () => {
+    it('lança NotFound quando o evento não existe', async () => {
       eventService.findOne.mockRejectedValue(
         new NotFoundException('Evento event-1 não encontrado'),
       );
@@ -179,31 +188,29 @@ describe('TicketTypeService', () => {
   });
 
   describe('update()', () => {
-    it('atualiza o lote e o valor do tipo de ingresso', async () => {
-      const updated = makeTicketType({
-        batch: '2º Lote',
-        price: 150,
-        quantity: 200,
-      });
+    it('atualiza o tipo de ingresso quando ele existe no evento', async () => {
+      const dto = { price: 150, quantity: 200 };
+      const updated = makeTicketType(dto);
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeRepository.findById.mockResolvedValue(makeTicketType());
       ticketTypeRepository.update.mockResolvedValue(updated);
 
-      const result = await service.update('event-1', 'ticket-type-1', {
-        batch: '2º Lote',
-        price: 150,
-        quantity: 200,
-      });
+      const result = await service.update('event-1', 'ticket-type-1', dto);
 
+      expect(eventService.findOne).toHaveBeenCalledWith('event-1');
+      expect(ticketTypeRepository.findById).toHaveBeenCalledWith(
+        'event-1',
+        'ticket-type-1',
+      );
       expect(ticketTypeRepository.update).toHaveBeenCalledWith(
         'event-1',
         'ticket-type-1',
-        { batch: '2º Lote', price: 150, quantity: 200 },
+        dto,
       );
       expect(result).toEqual(updated);
     });
 
-    it('lança NotFound quando o tipo de ingresso não existe no evento', async () => {
+    it('lança NotFound quando o tipo de ingresso não existe', async () => {
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeRepository.findById.mockResolvedValue(undefined);
 
@@ -226,20 +233,25 @@ describe('TicketTypeService', () => {
   });
 
   describe('remove()', () => {
-    it('apaga o tipo de ingresso do evento', async () => {
+    it('deleta o tipo de ingresso quando ele existe no evento', async () => {
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeRepository.findById.mockResolvedValue(makeTicketType());
       ticketTypeRepository.delete.mockResolvedValue(undefined);
 
       await service.remove('event-1', 'ticket-type-1');
 
+      expect(eventService.findOne).toHaveBeenCalledWith('event-1');
+      expect(ticketTypeRepository.findById).toHaveBeenCalledWith(
+        'event-1',
+        'ticket-type-1',
+      );
       expect(ticketTypeRepository.delete).toHaveBeenCalledWith(
         'event-1',
         'ticket-type-1',
       );
     });
 
-    it('lança NotFound e não apaga quando o tipo de ingresso não existe no evento', async () => {
+    it('lança NotFound quando o tipo de ingresso não existe', async () => {
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeRepository.findById.mockResolvedValue(undefined);
 
