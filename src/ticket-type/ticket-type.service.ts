@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { DbExecutor } from '../database/database.provider';
 import { EventService } from '../event/event.service';
 import { CreateTicketTypeDto } from './dto/create-ticket-type.dto';
@@ -47,7 +51,30 @@ export class TicketTypeService {
   async remove(eventId: string, id: string): Promise<void> {
     await this.eventService.findOne(eventId);
     await this.findTicketTypeOfEvent(eventId, id);
-    await this.ticketTypeRepository.delete(eventId, id);
+
+    const hasLinkedRecords =
+      await this.ticketTypeRepository.hasLinkedTicketsOrOrders(id);
+    if (hasLinkedRecords) {
+      throw new ConflictException(
+        'Não é possível excluir um lote que já possui ingressos ou pedidos vinculados.',
+      );
+    }
+
+    try {
+      await this.ticketTypeRepository.delete(eventId, id);
+    } catch (error: unknown) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        (error as { code: string }).code === '23503'
+      ) {
+        throw new ConflictException(
+          'Não é possível excluir um lote que já possui ingressos ou pedidos vinculados.',
+        );
+      }
+      throw error;
+    }
   }
 
   private async findTicketTypeOfEvent(eventId: string, id: string) {

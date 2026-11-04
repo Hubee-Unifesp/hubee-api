@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { events, ticketTypes } from '../database/schema';
 import { EventService } from '../event/event.service';
@@ -52,6 +52,9 @@ describe('TicketTypeService', () => {
     create: jest.Mock<TicketTypeRepository['create']>;
     update: jest.Mock<TicketTypeRepository['update']>;
     delete: jest.Mock<TicketTypeRepository['delete']>;
+    hasLinkedTicketsOrOrders: jest.Mock<
+      TicketTypeRepository['hasLinkedTicketsOrOrders']
+    >;
   };
   let eventService: {
     findOne: jest.Mock<EventService['findOne']>;
@@ -65,6 +68,8 @@ describe('TicketTypeService', () => {
       create: jest.fn<TicketTypeRepository['create']>(),
       update: jest.fn<TicketTypeRepository['update']>(),
       delete: jest.fn<TicketTypeRepository['delete']>(),
+      hasLinkedTicketsOrOrders:
+        jest.fn<TicketTypeRepository['hasLinkedTicketsOrOrders']>(),
     };
     eventService = {
       findOne: jest.fn<EventService['findOne']>(),
@@ -233,9 +238,10 @@ describe('TicketTypeService', () => {
   });
 
   describe('remove()', () => {
-    it('deleta o tipo de ingresso quando ele existe no evento', async () => {
+    it('deleta o tipo de ingresso quando ele existe no evento e não tem vendas', async () => {
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeRepository.findById.mockResolvedValue(makeTicketType());
+      ticketTypeRepository.hasLinkedTicketsOrOrders.mockResolvedValue(false);
       ticketTypeRepository.delete.mockResolvedValue(undefined);
 
       await service.remove('event-1', 'ticket-type-1');
@@ -245,9 +251,34 @@ describe('TicketTypeService', () => {
         'event-1',
         'ticket-type-1',
       );
+      expect(
+        ticketTypeRepository.hasLinkedTicketsOrOrders,
+      ).toHaveBeenCalledWith('ticket-type-1');
       expect(ticketTypeRepository.delete).toHaveBeenCalledWith(
         'event-1',
         'ticket-type-1',
+      );
+    });
+
+    it('lança ConflictException quando o tipo de ingresso possui ingressos ou pedidos vinculados', async () => {
+      eventService.findOne.mockResolvedValue(makeEvent());
+      ticketTypeRepository.findById.mockResolvedValue(makeTicketType());
+      ticketTypeRepository.hasLinkedTicketsOrOrders.mockResolvedValue(true);
+
+      await expect(service.remove('event-1', 'ticket-type-1')).rejects.toThrow(
+        ConflictException,
+      );
+      expect(ticketTypeRepository.delete).not.toHaveBeenCalled();
+    });
+
+    it('lança ConflictException quando o banco dispara erro 23503 de chave estrangeira', async () => {
+      eventService.findOne.mockResolvedValue(makeEvent());
+      ticketTypeRepository.findById.mockResolvedValue(makeTicketType());
+      ticketTypeRepository.hasLinkedTicketsOrOrders.mockResolvedValue(false);
+      ticketTypeRepository.delete.mockRejectedValue({ code: '23503' });
+
+      await expect(service.remove('event-1', 'ticket-type-1')).rejects.toThrow(
+        ConflictException,
       );
     });
 

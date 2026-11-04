@@ -5,7 +5,7 @@ import type {
   DbExecutor,
   DrizzleDatabase,
 } from '../database/database.provider';
-import { events, ticketTypes } from '../database/schema';
+import { events, orderItems, ticketTypes, tickets } from '../database/schema';
 
 /**
  * Toda leitura e escrita recebe o `eventId` junto do `id`: o tipo de ingresso
@@ -75,5 +75,28 @@ export class TicketTypeRepository {
     await executor
       .delete(ticketTypes)
       .where(and(eq(ticketTypes.id, id), eq(ticketTypes.eventId, eventId)));
+  }
+
+  async hasLinkedTicketsOrOrders(
+    id: string,
+    executor: DbExecutor = this.db,
+  ): Promise<boolean> {
+    const [ticket] = await executor
+      .select({ id: tickets.id })
+      .from(tickets)
+      .where(eq(tickets.ticketTypeId, id))
+      .limit(1);
+
+    if (ticket) {
+      return true;
+    }
+
+    const [item] = await executor
+      .select({ id: orderItems.id })
+      .from(orderItems)
+      .where(eq(orderItems.ticketTypeId, id))
+      .limit(1);
+
+    return item !== undefined;
   }
 }
