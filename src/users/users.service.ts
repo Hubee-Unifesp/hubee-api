@@ -6,6 +6,10 @@ import {
   UnauthorizedException,
   Inject,
 } from '@nestjs/common';
+import {
+  type ImageUploadFile,
+  validateImageUpload,
+} from '../common/validation/image-upload';
 import { normalizeEmail } from '../common/validation/normalize-email';
 import { eq, or, and, isNull, ne } from 'drizzle-orm';
 import { users } from '../database/schema';
@@ -16,15 +20,6 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import * as bcrypt from 'bcrypt';
 import { DRIZZLE } from '../database/database.constants';
 import { findUserOrganizations } from '../auth/organization-membership';
-
-export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
-export const ALLOWED_AVATAR_MIMES = ['image/jpeg', 'image/png'] as const;
-
-export interface AvatarUploadFile {
-  mimetype?: string;
-  buffer?: Buffer;
-  size?: number;
-}
 
 @Injectable()
 export class UsersService {
@@ -174,30 +169,12 @@ export class UsersService {
     return this.toMe(await this.update(id, data));
   }
 
-  async updateAvatar(id: string, file?: AvatarUploadFile) {
-    if (!file || !file.buffer || file.buffer.length === 0) {
-      throw new BadRequestException('Arquivo de imagem é obrigatório.');
-    }
-
-    if (
-      !file.mimetype ||
-      !ALLOWED_AVATAR_MIMES.includes(
-        file.mimetype as (typeof ALLOWED_AVATAR_MIMES)[number],
-      )
-    ) {
-      throw new BadRequestException(
-        'Formato inválido. Use uma imagem .jpg, .png ou .jpeg.',
-      );
-    }
-
-    const fileSize = file.size ?? file.buffer.length;
-    if (fileSize > MAX_AVATAR_BYTES || file.buffer.length > MAX_AVATAR_BYTES) {
-      throw new BadRequestException('A imagem deve ter no máximo 2MB.');
-    }
+  async updateAvatar(id: string, file?: ImageUploadFile) {
+    const { mimetype, buffer } = validateImageUpload(file);
 
     await this.findOne(id);
 
-    const avatarUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+    const avatarUrl = `data:${mimetype};base64,${buffer.toString('base64')}`;
 
     const [updatedUser] = await this.db
       .update(users)

@@ -9,6 +9,7 @@ import request from 'supertest';
 import { DRIZZLE } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { OrganizationService } from '../organization/organization.service';
+import { StorageService } from '../storage/storage.service';
 import { VenueService } from '../venue/venue.service';
 import { EventController } from './event.controller';
 import { EventRepository } from './event.repository';
@@ -27,6 +28,15 @@ describe('Eventos por organizadores (banco em memória)', () => {
   let orgB: string;
   let venueId: string;
   let eventOfB: string;
+  let uploads = 0;
+  const deletedPhotos: string[] = [];
+  const fakeStorage = {
+    upload: async () =>
+      `https://store.public.blob.vercel-storage.com/capa-${++uploads}.png`,
+    delete: async (url: string) => {
+      deletedPhotos.push(url);
+    },
+  };
 
   const http = () => request(app.getHttpServer());
   const as = (name: string) => ({ Authorization: `Bearer ${tokens[name]}` });
@@ -57,6 +67,7 @@ describe('Eventos por organizadores (banco em memória)', () => {
           useValue: { findOne: async () => ({}) },
         },
         { provide: VenueService, useValue: { findOne: async () => ({}) } },
+        { provide: StorageService, useValue: fakeStorage },
       ],
     }).compile();
     app = module.createNestApplication();
@@ -232,6 +243,57 @@ describe('Eventos por organizadores (banco em memória)', () => {
       .send({ name: 'Invadido' })
       .expect(404);
     await http().delete(`/events/${eventOfB}`).set(as('organizer')).expect(404);
+  });
+
+  describe('capa do evento', () => {
+    const png = Buffer.from('imagem');
+    const sendPhoto = (id: string, name: string) =>
+      http().patch(`/events/${id}/photo`).set(as(name)).attach('file', png, {
+        filename: 'capa.png',
+        contentType: 'image/png',
+      });
+
+    it('organizador envia e troca a capa, e a anterior é apagada', async () => {
+      const { body: event } = await http()
+        .post('/events')
+        .set(as('organizer'))
+        .send(newEvent(orgA))
+        .expect(201);
+
+      const first = await sendPhoto(event.id, 'organizer').expect(200);
+      expect(first.body.photoUrl).toMatch(/capa-\d+\.png$/);
+
+      const second = await sendPhoto(event.id, 'organizer').expect(200);
+      expect(second.body.photoUrl).not.toBe(first.body.photoUrl);
+      expect(deletedPhotos).toContain(first.body.photoUrl);
+
+      const stored = await http()
+        .get(`/events/${event.id}`)
+        .set(as('organizer'));
+      expect(stored.body.photoUrl).toBe(second.body.photoUrl);
+    });
+
+    it('rejeita arquivo fora do formato com mensagem em português', async () => {
+      const { body: event } = await http()
+        .post('/events')
+        .set(as('organizer'))
+        .send(newEvent(orgA))
+        .expect(201);
+
+      const response = await http()
+        .patch(`/events/${event.id}/photo`)
+        .set(as('organizer'))
+        .attach('file', png, { filename: 'capa.gif', contentType: 'image/gif' })
+        .expect(400);
+      expect(response.body.message).toBe(
+        'Formato inválido. Use uma imagem .jpg, .png ou .jpeg.',
+      );
+    });
+
+    it('sem token dá 401; de outra organização dá 404', async () => {
+      await http().patch(`/events/${eventOfB}/photo`).expect(401);
+      await sendPhoto(eventOfB, 'organizer').expect(404);
+    });
   });
 
   it('organizador não pode destacar o evento na home', async () => {

@@ -107,6 +107,7 @@ describe('EventController', () => {
     findVisible: jest.Mock<EventService['findVisible']>;
     create: jest.Mock<EventService['create']>;
     update: jest.Mock<EventService['update']>;
+    updatePhoto: jest.Mock<EventService['updatePhoto']>;
     cancel: jest.Mock<EventService['cancel']>;
   };
 
@@ -117,6 +118,7 @@ describe('EventController', () => {
       findVisible: jest.fn<EventService['findVisible']>(),
       create: jest.fn<EventService['create']>(),
       update: jest.fn<EventService['update']>(),
+      updatePhoto: jest.fn<EventService['updatePhoto']>(),
       cancel: jest.fn<EventService['cancel']>(),
     };
 
@@ -236,6 +238,22 @@ describe('EventController', () => {
     expect(service.update).toHaveBeenCalledWith('event-1', dto, ADMIN);
     expect(result).toEqual(updated);
     expect(result).toBeInstanceOf(EventResponseDto);
+  });
+
+  it('PATCH /events/:id/photo delega para eventService.updatePhoto()', async () => {
+    const file = {
+      mimetype: 'image/png',
+      buffer: Buffer.from('img'),
+      size: 3,
+    };
+    const updated = { ...row, photoUrl: 'https://cdn.example.com/capa.png' };
+    service.updatePhoto.mockResolvedValue(updated as never);
+
+    const result = await controller.updatePhoto('event-1', file);
+
+    expect(service.updatePhoto).toHaveBeenCalledWith('event-1', file);
+    expect(result).toBeInstanceOf(EventResponseDto);
+    expect(result.photoUrl).toBe(updated.photoUrl);
   });
 
   it('DELETE /events/:id delega para eventService.cancel()', async () => {

@@ -15,7 +15,8 @@ import {
   UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { UsersService, type AvatarUploadFile } from './users.service';
+import type { ImageUploadFile } from '../common/validation/image-upload';
+import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
@@ -89,7 +90,7 @@ export class UsersController {
   @ApiOkResponse({ type: MeResponseDto })
   async updateAvatar(
     @CurrentUser() user: AuthenticatedUser,
-    @UploadedFile() file?: AvatarUploadFile,
+    @UploadedFile() file?: ImageUploadFile,
   ) {
     return toResponse(
       MeResponseDto,
