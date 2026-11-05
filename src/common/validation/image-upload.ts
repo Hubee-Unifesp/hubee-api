@@ -16,7 +16,6 @@ export interface ValidImageUpload {
   buffer: Buffer;
 }
 
-/** Aceita JPG ou PNG de até 2MB, como o avatar e a capa de evento exigem. */
 export function validateImageUpload(file?: ImageUploadFile): ValidImageUpload {
   if (!file || !file.buffer || file.buffer.length === 0) {
     throw new BadRequestException('Arquivo de imagem é obrigatório.');

@@ -19,7 +19,6 @@ export class VercelBlobStorageService extends StorageService {
     buffer,
     contentType,
   }: StorageUpload): Promise<string> {
-    // O sufixo aleatório dá uma URL nova a cada envio, sem cache antigo na CDN.
     const { url } = await put(pathname, buffer, {
       access: 'public',
       addRandomSuffix: true,

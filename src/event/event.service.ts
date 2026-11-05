@@ -163,11 +163,6 @@ export class EventService {
     return this.eventRepository.update(id, dto);
   }
 
-  /**
-   * Troca a capa do evento. A imagem anterior só é apagada depois de a nova
-   * estar gravada, e sem falhar a requisição: no pior caso sobra um arquivo
-   * órfão no storage, nunca um evento apontando para uma imagem que não existe.
-   */
   async updatePhoto(id: string, file?: ImageUploadFile) {
     const { mimetype, buffer } = validateImageUpload(file);
     const event = await this.findOne(id);

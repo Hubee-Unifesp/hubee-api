@@ -116,7 +116,6 @@ export class EventController {
     );
   }
 
-  /** Envia ou troca a capa do evento. Mesma regra de acesso do `PATCH /events/:id`. */
   @OrgAccess('write', { from: 'event', param: 'id' })
   @Patch(':id/photo')
   @UseInterceptors(FileInterceptor('file'))
