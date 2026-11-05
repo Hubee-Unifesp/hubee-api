@@ -90,6 +90,13 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
               cpf: '52998224725',
               birthDate: '1990-01-01',
             }),
+            findActiveUser: async (id: string) => {
+              const [user] = await db
+                .select()
+                .from(schema.users)
+                .where(eq(schema.users.id, id));
+              return user ?? null;
+            },
           },
         },
         { provide: EventService, useValue: { findOne: async () => ({}) } },

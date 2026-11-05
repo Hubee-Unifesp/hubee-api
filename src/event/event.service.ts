@@ -1,13 +1,22 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Injectable,
+  Logger,
   NotFoundException,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { effectiveLevel, satisfiesLevel } from '../auth/org-access-level';
+import {
+  type AllowedImageMime,
+  type ImageUploadFile,
+  validateImageUpload,
+} from '../common/validation/image-upload';
 import { OrganizationService } from '../organization/organization.service';
+import { StorageService } from '../storage/storage.service';
 import { VenueService } from '../venue/venue.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -24,14 +33,22 @@ interface EventPeriod {
   salesStartDate?: Date | null;
 }
 
+const PHOTO_EXTENSIONS: Record<AllowedImageMime, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+};
+
 const isAdmin = (viewer?: AuthenticatedUser) => viewer?.role === 'ADMIN';
 
 @Injectable()
 export class EventService {
+  private readonly logger = new Logger(EventService.name);
+
   constructor(
     private readonly eventRepository: EventRepository,
     private readonly organizationService: OrganizationService,
     private readonly venueService: VenueService,
+    private readonly storageService: StorageService,
   ) {}
 
   /**
@@ -146,6 +163,31 @@ export class EventService {
     return this.eventRepository.update(id, dto);
   }
 
+  async updatePhoto(id: string, file?: ImageUploadFile) {
+    const { mimetype, buffer } = validateImageUpload(file);
+    const event = await this.findOne(id);
+
+    if (event.status === 'cancelled') {
+      throw new UnprocessableEntityException(
+        'Evento cancelado não pode ser alterado',
+      );
+    }
+
+    const photoUrl = await this.uploadPhoto(id, mimetype, buffer);
+
+    let updated: Awaited<ReturnType<EventRepository['update']>>;
+    try {
+      updated = await this.eventRepository.update(id, { photoUrl });
+    } catch (error) {
+      await this.deletePhoto(photoUrl);
+      throw error;
+    }
+
+    if (event.photoUrl) await this.deletePhoto(event.photoUrl);
+
+    return updated;
+  }
+
   async cancel(id: string): Promise<void> {
     const event = await this.findOne(id);
 
@@ -157,6 +199,34 @@ export class EventService {
   }
 
   /** Membro com convite aceito (qualquer nível) da organização. */
+  private async uploadPhoto(
+    eventId: string,
+    mimetype: AllowedImageMime,
+    buffer: Buffer,
+  ): Promise<string> {
+    try {
+      return await this.storageService.upload({
+        pathname: `events/${eventId}/cover.${PHOTO_EXTENSIONS[mimetype]}`,
+        buffer,
+        contentType: mimetype,
+      });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      this.logger.error(`Falha ao enviar a capa do evento ${eventId}`, error);
+      throw new ServiceUnavailableException(
+        'Não foi possível enviar a imagem. Tente novamente.',
+      );
+    }
+  }
+
+  private async deletePhoto(url: string): Promise<void> {
+    try {
+      await this.storageService.delete(url);
+    } catch (error) {
+      this.logger.warn(`Não foi possível apagar a imagem ${url}: ${error}`);
+    }
+  }
+
   private async isMember(
     viewer: AuthenticatedUser | undefined,
     organizationId: string,

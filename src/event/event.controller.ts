@@ -1,5 +1,7 @@
 import {
   ApiBadRequestResponse,
+  ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiOkResponse,
@@ -21,13 +23,19 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { QueryEventDto } from './dto/query-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventService } from './event.service';
 import { toResponse } from '../common/serialization/to-response';
+import {
+  ImageFileInterceptor,
+  type ImageUploadFile,
+} from '../common/validation/image-upload';
 import { OrgAccess } from '../auth/decorators/org-access.decorator';
 import {
   type AuthenticatedUser,
@@ -107,6 +115,34 @@ export class EventController {
     return toResponse(
       EventResponseDto,
       await this.eventService.update(id, dto, user),
+    );
+  }
+
+  @OrgAccess('write', { from: 'event', param: 'id' })
+  @Patch(':id/photo')
+  @UseInterceptors(ImageFileInterceptor)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Capa do evento (.jpg, .jpeg ou .png, até 2MB)',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({ type: EventResponseDto })
+  async updatePhoto(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file?: ImageUploadFile,
+  ) {
+    return toResponse(
+      EventResponseDto,
+      await this.eventService.updatePhoto(id, file),
     );
   }
 

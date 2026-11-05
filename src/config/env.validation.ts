@@ -7,6 +7,7 @@ export interface EnvironmentVariables {
   DB_NAME: string;
   DB_SSL: boolean;
   JWT_SECRET: string;
+  BLOB_READ_WRITE_TOKEN?: string;
 }
 
 function requireString(
@@ -64,6 +65,17 @@ function optionalBoolean(
   return value === 'true';
 }
 
+function optionalString(
+  config: Record<string, unknown>,
+  key: keyof EnvironmentVariables,
+): string | undefined {
+  const value = config[key];
+
+  return typeof value === 'string' && value.trim() !== ''
+    ? value.trim()
+    : undefined;
+}
+
 /**
  * Valida as variáveis de ambiente no boot da aplicação. Falhar aqui é
  * proposital: é melhor a API não subir do que subir sem saber falar com o banco.
@@ -80,5 +92,6 @@ export function validateEnv(
     DB_NAME: requireString(config, 'DB_NAME'),
     DB_SSL: optionalBoolean(config, 'DB_SSL', false),
     JWT_SECRET: requireString(config, 'JWT_SECRET'),
+    BLOB_READ_WRITE_TOKEN: optionalString(config, 'BLOB_READ_WRITE_TOKEN'),
   };
 }

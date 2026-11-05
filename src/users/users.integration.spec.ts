@@ -15,6 +15,7 @@ import * as schema from '../database/schema';
 import { OrderService } from '../order/order.service';
 import { TicketController } from '../ticket/ticket.controller';
 import { TicketService } from '../ticket/ticket.service';
+import { PNG_SIGNATURE } from '../common/validation/image-upload';
 
 const VALID_CPF = '52998224725';
 const OTHER_VALID_CPF = '11144477735';
@@ -322,7 +323,10 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
   describe('PATCH /users/me/avatar', () => {
     it('salva a foto de perfil como Data URI e retorna no perfil do usuário', async () => {
       const { token } = await register('avatar@example.com');
-      const imageBuffer = Buffer.from('fake-png-content');
+      const imageBuffer = Buffer.concat([
+        PNG_SIGNATURE,
+        Buffer.from('fake-png-content'),
+      ]);
       const expectedDataUri = `data:image/png;base64,${imageBuffer.toString('base64')}`;
 
       const response = await http()

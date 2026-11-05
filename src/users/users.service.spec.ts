@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from './users.service';
 import { DRIZZLE } from '../database/database.constants';
+import { PNG_SIGNATURE } from '../common/validation/image-upload';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -85,7 +86,7 @@ describe('UsersService', () => {
 
   describe('updateAvatar', () => {
     it('converte imagem válida para Data URI e persiste avatarUrl no usuário', async () => {
-      const buffer = Buffer.from('fake-png-bytes');
+      const buffer = Buffer.concat([PNG_SIGNATURE, Buffer.from('fake-png')]);
       const expectedAvatarUrl = `data:image/png;base64,${buffer.toString('base64')}`;
       returningResult = [{ ...mockUserRow, avatarUrl: expectedAvatarUrl }];
 
@@ -168,8 +169,8 @@ describe('UsersService', () => {
       await expect(
         service.updateAvatar('inexistente', {
           mimetype: 'image/png',
-          buffer: Buffer.from('ok'),
-          size: 2,
+          buffer: PNG_SIGNATURE,
+          size: PNG_SIGNATURE.length,
         }),
       ).rejects.toThrow(new NotFoundException('Usuário não encontrado.'));
     });

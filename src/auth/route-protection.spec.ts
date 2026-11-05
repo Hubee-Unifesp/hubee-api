@@ -89,7 +89,11 @@ const AUTHENTICATED_ROUTES = [
  * `POST /events` a organização vem do body; nas demais, do evento, e quem é
  * de fora da organização recebe 404 em vez de 403.
  */
-const ORGANIZER_WRITE_ROUTES = ['POST /events', 'PATCH /events/:id'];
+const ORGANIZER_WRITE_ROUTES = [
+  'POST /events',
+  'PATCH /events/:id',
+  'PATCH /events/:id/photo',
+];
 
 /**
  * Como `ORGANIZER_WRITE_ROUTES`, mas exige `manage` (administrador da
