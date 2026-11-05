@@ -80,6 +80,21 @@ export class UsersService {
     return user;
   }
 
+  async findActiveUser(id: string) {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.id, id),
+          isNull(users.deletedAt),
+          eq(users.status, 'ACTIVE'),
+        ),
+      );
+
+    return user ?? null;
+  }
+
   async findMe(id: string) {
     return this.toMe(await this.findOne(id));
   }

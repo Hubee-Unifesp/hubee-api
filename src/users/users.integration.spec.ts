@@ -13,6 +13,8 @@ import { UsersService } from './users.service';
 import { DRIZZLE } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { OrderService } from '../order/order.service';
+import { TicketController } from '../ticket/ticket.controller';
+import { TicketService } from '../ticket/ticket.service';
 
 const VALID_CPF = '52998224725';
 const OTHER_VALID_CPF = '11144477735';
@@ -56,12 +58,13 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
           signOptions: { expiresIn: '1d' },
         }),
       ],
-      controllers: [AuthController, UsersController],
+      controllers: [AuthController, UsersController, TicketController],
       providers: [
         AuthService,
         UsersService,
         { provide: DRIZZLE, useValue: db },
         { provide: OrderService, useValue: { findAll: () => [] } },
+        { provide: TicketService, useValue: { findAllByHolder: () => [] } },
       ],
     }).compile();
     app = module.createNestApplication();
@@ -451,6 +454,57 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
       expect(row.status).toBe('INACTIVE');
     });
 
+    it('invalida o token JWT após DELETE /users/me em GET /users/me/orders, GET /users/me/tickets, GET /users/me e GET /auth/me', async () => {
+      const { token } = await register('token-revogado@example.com');
+
+      await http()
+        .get('/users/me/orders')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      await http()
+        .get('/users/me/tickets')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      await http()
+        .delete('/users/me')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+
+      for (const path of [
+        '/users/me/orders',
+        '/users/me/tickets',
+        '/users/me',
+        '/auth/me',
+      ]) {
+        await http()
+          .get(path)
+          .set('Authorization', `Bearer ${token}`)
+          .expect(401);
+      }
+    });
+
+    it.each(['INACTIVE', 'BLOCKED'])(
+      'rejeita o token JWT com 401 quando a conta passa para status %s',
+      async (status) => {
+        const { id, token } = await register(
+          `status-${status.toLowerCase()}@example.com`,
+        );
+
+        await pg.query('UPDATE users SET status = $1 WHERE id = $2', [
+          status,
+          id,
+        ]);
+
+        for (const path of ['/users/me/orders', '/users/me/tickets']) {
+          await http()
+            .get(path)
+            .set('Authorization', `Bearer ${token}`)
+            .expect(401);
+        }
+      },
+    );
+
     it('exclui a conta e libera e-mail e CPF para novo cadastro', async () => {
       const email = 'libera@example.com';
       const cpf = '39053344705';
@@ -536,6 +590,22 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
       expect(Object.keys(detail.body).sort()).toEqual(userResponseKeys);
+    });
+
+    it('sincroniza a role a partir do banco mesmo com token emitido antes da alteração', async () => {
+      const { id, token } = await register('role-sync@example.com');
+
+      await http()
+        .get('/users')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+
+      await pg.query("UPDATE users SET role = 'ADMIN' WHERE id = $1", [id]);
+
+      await http()
+        .get('/users')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
     });
 
     it('rotas /me não são capturadas por /:id', async () => {
