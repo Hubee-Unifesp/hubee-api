@@ -1,11 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
   DrizzleDatabase,
 } from '../database/database.provider';
-import { events, ticketTypes } from '../database/schema';
+import {
+  events,
+  orderItems,
+  orders,
+  ticketTypes,
+  tickets,
+} from '../database/schema';
 
 /**
  * Toda leitura e escrita recebe o `eventId` junto do `id`: o tipo de ingresso
@@ -75,5 +81,63 @@ export class TicketTypeRepository {
     await executor
       .delete(ticketTypes)
       .where(and(eq(ticketTypes.id, id), eq(ticketTypes.eventId, eventId)));
+  }
+
+  async hasLinkedTicketsOrOrders(
+    id: string,
+    executor: DbExecutor = this.db,
+  ): Promise<boolean> {
+    const [ticket] = await executor
+      .select({ id: tickets.id })
+      .from(tickets)
+      .where(eq(tickets.ticketTypeId, id))
+      .limit(1);
+
+    if (ticket) {
+      return true;
+    }
+
+    const [item] = await executor
+      .select({ id: orderItems.id })
+      .from(orderItems)
+      .where(eq(orderItems.ticketTypeId, id))
+      .limit(1);
+
+    return item !== undefined;
+  }
+
+  /**
+   * Retorna a quantidade já comprometida (vendida ou reservada) do lote:
+   * o maior valor entre ingressos emitidos/usados e itens de pedidos pendentes/pagos.
+   */
+  async countCommitted(
+    id: string,
+    executor: DbExecutor = this.db,
+  ): Promise<number> {
+    const [ticketsCountRow] = await executor
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tickets)
+      .where(
+        and(eq(tickets.ticketTypeId, id), ne(tickets.status, 'cancelado')),
+      );
+
+    const ticketsCount = ticketsCountRow?.count ?? 0;
+
+    const [ordersCountRow] = await executor
+      .select({
+        reserved: sql<number>`coalesce(sum(${orderItems.quantity}), 0)::int`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orders.id, orderItems.orderId))
+      .where(
+        and(
+          eq(orderItems.ticketTypeId, id),
+          inArray(orders.status, ['pendente', 'pago']),
+        ),
+      );
+
+    const ordersCount = ordersCountRow?.reserved ?? 0;
+
+    return Math.max(ticketsCount, ordersCount);
   }
 }

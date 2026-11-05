@@ -16,12 +16,18 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { CreateTicketTypeDto } from './dto/create-ticket-type.dto';
 import { UpdateTicketTypeDto } from './dto/update-ticket-type.dto';
 import { TicketTypeService } from './ticket-type.service';
 import { toResponse } from '../common/serialization/to-response';
 import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
+import {
+  CurrentUser,
+  type AuthenticatedUser,
+} from '../auth/decorators/current-user.decorator';
 
 @ApiTags('ticket-types')
 @Controller('events/:eventId/ticket-types')
@@ -42,24 +48,30 @@ export class TicketTypeController {
     );
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get()
   @ApiOkResponse({ type: TicketTypeResponseDto, isArray: true })
-  async findAll(@Param('eventId', ParseUUIDPipe) eventId: string) {
+  async findAll(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @CurrentUser() viewer?: AuthenticatedUser,
+  ) {
     return toResponse(
       TicketTypeResponseDto,
-      await this.ticketTypeService.findAll(eventId),
+      await this.ticketTypeService.findAll(eventId, viewer),
     );
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
   @ApiOkResponse({ type: TicketTypeResponseDto })
   async findOne(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() viewer?: AuthenticatedUser,
   ) {
     return toResponse(
       TicketTypeResponseDto,
-      await this.ticketTypeService.findOne(eventId, id),
+      await this.ticketTypeService.findVisible(eventId, id, viewer),
     );
   }
 
