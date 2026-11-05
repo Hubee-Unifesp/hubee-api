@@ -27,13 +27,15 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { CreateEventDto } from './dto/create-event.dto';
 import { QueryEventDto } from './dto/query-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventService } from './event.service';
 import { toResponse } from '../common/serialization/to-response';
-import type { ImageUploadFile } from '../common/validation/image-upload';
+import {
+  ImageFileInterceptor,
+  type ImageUploadFile,
+} from '../common/validation/image-upload';
 import { OrgAccess } from '../auth/decorators/org-access.decorator';
 import {
   type AuthenticatedUser,
@@ -118,7 +120,7 @@ export class EventController {
 
   @OrgAccess('write', { from: 'event', param: 'id' })
   @Patch(':id/photo')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(ImageFileInterceptor)
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {

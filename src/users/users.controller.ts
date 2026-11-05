@@ -14,8 +14,10 @@ import {
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import type { ImageUploadFile } from '../common/validation/image-upload';
+import {
+  ImageFileInterceptor,
+  type ImageUploadFile,
+} from '../common/validation/image-upload';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -72,7 +74,7 @@ export class UsersController {
   }
 
   @Patch('me/avatar')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(ImageFileInterceptor)
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {

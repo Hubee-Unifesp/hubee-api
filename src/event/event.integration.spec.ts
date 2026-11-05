@@ -290,6 +290,28 @@ describe('Eventos por organizadores (banco em memória)', () => {
       );
     });
 
+    it('rejeita arquivo acima de 2MB e campo de texto extra antes do service', async () => {
+      const { body: event } = await http()
+        .post('/events')
+        .set(as('organizer'))
+        .send(newEvent(orgA))
+        .expect(201);
+      const before = uploads;
+
+      const tooLarge = await http()
+        .patch(`/events/${event.id}/photo`)
+        .set(as('organizer'))
+        .attach('file', Buffer.alloc(2 * 1024 * 1024 + 1), {
+          filename: 'capa.png',
+          contentType: 'image/png',
+        })
+        .expect(400);
+      expect(tooLarge.body.message).toBe('A imagem deve ter no máximo 2MB.');
+
+      await sendPhoto(event.id, 'organizer').field('extra', 'x').expect(400);
+      expect(uploads).toBe(before);
+    });
+
     it('sem token dá 401; de outra organização dá 404', async () => {
       await http().patch(`/events/${eventOfB}/photo`).expect(401);
       await sendPhoto(eventOfB, 'organizer').expect(404);
