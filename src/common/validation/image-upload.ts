@@ -9,11 +9,26 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
-export const ALLOWED_IMAGE_MIMES = ['image/jpeg', 'image/png'] as const;
 
 const TOO_LARGE_MESSAGE = 'A imagem deve ter no máximo 2MB.';
 
-export type AllowedImageMime = (typeof ALLOWED_IMAGE_MIMES)[number];
+export type AllowedImageMime = 'image/jpeg' | 'image/png';
+
+export const PNG_SIGNATURE = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+]);
+export const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff]);
+
+const SIGNATURES: [AllowedImageMime, Buffer][] = [
+  ['image/png', PNG_SIGNATURE],
+  ['image/jpeg', JPEG_SIGNATURE],
+];
+
+export function detectImageMime(buffer: Buffer): AllowedImageMime | undefined {
+  return SIGNATURES.find(([, signature]) =>
+    buffer.subarray(0, signature.length).equals(signature),
+  )?.[0];
+}
 
 export interface ImageUploadFile {
   mimetype?: string;
@@ -31,21 +46,19 @@ export function validateImageUpload(file?: ImageUploadFile): ValidImageUpload {
     throw new BadRequestException('Arquivo de imagem é obrigatório.');
   }
 
-  if (
-    !file.mimetype ||
-    !ALLOWED_IMAGE_MIMES.includes(file.mimetype as AllowedImageMime)
-  ) {
-    throw new BadRequestException(
-      'Formato inválido. Use uma imagem .jpg, .png ou .jpeg.',
-    );
-  }
-
   const fileSize = file.size ?? file.buffer.length;
   if (fileSize > MAX_IMAGE_BYTES || file.buffer.length > MAX_IMAGE_BYTES) {
     throw new BadRequestException(TOO_LARGE_MESSAGE);
   }
 
-  return { mimetype: file.mimetype as AllowedImageMime, buffer: file.buffer };
+  const mimetype = detectImageMime(file.buffer);
+  if (!mimetype) {
+    throw new BadRequestException(
+      'Formato inválido. Use uma imagem .jpg, .png ou .jpeg.',
+    );
+  }
+
+  return { mimetype, buffer: file.buffer };
 }
 
 const MultipartInterceptor = FileInterceptor('file', {

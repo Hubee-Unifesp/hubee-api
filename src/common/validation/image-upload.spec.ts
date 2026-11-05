@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import {
+  BadRequestException,
   Controller,
   INestApplication,
   Patch,
@@ -11,7 +12,10 @@ import request from 'supertest';
 import {
   ImageFileInterceptor,
   type ImageUploadFile,
+  JPEG_SIGNATURE,
   MAX_IMAGE_BYTES,
+  PNG_SIGNATURE,
+  validateImageUpload,
 } from './image-upload';
 
 @Controller()
@@ -77,6 +81,43 @@ describe('ImageFileInterceptor', () => {
 
     expect(response.body.message).toBe(
       'Envie apenas um arquivo de imagem no campo "file".',
+    );
+  });
+});
+
+describe('validateImageUpload', () => {
+  const withBody = (signature: Buffer) =>
+    Buffer.concat([signature, Buffer.from('conteudo')]);
+
+  it.each([
+    ['PNG', withBody(PNG_SIGNATURE), 'image/png'],
+    ['JPEG', withBody(JPEG_SIGNATURE), 'image/jpeg'],
+  ])('reconhece %s pelos bytes', (_name, buffer, mimetype) => {
+    expect(validateImageUpload({ mimetype, buffer })).toEqual({
+      mimetype,
+      buffer,
+    });
+  });
+
+  it('ignora o tipo informado pelo cliente', () => {
+    const buffer = withBody(JPEG_SIGNATURE);
+
+    expect(
+      validateImageUpload({ mimetype: 'image/png', buffer }).mimetype,
+    ).toBe('image/jpeg');
+  });
+
+  it.each([
+    ['HTML', Buffer.from('<html><script></script></html>')],
+    ['GIF', Buffer.from('GIF89a')],
+    ['PNG truncado', PNG_SIGNATURE.subarray(0, 4)],
+  ])('rejeita %s enviado como image/png', (_name, buffer) => {
+    expect(() =>
+      validateImageUpload({ mimetype: 'image/png', buffer }),
+    ).toThrow(
+      new BadRequestException(
+        'Formato inválido. Use uma imagem .jpg, .png ou .jpeg.',
+      ),
     );
   });
 });

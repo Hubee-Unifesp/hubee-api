@@ -14,6 +14,7 @@ import { VenueService } from '../venue/venue.service';
 import { EventController } from './event.controller';
 import { EventRepository } from './event.repository';
 import { EventService } from './event.service';
+import { PNG_SIGNATURE } from '../common/validation/image-upload';
 
 /**
  * Eventos geridos por organizadores (GOL-144), com guard, service e repository
@@ -246,7 +247,7 @@ describe('Eventos por organizadores (banco em memória)', () => {
   });
 
   describe('capa do evento', () => {
-    const png = Buffer.from('imagem');
+    const png = Buffer.concat([PNG_SIGNATURE, Buffer.from('imagem')]);
     const sendPhoto = (id: string, name: string) =>
       http().patch(`/events/${id}/photo`).set(as(name)).attach('file', png, {
         filename: 'capa.png',
@@ -273,7 +274,7 @@ describe('Eventos por organizadores (banco em memória)', () => {
       expect(stored.body.photoUrl).toBe(second.body.photoUrl);
     });
 
-    it('rejeita arquivo fora do formato com mensagem em português', async () => {
+    it('rejeita arquivo que não é imagem mesmo enviado como image/png', async () => {
       const { body: event } = await http()
         .post('/events')
         .set(as('organizer'))
@@ -283,7 +284,10 @@ describe('Eventos por organizadores (banco em memória)', () => {
       const response = await http()
         .patch(`/events/${event.id}/photo`)
         .set(as('organizer'))
-        .attach('file', png, { filename: 'capa.gif', contentType: 'image/gif' })
+        .attach('file', Buffer.from('GIF89a'), {
+          filename: 'capa.png',
+          contentType: 'image/png',
+        })
         .expect(400);
       expect(response.body.message).toBe(
         'Formato inválido. Use uma imagem .jpg, .png ou .jpeg.',

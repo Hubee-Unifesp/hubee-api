@@ -14,6 +14,10 @@ import { VenueService } from '../venue/venue.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { EventRepository } from './event.repository';
 import { EventService } from './event.service';
+import {
+  JPEG_SIGNATURE,
+  PNG_SIGNATURE,
+} from '../common/validation/image-upload';
 
 type Event = typeof events.$inferSelect;
 type EventDetail = NonNullable<
@@ -680,8 +684,7 @@ describe('EventService', () => {
     const OLD_URL = 'https://store.public.blob.vercel-storage.com/antiga.png';
     const file = {
       mimetype: 'image/png',
-      buffer: Buffer.from('img'),
-      size: 3,
+      buffer: Buffer.concat([PNG_SIGNATURE, Buffer.from('img')]),
     };
 
     beforeEach(() => {
@@ -707,13 +710,13 @@ describe('EventService', () => {
       expect(storageService.delete).not.toHaveBeenCalled();
     });
 
-    it('usa a extensão .jpg para JPEG', async () => {
+    it('usa o tipo dos bytes, não o informado pelo cliente', async () => {
       eventRepository.findById.mockResolvedValue(makeEvent());
       eventRepository.update.mockResolvedValue(makeEvent());
 
       await service.updatePhoto('event-1', {
-        ...file,
-        mimetype: 'image/jpeg',
+        mimetype: 'image/png',
+        buffer: Buffer.concat([JPEG_SIGNATURE, Buffer.from('img')]),
       });
 
       expect(storageService.upload).toHaveBeenCalledWith(
@@ -776,8 +779,8 @@ describe('EventService', () => {
     it.each([
       ['sem arquivo', undefined, 'Arquivo de imagem é obrigatório.'],
       [
-        'formato inválido',
-        { ...file, mimetype: 'image/gif' },
+        'arquivo que não é imagem',
+        { ...file, buffer: Buffer.from('<html></html>') },
         'Formato inválido. Use uma imagem .jpg, .png ou .jpeg.',
       ],
       [
