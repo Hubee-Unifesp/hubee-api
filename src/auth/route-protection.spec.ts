@@ -25,6 +25,7 @@ import { SuppliersController } from '../suppliers/suppliers.controller';
 import { TaskController } from '../task/task.controller';
 import { TicketController } from '../ticket/ticket.controller';
 import { TicketTypeController } from '../ticket-type/ticket-type.controller';
+import { TicketTypeService } from '../ticket-type/ticket-type.service';
 import { VenueController } from '../venue/venue.controller';
 import { DRIZZLE } from '../database/database.constants';
 import { events } from '../database/schema';
@@ -358,6 +359,49 @@ describe('Proteção de rotas (GOL-114)', () => {
         .get(`/events/${ID}`)
         .set('Authorization', 'Bearer token-invalido')
         .expect(401);
+    });
+
+    const ticketTypeService = () =>
+      app.get(TicketTypeService) as unknown as {
+        findAll: jest.Mock;
+        findVisible: jest.Mock;
+      };
+
+    it('GET /events/:eventId/ticket-types com token inválido dá 401', async () => {
+      await request(app.getHttpServer())
+        .get(`/events/${ID}/ticket-types`)
+        .set('Authorization', 'Bearer token-invalido')
+        .expect(401);
+    });
+
+    it('GET /events/:eventId/ticket-types/:id com token inválido dá 401', async () => {
+      await request(app.getHttpServer())
+        .get(`/events/${ID}/ticket-types/${ID}`)
+        .set('Authorization', 'Bearer token-invalido')
+        .expect(401);
+    });
+
+    it('GET /events/:eventId/ticket-types com token de ADMIN repassa o ADMIN para o service', async () => {
+      await request(app.getHttpServer())
+        .get(`/events/${ID}/ticket-types`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(ticketTypeService().findAll).toHaveBeenLastCalledWith(
+        ID,
+        expect.objectContaining({ role: 'ADMIN' }),
+      );
+    });
+
+    it('GET /events/:eventId/ticket-types/:id com token de ADMIN repassa o ADMIN para o service', async () => {
+      await request(app.getHttpServer())
+        .get(`/events/${ID}/ticket-types/${ID}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(ticketTypeService().findVisible).toHaveBeenLastCalledWith(
+        ID,
+        ID,
+        expect.objectContaining({ role: 'ADMIN' }),
+      );
     });
   });
 

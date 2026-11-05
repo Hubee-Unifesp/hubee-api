@@ -24,8 +24,15 @@ export class TicketTypeService {
     return this.ticketTypeRepository.findAll(eventId);
   }
 
-  async findOne(eventId: string, id: string, viewer?: AuthenticatedUser) {
+  /** Versão pública de findOne: rascunho sem permissão responde 404. */
+  async findVisible(eventId: string, id: string, viewer?: AuthenticatedUser) {
     await this.eventService.findVisible(eventId, viewer);
+    return this.findTicketTypeOfEvent(eventId, id);
+  }
+
+  /** Uso interno: confere se o lote pertence ao evento sem checar visibilidade de rascunho. */
+  async findOne(eventId: string, id: string) {
+    await this.eventService.findOne(eventId);
     return this.findTicketTypeOfEvent(eventId, id);
   }
 
@@ -73,12 +80,12 @@ export class TicketTypeService {
     try {
       await this.ticketTypeRepository.delete(eventId, id);
     } catch (error: unknown) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        (error as { code: string }).code === '23503'
-      ) {
+      const pgCode =
+        typeof error === 'object' && error !== null
+          ? ((error as { code?: string; cause?: { code?: string } }).code ??
+            (error as { cause?: { code?: string } }).cause?.code)
+          : undefined;
+      if (pgCode === '23503') {
         throw new ConflictException(
           'Não é possível excluir um lote que já possui ingressos ou pedidos vinculados.',
         );

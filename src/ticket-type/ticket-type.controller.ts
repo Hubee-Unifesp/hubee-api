@@ -71,7 +71,7 @@ export class TicketTypeController {
   ) {
     return toResponse(
       TicketTypeResponseDto,
-      await this.ticketTypeService.findOne(eventId, id, viewer),
+      await this.ticketTypeService.findVisible(eventId, id, viewer),
     );
   }
 

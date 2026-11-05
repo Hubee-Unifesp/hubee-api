@@ -124,6 +124,43 @@ describe('TicketTypeService', () => {
   });
 
   describe('findOne()', () => {
+    it('retorna o tipo de ingresso sem checar visibilidade (uso interno)', async () => {
+      const ticketType = makeTicketType();
+      eventService.findOne.mockResolvedValue(makeEvent() as never);
+      ticketTypeRepository.findById.mockResolvedValue(ticketType);
+
+      await expect(
+        service.findOne('event-1', 'ticket-type-1'),
+      ).resolves.toEqual(ticketType);
+      expect(eventService.findOne).toHaveBeenCalledWith('event-1');
+      expect(ticketTypeRepository.findById).toHaveBeenCalledWith(
+        'event-1',
+        'ticket-type-1',
+      );
+    });
+
+    it('lança NotFound quando o tipo de ingresso não existe no evento', async () => {
+      eventService.findOne.mockResolvedValue(makeEvent() as never);
+      ticketTypeRepository.findById.mockResolvedValue(undefined);
+
+      await expect(
+        service.findOne('event-1', 'ticket-type-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('lança NotFound quando o evento não existe', async () => {
+      eventService.findOne.mockRejectedValue(
+        new NotFoundException('Evento event-1 não encontrado'),
+      );
+
+      await expect(
+        service.findOne('event-1', 'ticket-type-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(ticketTypeRepository.findById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findVisible()', () => {
     it('retorna o tipo de ingresso quando ele pertence ao evento visível', async () => {
       const ticketType = makeTicketType();
       const viewer: AuthenticatedUser = {
@@ -135,7 +172,7 @@ describe('TicketTypeService', () => {
       ticketTypeRepository.findById.mockResolvedValue(ticketType);
 
       await expect(
-        service.findOne('event-1', 'ticket-type-1', viewer),
+        service.findVisible('event-1', 'ticket-type-1', viewer),
       ).resolves.toEqual(ticketType);
       expect(eventService.findVisible).toHaveBeenCalledWith('event-1', viewer);
       expect(ticketTypeRepository.findById).toHaveBeenCalledWith(
@@ -149,7 +186,7 @@ describe('TicketTypeService', () => {
       ticketTypeRepository.findById.mockResolvedValue(undefined);
 
       await expect(
-        service.findOne('event-1', 'ticket-type-1'),
+        service.findVisible('event-1', 'ticket-type-1'),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -159,7 +196,7 @@ describe('TicketTypeService', () => {
       );
 
       await expect(
-        service.findOne('event-1', 'ticket-type-1'),
+        service.findVisible('event-1', 'ticket-type-1'),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(ticketTypeRepository.findById).not.toHaveBeenCalled();
     });
@@ -318,6 +355,20 @@ describe('TicketTypeService', () => {
       ticketTypeRepository.findById.mockResolvedValue(makeTicketType());
       ticketTypeRepository.hasLinkedTicketsOrOrders.mockResolvedValue(false);
       ticketTypeRepository.delete.mockRejectedValue({ code: '23503' });
+
+      await expect(service.remove('event-1', 'ticket-type-1')).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('lança ConflictException quando o Drizzle encapsula erro 23503 em error.cause', async () => {
+      eventService.findOne.mockResolvedValue(makeEvent());
+      ticketTypeRepository.findById.mockResolvedValue(makeTicketType());
+      ticketTypeRepository.hasLinkedTicketsOrOrders.mockResolvedValue(false);
+      ticketTypeRepository.delete.mockRejectedValue({
+        message: 'DrizzleQueryError',
+        cause: { code: '23503' },
+      });
 
       await expect(service.remove('event-1', 'ticket-type-1')).rejects.toThrow(
         ConflictException,

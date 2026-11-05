@@ -24,6 +24,7 @@ describe('TicketTypeController', () => {
   let service: {
     findAll: jest.Mock<TicketTypeService['findAll']>;
     findOne: jest.Mock<TicketTypeService['findOne']>;
+    findVisible: jest.Mock<TicketTypeService['findVisible']>;
     create: jest.Mock<TicketTypeService['create']>;
     update: jest.Mock<TicketTypeService['update']>;
     remove: jest.Mock<TicketTypeService['remove']>;
@@ -33,6 +34,7 @@ describe('TicketTypeController', () => {
     service = {
       findAll: jest.fn<TicketTypeService['findAll']>(),
       findOne: jest.fn<TicketTypeService['findOne']>(),
+      findVisible: jest.fn<TicketTypeService['findVisible']>(),
       create: jest.fn<TicketTypeService['create']>(),
       update: jest.fn<TicketTypeService['update']>(),
       remove: jest.fn<TicketTypeService['remove']>(),
@@ -79,18 +81,18 @@ describe('TicketTypeController', () => {
     expect(result[0]).toBeInstanceOf(TicketTypeResponseDto);
   });
 
-  it('GET /events/:eventId/ticket-types/:id delega para ticketTypeService.findOne()', async () => {
+  it('GET /events/:eventId/ticket-types/:id delega para ticketTypeService.findVisible()', async () => {
     const ticketType = row as never;
     const viewer: AuthenticatedUser = {
       id: 'u-1',
       email: 'user@example.com',
       role: 'USER',
     };
-    service.findOne.mockResolvedValue(ticketType);
+    service.findVisible.mockResolvedValue(ticketType);
 
     const result = await controller.findOne('event-1', 'ticket-type-1', viewer);
 
-    expect(service.findOne).toHaveBeenCalledWith(
+    expect(service.findVisible).toHaveBeenCalledWith(
       'event-1',
       'ticket-type-1',
       viewer,
