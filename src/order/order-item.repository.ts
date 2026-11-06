@@ -5,7 +5,7 @@ import type {
   DbExecutor,
   DrizzleDatabase,
 } from '../database/database.provider';
-import { orderItems, orders } from '../database/schema';
+import { orderItems, orders, tickets } from '../database/schema';
 
 @Injectable()
 export class OrderItemRepository {
@@ -28,17 +28,21 @@ export class OrderItemRepository {
   }
 
   /**
-   * Quantidade já reservada por lote. Pedido pendente reserva o saldo e pedido
-   * pago o consome; só o cancelado o devolve.
+   * Quantidade já comprometida por lote: pedidos pendentes reservam o saldo e
+   * pedidos pagos (ou ingressos emitidos manualmente via ADMIN) o consomem;
+   * pedidos/ingressos cancelados devolvem a vaga.
    */
   async sumReservedByTicketType(
     ticketTypeIds: string[],
     executor: DbExecutor = this.db,
   ): Promise<Map<string, number>> {
-    const rows = await executor
+    if (ticketTypeIds.length === 0) return new Map();
+
+    const itemRows = await executor
       .select({
         ticketTypeId: orderItems.ticketTypeId,
-        reserved: sql<number>`coalesce(sum(${orderItems.quantity}), 0)::int`,
+        pending: sql<number>`coalesce(sum(${orderItems.quantity}) filter (where ${orders.status} = 'pendente'), 0)::int`,
+        paid: sql<number>`coalesce(sum(${orderItems.quantity}) filter (where ${orders.status} = 'pago'), 0)::int`,
       })
       .from(orderItems)
       .innerJoin(orders, eq(orders.id, orderItems.orderId))
@@ -47,6 +51,41 @@ export class OrderItemRepository {
       )
       .groupBy(orderItems.ticketTypeId);
 
-    return new Map(rows.map((row) => [row.ticketTypeId, row.reserved]));
+    const ticketRows = await executor
+      .select({
+        ticketTypeId: tickets.ticketTypeId,
+        issued: sql<number>`count(*) filter (where ${tickets.status} <> 'cancelado')::int`,
+        cancelled: sql<number>`count(*) filter (where ${tickets.status} = 'cancelado')::int`,
+      })
+      .from(tickets)
+      .where(inArray(tickets.ticketTypeId, ticketTypeIds))
+      .groupBy(tickets.ticketTypeId);
+
+    const statsByType = new Map(
+      ticketRows.map((row) => [
+        row.ticketTypeId,
+        { issued: row.issued, cancelled: row.cancelled },
+      ]),
+    );
+    const result = new Map<string, number>();
+
+    for (const row of itemRows) {
+      const stats = statsByType.get(row.ticketTypeId) ?? {
+        issued: 0,
+        cancelled: 0,
+      };
+      const paidActive = Math.max(0, row.paid - stats.cancelled);
+      result.set(
+        row.ticketTypeId,
+        row.pending + Math.max(paidActive, stats.issued),
+      );
+      statsByType.delete(row.ticketTypeId);
+    }
+
+    for (const [ticketTypeId, stats] of statsByType) {
+      result.set(ticketTypeId, stats.issued);
+    }
+
+    return result;
   }
 }

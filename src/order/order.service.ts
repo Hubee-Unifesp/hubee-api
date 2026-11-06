@@ -120,48 +120,72 @@ export class OrderService {
   }
 
   /**
+   * Trava os lotes pedidos (`FOR UPDATE`), confere o saldo disponível
+   * (`capacidade - reservado`) e lança 422 no primeiro lote sem vaga, antes de
+   * qualquer escrita. Reservado = soma de `order_items` de pedidos pendentes e
+   * pagos; cancelado devolve a vaga. Fonte única da regra de estoque, usada
+   * tanto pela compra (`placeOrder`) quanto pela emissão manual de ingressos.
+   *
+   * Deve rodar dentro de uma transaction (o lock só vale até ela terminar).
+   * Devolve os lotes travados, indexados por id, para quem precisar do preço.
+   */
+  async assertBatchesHaveStock(
+    requested: { ticketTypeId: string; quantity: number }[],
+    executor: DbExecutor,
+    { checkOnSale = false }: { checkOnSale?: boolean } = {},
+  ) {
+    const ids = requested.map((item) => item.ticketTypeId);
+    const lots = await this.ticketTypeService.lockForPurchase(ids, executor);
+    const lotsById = new Map(lots.map((lot) => [lot.ticketType.id, lot]));
+    const reserved = await this.orderItemRepository.sumReservedByTicketType(
+      ids,
+      executor,
+    );
+    const now = new Date();
+
+    for (const { ticketTypeId, quantity } of requested) {
+      const lot = lotsById.get(ticketTypeId);
+      if (!lot) {
+        throw new NotFoundException(`Lote ${ticketTypeId} não encontrado`);
+      }
+      const { ticketType, event } = lot;
+      const label = `lote "${ticketType.batch}" do evento "${event.name}"`;
+
+      if (checkOnSale && !isOnSale(event, now)) {
+        throw new UnprocessableEntityException(
+          `As vendas do evento "${event.name}" não estão abertas`,
+        );
+      }
+
+      const available = ticketType.quantity - (reserved.get(ticketTypeId) ?? 0);
+      if (available <= 0) {
+        throw new UnprocessableEntityException(`O ${label} está esgotado`);
+      }
+      if (quantity > available) {
+        throw new UnprocessableEntityException(
+          `O ${label} tem apenas ${available} ingresso(s) disponível(is)`,
+        );
+      }
+    }
+
+    return lotsById;
+  }
+
+  /**
    * Trava os lotes, confere o saldo e grava pedido e itens na mesma
    * transaction: ou o pedido nasce completo, ou nada é gravado.
    */
   private placeOrder(userId: string, dto: CreateOrderDto) {
     const requested = mergeItems(dto.items);
-    const ids = requested.map((item) => item.ticketTypeId);
 
     return this.db.transaction(async (tx) => {
-      const lots = await this.ticketTypeService.lockForPurchase(ids, tx);
-      const lotsById = new Map(lots.map((lot) => [lot.ticketType.id, lot]));
-      const reserved = await this.orderItemRepository.sumReservedByTicketType(
-        ids,
-        tx,
-      );
+      const lots = await this.assertBatchesHaveStock(requested, tx, {
+        checkOnSale: true,
+      });
 
-      const now = new Date();
       let totalInCents = 0;
       const items = requested.map(({ ticketTypeId, quantity }) => {
-        const lot = lotsById.get(ticketTypeId);
-        if (!lot) {
-          throw new NotFoundException(`Lote ${ticketTypeId} não encontrado`);
-        }
-        const { ticketType, event } = lot;
-        const label = `lote "${ticketType.batch}" do evento "${event.name}"`;
-
-        if (!isOnSale(event, now)) {
-          throw new UnprocessableEntityException(
-            `As vendas do evento "${event.name}" não estão abertas`,
-          );
-        }
-
-        const available =
-          ticketType.quantity - (reserved.get(ticketTypeId) ?? 0);
-        if (available <= 0) {
-          throw new UnprocessableEntityException(`O ${label} está esgotado`);
-        }
-        if (quantity > available) {
-          throw new UnprocessableEntityException(
-            `O ${label} tem apenas ${available} ingresso(s) disponível(is)`,
-          );
-        }
-
+        const { ticketType } = lots.get(ticketTypeId)!;
         totalInCents += Math.round(ticketType.price * 100) * quantity;
         return { ticketTypeId, quantity, unitPrice: ticketType.price };
       });

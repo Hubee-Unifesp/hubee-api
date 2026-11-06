@@ -1,12 +1,17 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import {
+  Inject,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { canAccess } from '../auth/ownership';
-import type { DbExecutor } from '../database/database.provider';
+import { DRIZZLE } from '../database/database.constants';
+import type {
+  DbExecutor,
+  DrizzleDatabase,
+} from '../database/database.provider';
 import type { TicketStatus, orders } from '../database/schema';
 import { EventService } from '../event/event.service';
 import { OrderService } from '../order/order.service';
@@ -41,6 +46,10 @@ function generateQrCode(): string {
 @Injectable()
 export class TicketService {
   constructor(
+    // A emissão manual trava os lotes e insere na mesma transaction para não
+    // permitir overselling (GOL-216). A regra de estoque em si vive no
+    // `OrderService`, compartilhada com a compra.
+    @Inject(DRIZZLE) private readonly db: DrizzleDatabase,
     private readonly ticketRepository: TicketRepository,
     private readonly orderService: OrderService,
     private readonly eventService: EventService,
@@ -89,15 +98,50 @@ export class TicketService {
     );
     await this.ensureUsersExist(holderUserIds);
 
-    return this.ticketRepository.createMany(
-      dto.tickets.map((item, index) => ({
-        orderId,
-        eventId: item.eventId,
-        ticketTypeId: item.ticketTypeId,
-        holderUserId: holderUserIds[index],
-        qrCode: randomUUID(),
-      })),
-    );
+    // A checagem dos itens do pedido, de estoque e o INSERT correm na mesma
+    // transaction: o `OrderService` trava cada lote (`FOR UPDATE`) e confere a
+    // capacidade; se algum estourar, a exception (422) aborta tudo e nada é emitido.
+    return this.db.transaction(async (tx) => {
+      const orderItems = await this.orderService.findItems(orderId, tx);
+      const allowedTicketTypeIds = new Set(
+        orderItems.map((item) => item.ticketTypeId),
+      );
+
+      for (const { ticketTypeId } of dto.tickets) {
+        if (!allowedTicketTypeIds.has(ticketTypeId)) {
+          throw new UnprocessableEntityException(
+            `O lote ${ticketTypeId} não pertence aos itens do pedido ${orderId}`,
+          );
+        }
+      }
+
+      await this.orderService.assertBatchesHaveStock(
+        this.countRequestedByType(dto),
+        tx,
+      );
+      return this.ticketRepository.createMany(
+        dto.tickets.map((item, index) => ({
+          orderId,
+          eventId: item.eventId,
+          ticketTypeId: item.ticketTypeId,
+          holderUserId: holderUserIds[index],
+          qrCode: randomUUID(),
+        })),
+        tx,
+      );
+    });
+  }
+
+  /** Soma os ingressos pedidos por lote, para conferir o saldo uma vez só. */
+  private countRequestedByType(dto: CreateTicketsDto) {
+    const quantities = new Map<string, number>();
+    for (const { ticketTypeId } of dto.tickets) {
+      quantities.set(ticketTypeId, (quantities.get(ticketTypeId) ?? 0) + 1);
+    }
+    return [...quantities].map(([ticketTypeId, quantity]) => ({
+      ticketTypeId,
+      quantity,
+    }));
   }
 
   /**
