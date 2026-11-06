@@ -24,13 +24,14 @@ import { UpdateVenueDto } from './dto/update-venue.dto';
 import { VenueService } from './venue.service';
 import { toResponse } from '../common/serialization/to-response';
 import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import { OrgAccess } from '../auth/decorators/org-access.decorator';
 
 @ApiTags('venues')
 @Controller('venues')
 export class VenueController {
   constructor(private readonly venueService: VenueService) {}
 
-  @AdminOnly()
+  @OrgAccess('write', { from: 'any' })
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: VenueResponseDto })
@@ -50,7 +51,7 @@ export class VenueController {
     return toResponse(VenueResponseDto, await this.venueService.findOne(id));
   }
 
-  @AdminOnly()
+  @OrgAccess('write', { from: 'any' })
   @Patch(':id')
   @ApiOkResponse({ type: VenueResponseDto })
   async update(

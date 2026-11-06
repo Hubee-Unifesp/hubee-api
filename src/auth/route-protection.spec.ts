@@ -85,14 +85,20 @@ const AUTHENTICATED_ROUTES = [
 ];
 
 /**
- * ADMIN ou membro da organização com `write` (`@OrgAccess`, GOL-144). Em
- * `POST /events` a organização vem do body; nas demais, do evento, e quem é
- * de fora da organização recebe 404 em vez de 403.
+ * ADMIN ou membro da organização com `write` (`@OrgAccess`, GOL-144 e GOL-206).
+ * Em `POST /events` a organização vem do body, em `/venues` vale qualquer
+ * organização aceita, e nas demais vem do evento (quem é de fora da organização
+ * recebe 404 em vez de 403).
  */
 const ORGANIZER_WRITE_ROUTES = [
   'POST /events',
   'PATCH /events/:id',
   'PATCH /events/:id/photo',
+  'POST /events/:eventId/ticket-types',
+  'PATCH /events/:eventId/ticket-types/:id',
+  'DELETE /events/:eventId/ticket-types/:id',
+  'POST /venues',
+  'PATCH /venues/:id',
 ];
 
 /**
@@ -105,6 +111,16 @@ const ORGANIZER_ROUTES = [
   ...ORGANIZER_WRITE_ROUTES,
   ...ORGANIZER_MANAGE_ROUTES,
 ];
+
+/**
+ * Rotas com `@OrgAccess(..., { from: 'event' })` resolvem a organização a
+ * partir do evento da URL e respondem 404 (e não 403) para quem não é membro
+ * da organização dona, evitando revelar a existência do evento. Rotas com
+ * `{ from: 'body' }` (`POST /events`) ou `{ from: 'any' }` (`/venues`)
+ * respondem 403.
+ */
+const isEventScoped = (route: { template: string }) =>
+  route.template.startsWith('/events/:');
 
 /** Rotas de pedido que ganham proteção com checagem de dono na GOL-103. */
 const PENDING_GOL_103_ROUTES = [
@@ -271,7 +287,7 @@ describe('Proteção de rotas (GOL-114)', () => {
         expect(operation?.security).toEqual([{ bearer: [] }]);
         const statuses = Object.keys(operation?.responses ?? {});
         expect(statuses).toEqual(expect.arrayContaining(['401', '403']));
-        if (route.template.includes(':id')) expect(statuses).toContain('404');
+        if (isEventScoped(route)) expect(statuses).toContain('404');
       },
     );
 
@@ -443,7 +459,7 @@ describe('Proteção de rotas (GOL-114)', () => {
         };
         return send(userToken);
       };
-      const byEvent = route.template.includes(':id');
+      const byEvent = isEventScoped(route);
       const needsManage = ORGANIZER_MANAGE_ROUTES.includes(route.label);
 
       afterEach(() => {
