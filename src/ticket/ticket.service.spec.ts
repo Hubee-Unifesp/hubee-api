@@ -4,6 +4,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { DRIZZLE } from '../database/database.constants';
 import { events, orders, ticketTypes, tickets } from '../database/schema';
 import { EventService } from '../event/event.service';
 import { OrderService } from '../order/order.service';
@@ -96,7 +97,16 @@ describe('TicketService', () => {
     createMany: jest.Mock<TicketRepository['createMany']>;
     updateStatus: jest.Mock<TicketRepository['updateStatus']>;
   };
-  let orderService: { findById: jest.Mock<OrderService['findById']> };
+  // Executa o callback com um `tx` de mentira: o service não inspeciona o
+  // executor, só o repassa adiante (order service e repository são mockados).
+  const tx = { tx: true } as never;
+  const db = {
+    transaction: jest.fn(async (cb: (tx: never) => unknown) => cb(tx)),
+  };
+  let orderService: {
+    findById: jest.Mock<OrderService['findById']>;
+    assertBatchesHaveStock: jest.Mock<OrderService['assertBatchesHaveStock']>;
+  };
   let eventService: { findOne: jest.Mock<EventService['findOne']> };
   let ticketTypeService: {
     findOne: jest.Mock<TicketTypeService['findOne']>;
@@ -111,7 +121,11 @@ describe('TicketService', () => {
       createMany: jest.fn<TicketRepository['createMany']>(),
       updateStatus: jest.fn<TicketRepository['updateStatus']>(),
     };
-    orderService = { findById: jest.fn<OrderService['findById']>() };
+    db.transaction.mockClear();
+    orderService = {
+      findById: jest.fn<OrderService['findById']>(),
+      assertBatchesHaveStock: jest.fn<OrderService['assertBatchesHaveStock']>(),
+    };
     eventService = { findOne: jest.fn<EventService['findOne']>() };
     ticketTypeService = {
       findOne: jest.fn<TicketTypeService['findOne']>(),
@@ -121,6 +135,7 @@ describe('TicketService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TicketService,
+        { provide: DRIZZLE, useValue: db },
         { provide: TicketRepository, useValue: ticketRepository },
         { provide: OrderService, useValue: orderService },
         { provide: EventService, useValue: eventService },
@@ -312,6 +327,8 @@ describe('TicketService', () => {
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeService.findOne.mockResolvedValue(makeTicketType());
       usersService.findOne.mockResolvedValue({} as never);
+      // Estoque OK por padrão (o OrderService não reclama).
+      orderService.assertBatchesHaveStock.mockResolvedValue(new Map() as never);
       ticketRepository.createMany.mockImplementation((data) =>
         Promise.resolve(data.map((row) => makeTicket(row))),
       );
@@ -414,6 +431,35 @@ describe('TicketService', () => {
       usersService.findOne.mockRejectedValue(boom);
 
       await expect(service.create('order-1', dto)).rejects.toBe(boom);
+    });
+
+    it('confere o estoque e insere na mesma transaction', async () => {
+      await service.create('order-1', dto);
+
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      const [, stockExecutor] =
+        orderService.assertBatchesHaveStock.mock.calls[0];
+      const [, insertExecutor] = ticketRepository.createMany.mock.calls[0];
+      expect(stockExecutor).toBe(insertExecutor);
+    });
+
+    it('agrega os ingressos pedidos por lote ao conferir o estoque', async () => {
+      // dto pede 2 ingressos do type-1 -> uma única entrada com quantity 2.
+      await service.create('order-1', dto);
+
+      const [requested] = orderService.assertBatchesHaveStock.mock.calls[0];
+      expect(requested).toEqual([{ ticketTypeId: 'type-1', quantity: 2 }]);
+    });
+
+    it('propaga o 422 e não insere quando o lote está sem vagas', async () => {
+      orderService.assertBatchesHaveStock.mockRejectedValue(
+        new UnprocessableEntityException('O lote "1º lote" está esgotado'),
+      );
+
+      await expect(service.create('order-1', dto)).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      expect(ticketRepository.createMany).not.toHaveBeenCalled();
     });
   });
 
