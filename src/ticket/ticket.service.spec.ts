@@ -105,6 +105,7 @@ describe('TicketService', () => {
   };
   let orderService: {
     findById: jest.Mock<OrderService['findById']>;
+    findItems: jest.Mock<OrderService['findItems']>;
     assertBatchesHaveStock: jest.Mock<OrderService['assertBatchesHaveStock']>;
   };
   let eventService: { findOne: jest.Mock<EventService['findOne']> };
@@ -124,6 +125,7 @@ describe('TicketService', () => {
     db.transaction.mockClear();
     orderService = {
       findById: jest.fn<OrderService['findById']>(),
+      findItems: jest.fn<OrderService['findItems']>(),
       assertBatchesHaveStock: jest.fn<OrderService['assertBatchesHaveStock']>(),
     };
     eventService = { findOne: jest.fn<EventService['findOne']>() };
@@ -324,6 +326,9 @@ describe('TicketService', () => {
 
     beforeEach(() => {
       orderService.findById.mockResolvedValue(makeOrder());
+      orderService.findItems.mockResolvedValue([
+        { ticketTypeId: 'type-1' },
+      ] as never);
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeService.findOne.mockResolvedValue(makeTicketType());
       usersService.findOne.mockResolvedValue({} as never);
@@ -449,6 +454,18 @@ describe('TicketService', () => {
 
       const [requested] = orderService.assertBatchesHaveStock.mock.calls[0];
       expect(requested).toEqual([{ ticketTypeId: 'type-1', quantity: 2 }]);
+    });
+
+    it('lança 422 e não insere quando o lote não pertence aos itens do pedido', async () => {
+      orderService.findItems.mockResolvedValue([
+        { ticketTypeId: 'other-type' },
+      ] as never);
+
+      await expect(service.create('order-1', dto)).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      expect(orderService.assertBatchesHaveStock).not.toHaveBeenCalled();
+      expect(ticketRepository.createMany).not.toHaveBeenCalled();
     });
 
     it('propaga o 422 e não insere quando o lote está sem vagas', async () => {

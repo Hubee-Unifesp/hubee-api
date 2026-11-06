@@ -564,6 +564,48 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
       ).toHaveLength(2);
     });
 
+    it('recusa emitir lote que não pertence aos itens do pedido (422)', async () => {
+      const boughtLot = await newLot(5);
+      const otherLot = await newLot(5);
+      const orderId = await paidOrder(boughtLot, 1);
+
+      const response = await issue('admin', orderId, [
+        { eventId, ticketTypeId: otherLot },
+      ]).expect(422);
+      expect(response.body.message).toContain(
+        `não pertence aos itens do pedido ${orderId}`,
+      );
+
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.ticketTypeId, otherLot)),
+      ).toHaveLength(0);
+    });
+
+    it('devolve a vaga ao lote quando um ingresso de pedido pago é cancelado', async () => {
+      // Lote de 2, pedido pago ocupa as 2 vagas.
+      const lot = await newLot(2);
+      const orderId = await paidOrder(lot, 2);
+
+      const [ticketToCancel] = await db
+        .select()
+        .from(schema.tickets)
+        .where(eq(schema.tickets.orderId, orderId));
+
+      await http()
+        .patch(`/tickets/${ticketToCancel.id}`)
+        .set(as('admin'))
+        .send({ status: 'cancelado' })
+        .expect(200);
+
+      // Com 1 ingresso cancelado, 1 vaga voltou ao lote.
+      await issue('admin', orderId, [{ eventId, ticketTypeId: lot }]).expect(
+        201,
+      );
+    });
+
     it('emissão manual só para ADMIN', async () => {
       const lot = await newLot(5);
       const orderId = await paidOrder(lot, 1);
