@@ -112,6 +112,16 @@ const ORGANIZER_ROUTES = [
   ...ORGANIZER_MANAGE_ROUTES,
 ];
 
+/**
+ * Rotas com `@OrgAccess(..., { from: 'event' })` resolvem a organização a
+ * partir do evento da URL e respondem 404 (e não 403) para quem não é membro
+ * da organização dona, evitando revelar a existência do evento. Rotas com
+ * `{ from: 'body' }` (`POST /events`) ou `{ from: 'any' }` (`/venues`)
+ * respondem 403.
+ */
+const isEventScoped = (route: { template: string }) =>
+  route.template.startsWith('/events/:');
+
 /** Rotas de pedido que ganham proteção com checagem de dono na GOL-103. */
 const PENDING_GOL_103_ROUTES = [
   'GET /orders',
@@ -277,8 +287,7 @@ describe('Proteção de rotas (GOL-114)', () => {
         expect(operation?.security).toEqual([{ bearer: [] }]);
         const statuses = Object.keys(operation?.responses ?? {});
         expect(statuses).toEqual(expect.arrayContaining(['401', '403']));
-        if (route.template.startsWith('/events/:'))
-          expect(statuses).toContain('404');
+        if (isEventScoped(route)) expect(statuses).toContain('404');
       },
     );
 
@@ -450,7 +459,7 @@ describe('Proteção de rotas (GOL-114)', () => {
         };
         return send(userToken);
       };
-      const byEvent = route.template.startsWith('/events/:');
+      const byEvent = isEventScoped(route);
       const needsManage = ORGANIZER_MANAGE_ROUTES.includes(route.label);
 
       afterEach(() => {

@@ -151,6 +151,26 @@ describe('Locais por organizadores (banco em memória)', () => {
         created.body.id,
       );
 
+      const detailed = await http()
+        .get(`/venues/${created.body.id}`)
+        .expect(200);
+      expect(detailed.body).toMatchObject({
+        id: created.body.id,
+        name: `Arena ${userName}`,
+        maxCapacity: 600,
+      });
+
+      const withAddressId = await http()
+        .post('/venues')
+        .set(as(userName))
+        .send({
+          name: `Anexo ${userName}`,
+          maxCapacity: 150,
+          addressId: created.body.address.id,
+        })
+        .expect(201);
+      expect(withAddressId.body.address.id).toBe(created.body.address.id);
+
       await http()
         .delete(`/venues/${created.body.id}`)
         .set(as(userName))
