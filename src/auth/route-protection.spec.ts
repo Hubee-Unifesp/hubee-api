@@ -102,6 +102,18 @@ const ORGANIZER_ROUTES = [
   ...ORGANIZER_MANAGE_ROUTES,
 ];
 
+/**
+ * ADMIN ou membro aceito de qualquer organização (`@OrganizerOnly`, GOL-202):
+ * catálogo compartilhado de fornecedores.
+ */
+const ORGANIZER_ONLY_ROUTES = [
+  'POST /suppliers',
+  'GET /suppliers',
+  'GET /suppliers/:id',
+  'PATCH /suppliers/:id',
+  'DELETE /suppliers/:id',
+];
+
 /** Rotas de pedido que ganham proteção com checagem de dono na GOL-103. */
 const PENDING_GOL_103_ROUTES = [
   'GET /orders',
@@ -171,19 +183,24 @@ const authenticatedRoutes = ROUTES.filter((r) =>
 const organizerRoutes = ROUTES.filter((r) =>
   ORGANIZER_ROUTES.includes(r.label),
 );
+const organizerOnlyRoutes = ROUTES.filter((r) =>
+  ORGANIZER_ONLY_ROUTES.includes(r.label),
+);
 const protectedRoutes = ROUTES.filter(
   (r) =>
     ![
       ...PUBLIC_ROUTES,
       ...AUTHENTICATED_ROUTES,
       ...ORGANIZER_ROUTES,
+      ...ORGANIZER_ONLY_ROUTES,
       ...PENDING_GOL_103_ROUTES,
     ].includes(r.label),
 );
 
 /**
- * Banco falso para o `OrganizationAccessGuard`: todo evento é da organização
- * `ID`, e o vínculo do usuário com ela é o que estiver em `membership.current`.
+ * Banco falso para o `OrganizationAccessGuard` e o `OrganizerGuard`: todo
+ * evento é da organização `ID`, e o vínculo do usuário com ela é o que
+ * estiver em `membership.current`.
  */
 const membership: { current?: Record<string, string> } = {};
 const fakeDrizzle = {
@@ -193,6 +210,20 @@ const fakeDrizzle = {
         if (table === events) return [{ organizerId: ID }];
         return membership.current ? [membership.current] : [];
       },
+      innerJoin: () => ({
+        where: () => ({
+          orderBy: async () =>
+            membership.current
+              ? [
+                  {
+                    orgId: ID,
+                    organizationName: 'Hubee',
+                    ...membership.current,
+                  },
+                ]
+              : [],
+        }),
+      }),
     }),
   }),
 };
@@ -271,6 +302,17 @@ describe('Proteção de rotas (GOL-114)', () => {
       },
     );
 
+    it.each(organizerOnlyRoutes.map((r) => [r.label, r] as const))(
+      '%s documenta Bearer e respostas 401/403',
+      (_label, route) => {
+        const operation = operationOf(route);
+        expect(operation?.security).toEqual([{ bearer: [] }]);
+        expect(Object.keys(operation?.responses ?? {})).toEqual(
+          expect.arrayContaining(['401', '403']),
+        );
+      },
+    );
+
     it.each(authenticatedRoutes.map((r) => [r.label, r] as const))(
       '%s documenta Bearer e resposta 401',
       (_label, route) => {
@@ -296,6 +338,7 @@ describe('Proteção de rotas (GOL-114)', () => {
       ...PUBLIC_ROUTES,
       ...AUTHENTICATED_ROUTES,
       ...ORGANIZER_ROUTES,
+      ...ORGANIZER_ONLY_ROUTES,
       ...PENDING_GOL_103_ROUTES,
     ])
       expect(labels).toContain(route);
@@ -480,6 +523,42 @@ describe('Proteção de rotas (GOL-114)', () => {
 
       it('2xx com token de ADMIN, sem vínculo', async () => {
         const response = await send(adminToken);
+        expect(response.status).toBeLessThan(300);
+      });
+    },
+  );
+
+  describe.each(organizerOnlyRoutes.map((r) => [r.label, r] as const))(
+    '%s (ADMIN ou membro de organização)',
+    (_label, route) => {
+      afterEach(() => {
+        membership.current = undefined;
+      });
+
+      it('401 sem token', async () => {
+        await call(route).expect(401);
+      });
+
+      it('401 com token inválido', async () => {
+        await call(route, 'token-invalido').expect(401);
+      });
+
+      it('403 para USER sem organização ativa', async () => {
+        await call(route, userToken).expect(403);
+      });
+
+      it('2xx para membro de organização', async () => {
+        membership.current = {
+          role: 'member',
+          permission: 'full',
+          inviteStatus: 'accepted',
+        };
+        const response = await call(route, userToken);
+        expect(response.status).toBeLessThan(300);
+      });
+
+      it('2xx com token de ADMIN', async () => {
+        const response = await call(route, adminToken);
         expect(response.status).toBeLessThan(300);
       });
     },

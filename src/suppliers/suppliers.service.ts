@@ -5,9 +5,12 @@ import {
   Inject,
 } from '@nestjs/common';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
+import { QuerySupplierDto } from './dto/query-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
-import { eq, or, isNull, and, ne } from 'drizzle-orm';
+import { eq, or, isNull, and, ne, ilike } from 'drizzle-orm';
 import { suppliers } from '../database/schema';
+
+const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
 
 @Injectable()
 export class SuppliersService {
@@ -40,8 +43,21 @@ export class SuppliersService {
     return newSupplier;
   }
 
-  async findAll() {
-    return this.db.select().from(suppliers).where(isNull(suppliers.deletedAt));
+  async findAll(query: QuerySupplierDto = {}) {
+    const conditions = [
+      isNull(suppliers.deletedAt),
+      query.search
+        ? ilike(suppliers.companyName, `%${escapeLike(query.search)}%`)
+        : undefined,
+      query.category
+        ? ilike(suppliers.category, escapeLike(query.category))
+        : undefined,
+    ].filter((c) => c !== undefined);
+
+    return this.db
+      .select()
+      .from(suppliers)
+      .where(and(...conditions));
   }
 
   async findOne(id: string) {
