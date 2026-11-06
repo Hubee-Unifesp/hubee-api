@@ -7,6 +7,7 @@ import { TicketTypeController } from './ticket-type.controller';
 import { TicketTypeService } from './ticket-type.service';
 import { TicketTypeResponseDto } from './dto/ticket-type-response.dto';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { DRIZZLE } from '../database/database.constants';
 
 /** Linha completa do banco, como o service a retorna. */
 const row = {
@@ -43,7 +44,10 @@ describe('TicketTypeController', () => {
     const module: TestingModule = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [TicketTypeController],
-      providers: [{ provide: TicketTypeService, useValue: service }],
+      providers: [
+        { provide: TicketTypeService, useValue: service },
+        { provide: DRIZZLE, useValue: {} },
+      ],
     }).compile();
 
     controller = module.get(TicketTypeController);

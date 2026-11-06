@@ -19,6 +19,9 @@ class Routes {
 
   @OrgAccess('write', { from: 'event', param: 'eventId' })
   writeByEvent() {}
+
+  @OrgAccess('write', { from: 'any' })
+  writeByAny() {}
 }
 
 /** Valida os filtros reais do guard (vínculo aceito, por usuário e organização). */
@@ -161,6 +164,25 @@ describe('OrganizationAccessGuard (banco em memória)', () => {
     for (const userName of ['pending', 'rejected', 'stranger'])
       await expect(guard.canActivate(context(userName))).rejects.toBeInstanceOf(
         NotFoundException,
+      );
+  });
+
+  it('resolve acesso em qualquer organização aceita ({ from: "any" })', async () => {
+    const context = (userName: string) =>
+      ({
+        switchToHttp: () => ({
+          getRequest: () => ({
+            user: { id: userIds[userName], email: 'x', role: 'USER' },
+          }),
+        }),
+        getHandler: () => Routes.prototype.writeByAny,
+        getClass: () => Routes,
+      }) as unknown as ExecutionContext;
+
+    await expect(guard.canActivate(context('full'))).resolves.toBe(true);
+    for (const userName of ['readOnly', 'pending', 'rejected', 'stranger'])
+      await expect(guard.canActivate(context(userName))).rejects.toBeInstanceOf(
+        ForbiddenException,
       );
   });
 });

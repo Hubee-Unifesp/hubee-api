@@ -85,14 +85,20 @@ const AUTHENTICATED_ROUTES = [
 ];
 
 /**
- * ADMIN ou membro da organização com `write` (`@OrgAccess`, GOL-144). Em
- * `POST /events` a organização vem do body; nas demais, do evento, e quem é
- * de fora da organização recebe 404 em vez de 403.
+ * ADMIN ou membro da organização com `write` (`@OrgAccess`, GOL-144 e GOL-206).
+ * Em `POST /events` a organização vem do body, em `/venues` vale qualquer
+ * organização aceita, e nas demais vem do evento (quem é de fora da organização
+ * recebe 404 em vez de 403).
  */
 const ORGANIZER_WRITE_ROUTES = [
   'POST /events',
   'PATCH /events/:id',
   'PATCH /events/:id/photo',
+  'POST /events/:eventId/ticket-types',
+  'PATCH /events/:eventId/ticket-types/:id',
+  'DELETE /events/:eventId/ticket-types/:id',
+  'POST /venues',
+  'PATCH /venues/:id',
 ];
 
 /**
@@ -271,7 +277,8 @@ describe('Proteção de rotas (GOL-114)', () => {
         expect(operation?.security).toEqual([{ bearer: [] }]);
         const statuses = Object.keys(operation?.responses ?? {});
         expect(statuses).toEqual(expect.arrayContaining(['401', '403']));
-        if (route.template.includes(':id')) expect(statuses).toContain('404');
+        if (route.template.startsWith('/events/:'))
+          expect(statuses).toContain('404');
       },
     );
 
@@ -443,7 +450,7 @@ describe('Proteção de rotas (GOL-114)', () => {
         };
         return send(userToken);
       };
-      const byEvent = route.template.includes(':id');
+      const byEvent = route.template.startsWith('/events/:');
       const needsManage = ORGANIZER_MANAGE_ROUTES.includes(route.label);
 
       afterEach(() => {
