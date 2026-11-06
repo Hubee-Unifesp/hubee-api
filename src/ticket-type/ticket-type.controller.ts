@@ -22,7 +22,7 @@ import { CreateTicketTypeDto } from './dto/create-ticket-type.dto';
 import { UpdateTicketTypeDto } from './dto/update-ticket-type.dto';
 import { TicketTypeService } from './ticket-type.service';
 import { toResponse } from '../common/serialization/to-response';
-import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import { OrgAccess } from '../auth/decorators/org-access.decorator';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import {
   CurrentUser,
@@ -34,7 +34,7 @@ import {
 export class TicketTypeController {
   constructor(private readonly ticketTypeService: TicketTypeService) {}
 
-  @AdminOnly()
+  @OrgAccess('write', { from: 'event', param: 'eventId' })
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: TicketTypeResponseDto })
@@ -75,7 +75,7 @@ export class TicketTypeController {
     );
   }
 
-  @AdminOnly()
+  @OrgAccess('write', { from: 'event', param: 'eventId' })
   @Patch(':id')
   @ApiOkResponse({ type: TicketTypeResponseDto })
   async update(
@@ -89,7 +89,7 @@ export class TicketTypeController {
     );
   }
 
-  @AdminOnly()
+  @OrgAccess('write', { from: 'event', param: 'eventId' })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
