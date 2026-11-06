@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { asc, eq, inArray, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
@@ -54,30 +54,36 @@ export class OrderItemRepository {
     const ticketRows = await executor
       .select({
         ticketTypeId: tickets.ticketTypeId,
-        issued: sql<number>`count(*)::int`,
+        issued: sql<number>`count(*) filter (where ${tickets.status} <> 'cancelado')::int`,
+        cancelled: sql<number>`count(*) filter (where ${tickets.status} = 'cancelado')::int`,
       })
       .from(tickets)
-      .where(
-        and(
-          inArray(tickets.ticketTypeId, ticketTypeIds),
-          ne(tickets.status, 'cancelado'),
-        ),
-      )
+      .where(inArray(tickets.ticketTypeId, ticketTypeIds))
       .groupBy(tickets.ticketTypeId);
 
-    const issuedByType = new Map(
-      ticketRows.map((row) => [row.ticketTypeId, row.issued]),
+    const statsByType = new Map(
+      ticketRows.map((row) => [
+        row.ticketTypeId,
+        { issued: row.issued, cancelled: row.cancelled },
+      ]),
     );
     const result = new Map<string, number>();
 
     for (const row of itemRows) {
-      const issued = issuedByType.get(row.ticketTypeId) ?? 0;
-      result.set(row.ticketTypeId, row.pending + Math.max(row.paid, issued));
-      issuedByType.delete(row.ticketTypeId);
+      const stats = statsByType.get(row.ticketTypeId) ?? {
+        issued: 0,
+        cancelled: 0,
+      };
+      const paidActive = Math.max(0, row.paid - stats.cancelled);
+      result.set(
+        row.ticketTypeId,
+        row.pending + Math.max(paidActive, stats.issued),
+      );
+      statsByType.delete(row.ticketTypeId);
     }
 
-    for (const [ticketTypeId, issued] of issuedByType) {
-      result.set(ticketTypeId, issued);
+    for (const [ticketTypeId, stats] of statsByType) {
+      result.set(ticketTypeId, stats.issued);
     }
 
     return result;
