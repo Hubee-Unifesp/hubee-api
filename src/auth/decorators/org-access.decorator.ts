@@ -43,11 +43,13 @@ export function OrgAccess(
       description: `Usuário sem o nível de acesso "${level}" na organização.`,
       schema: errorSchema,
     }),
-    ...(source.from === 'event'
+    ...(source.from === 'event' || source.from === 'param'
       ? [
           ApiNotFoundResponse({
             description:
-              'Evento inexistente ou de uma organização da qual o usuário não é membro.',
+              source.from === 'event'
+                ? 'Evento inexistente ou de uma organização da qual o usuário não é membro.'
+                : 'Organização inexistente ou da qual o usuário não é membro.',
             schema: errorSchema,
           }),
         ]

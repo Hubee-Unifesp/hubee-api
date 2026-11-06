@@ -5,7 +5,7 @@ import type {
   DbExecutor,
   DrizzleDatabase,
 } from '../database/database.provider';
-import { organizations } from '../database/schema';
+import { organizations, organizationUsers } from '../database/schema';
 
 export interface FindAllOrganizationsFilters {
   name?: string;
@@ -44,6 +44,17 @@ export class OrganizationRepository {
       .values(data)
       .returning();
     return organization;
+  }
+
+  async addMember(
+    data: typeof organizationUsers.$inferInsert,
+    executor: DbExecutor = this.db,
+  ) {
+    const [membership] = await executor
+      .insert(organizationUsers)
+      .values(data)
+      .returning();
+    return membership;
   }
 
   async update(
