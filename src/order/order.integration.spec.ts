@@ -63,6 +63,13 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
   const pay = (name: string, orderId: string, paymentMethod = 'pix') =>
     http().post('/payments').set(as(name)).send({ orderId, paymentMethod });
 
+  /** Emissão manual de ingressos (rota ADMIN) para um pedido já pago. */
+  const issue = (name: string, orderId: string, items: object[]) =>
+    http()
+      .post(`/orders/${orderId}/tickets`)
+      .set(as(name))
+      .send({ tickets: items });
+
   beforeAll(async () => {
     pglite = new PGlite();
     db = drizzle(pglite, { schema });
@@ -483,6 +490,85 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
       ).toHaveLength(0);
 
       await pay('ana', created.body.id).expect(201);
+    });
+  });
+
+  describe('POST /orders/:orderId/tickets (emissão manual, GOL-216)', () => {
+    /** Cria um pedido de `quantity` ingressos de um lote e o deixa pago. */
+    async function paidOrder(lotId: string, quantity: number) {
+      const created = await order('ana', [
+        { ticketTypeId: lotId, quantity },
+      ]).expect(201);
+      await pay('ana', created.body.id).expect(201);
+      return created.body.id as string;
+    }
+
+    it('recusa emitir acima da capacidade do lote e não cria ingresso', async () => {
+      // Lote de 2: o pedido pago já ocupa as 2 vagas via checkout.
+      const lot = await newLot(2);
+      const orderId = await paidOrder(lot, 2);
+
+      const response = await issue('admin', orderId, [
+        { eventId, ticketTypeId: lot },
+      ]).expect(422);
+      expect(response.body.message).toContain('esgotado');
+
+      // Continua com os 2 ingressos do checkout, nada a mais.
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.ticketTypeId, lot)),
+      ).toHaveLength(2);
+    });
+
+    it('emite manualmente quando ainda há vaga no lote e desconta do estoque para as próximas chamadas', async () => {
+      // Lote de 3, pedido pago ocupa 2 -> sobra 1 vaga.
+      const lot = await newLot(3);
+      const orderId = await paidOrder(lot, 2);
+
+      await issue('admin', orderId, [{ eventId, ticketTypeId: lot }]).expect(
+        201,
+      );
+
+      // A 3ª vaga foi consumida pela emissão manual: nova emissão ou compra deve falhar com 422.
+      await issue('admin', orderId, [{ eventId, ticketTypeId: lot }]).expect(
+        422,
+      );
+      await order('bruno', [{ ticketTypeId: lot, quantity: 1 }]).expect(422);
+
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.ticketTypeId, lot)),
+      ).toHaveLength(3);
+    });
+
+    it('recusa a chamada inteira quando a soma dos itens excede a vaga', async () => {
+      // Lote de 3, pedido pago ocupa 2 -> sobra 1; pedir 2 de uma vez estoura.
+      const lot = await newLot(3);
+      const orderId = await paidOrder(lot, 2);
+
+      await issue('admin', orderId, [
+        { eventId, ticketTypeId: lot },
+        { eventId, ticketTypeId: lot },
+      ]).expect(422);
+
+      // Atomicidade: nenhum dos 2 foi inserido.
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.ticketTypeId, lot)),
+      ).toHaveLength(2);
+    });
+
+    it('emissão manual só para ADMIN', async () => {
+      const lot = await newLot(5);
+      const orderId = await paidOrder(lot, 1);
+
+      await issue('ana', orderId, [{ eventId, ticketTypeId: lot }]).expect(403);
     });
   });
 });
