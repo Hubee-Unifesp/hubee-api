@@ -98,10 +98,23 @@ export class TicketService {
     );
     await this.ensureUsersExist(holderUserIds);
 
-    // A checagem de estoque e o INSERT correm na mesma transaction: o
-    // `OrderService` trava cada lote (`FOR UPDATE`) e confere a capacidade; se
-    // algum estourar, a exception (422) aborta tudo e nada é emitido.
+    // A checagem dos itens do pedido, de estoque e o INSERT correm na mesma
+    // transaction: o `OrderService` trava cada lote (`FOR UPDATE`) e confere a
+    // capacidade; se algum estourar, a exception (422) aborta tudo e nada é emitido.
     return this.db.transaction(async (tx) => {
+      const orderItems = await this.orderService.findItems(orderId, tx);
+      const allowedTicketTypeIds = new Set(
+        orderItems.map((item) => item.ticketTypeId),
+      );
+
+      for (const { ticketTypeId } of dto.tickets) {
+        if (!allowedTicketTypeIds.has(ticketTypeId)) {
+          throw new UnprocessableEntityException(
+            `O lote ${ticketTypeId} não pertence aos itens do pedido ${orderId}`,
+          );
+        }
+      }
+
       await this.orderService.assertBatchesHaveStock(
         this.countRequestedByType(dto),
         tx,

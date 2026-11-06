@@ -53,7 +53,7 @@ export class TicketController {
   @ApiCreatedResponse({ type: TicketResponseDto, isArray: true })
   @ApiUnprocessableEntityResponse({
     description:
-      'Pedido não pago, evento cancelado ou lote sem vagas suficientes',
+      'Pedido não pago, evento cancelado, lote fora do pedido ou sem vagas suficientes',
   })
   async create(
     @Param('orderId', ParseUUIDPipe) orderId: string,
