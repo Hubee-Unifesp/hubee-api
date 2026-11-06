@@ -1,9 +1,4 @@
-import {
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -12,7 +7,8 @@ const trim = ({ value }: { value: unknown }) =>
 
 export class QuerySupplierDto {
   @ApiPropertyOptional({
-    description: 'Busca textual pelo nome da empresa / fornecedor (companyName)',
+    description:
+      'Busca textual pelo nome da empresa / fornecedor (companyName)',
   })
   @IsOptional()
   @Transform(trim)
