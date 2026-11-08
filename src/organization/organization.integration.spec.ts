@@ -192,4 +192,3 @@ describe('Organizações — cadastro por usuário autenticado e vínculo de adm
     });
   });
 });
-
