@@ -51,7 +51,7 @@ export class VenueController {
     return toResponse(VenueResponseDto, await this.venueService.findOne(id));
   }
 
-  @OrgAccess('write', { from: 'any' })
+  @AdminOnly()
   @Patch(':id')
   @ApiOkResponse({ type: VenueResponseDto })
   async update(

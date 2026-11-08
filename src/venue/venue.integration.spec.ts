@@ -66,9 +66,9 @@ describe('Locais por organizadores (banco em memória)', () => {
     );
     await app.init();
 
-    const [{ id: orgId }] = await db
+    const [{ id: orgA }, { id: orgB }] = await db
       .insert(schema.organizations)
-      .values({ name: 'Atlética' })
+      .values([{ name: 'Atlética' }, { name: 'Bateria' }])
       .returning();
 
     const names = ['organizer', 'orgAdmin', 'readOnly', 'buyer', 'admin'];
@@ -86,27 +86,55 @@ describe('Locais por organizadores (banco em memória)', () => {
 
     await db.insert(schema.organizationUsers).values([
       {
-        orgId,
+        orgId: orgA,
         userId: users[0].id,
         role: 'member',
         permission: 'full',
         inviteStatus: 'accepted',
       },
       {
-        orgId,
+        orgId: orgA,
         userId: users[1].id,
         role: 'admin',
         permission: 'full',
         inviteStatus: 'accepted',
       },
       {
-        orgId,
+        orgId: orgA,
         userId: users[2].id,
         role: 'member',
         permission: 'read_only',
         inviteStatus: 'accepted',
       },
     ]);
+
+    const [addressB] = await db
+      .insert(schema.addresses)
+      .values({
+        zipCode: '01000-000',
+        street: 'Rua B',
+        number: '10',
+        neighborhood: 'Centro',
+        city: 'São Paulo',
+        state: 'SP',
+      })
+      .returning();
+    const [venueOfB] = await db
+      .insert(schema.venues)
+      .values({
+        addressId: addressB.id,
+        name: 'Quadra da Bateria',
+        maxCapacity: 300,
+      })
+      .returning();
+    await db.insert(schema.events).values({
+      name: 'Ensaio da Bateria',
+      organizerId: orgB,
+      venueId: venueOfB.id,
+      startDate: new Date('2026-12-12T20:00:00Z'),
+      endDate: new Date('2026-12-13T02:00:00Z'),
+      status: 'published',
+    });
 
     const jwt = module.get(JwtService);
     for (const user of users)
@@ -123,7 +151,7 @@ describe('Locais por organizadores (banco em memória)', () => {
   });
 
   it.each(['organizer', 'orgAdmin'])(
-    'organizador (%s) cadastra, edita e consulta local, mas não exclui',
+    'organizador (%s) cadastra e consulta local, mas não edita nem exclui',
     async (userName) => {
       const created = await http()
         .post('/venues')
@@ -139,13 +167,6 @@ describe('Locais por organizadores (banco em memória)', () => {
         }),
       });
 
-      const updated = await http()
-        .patch(`/venues/${created.body.id}`)
-        .set(as(userName))
-        .send({ maxCapacity: 600 })
-        .expect(200);
-      expect(updated.body.maxCapacity).toBe(600);
-
       const listed = await http().get('/venues').expect(200);
       expect(listed.body.map((v: { id: string }) => v.id)).toContain(
         created.body.id,
@@ -157,7 +178,7 @@ describe('Locais por organizadores (banco em memória)', () => {
       expect(detailed.body).toMatchObject({
         id: created.body.id,
         name: `Arena ${userName}`,
-        maxCapacity: 600,
+        maxCapacity: 400,
       });
 
       const withAddressId = await http()
@@ -172,8 +193,31 @@ describe('Locais por organizadores (banco em memória)', () => {
       expect(withAddressId.body.address.id).toBe(created.body.address.id);
 
       await http()
+        .patch(`/venues/${created.body.id}`)
+        .set(as(userName))
+        .send({ maxCapacity: 600 })
+        .expect(403);
+
+      await http()
         .delete(`/venues/${created.body.id}`)
         .set(as(userName))
+        .expect(403);
+    },
+  );
+
+  it.each(['organizer', 'orgAdmin'])(
+    'organizador (%s) não consegue editar nem desativar local usado por evento de outra organização',
+    async (userName) => {
+      const listed = await http().get('/venues').expect(200);
+      const venueOfB = listed.body.find(
+        (v: { name: string }) => v.name === 'Quadra da Bateria',
+      );
+      expect(venueOfB).toBeDefined();
+
+      await http()
+        .patch(`/venues/${venueOfB.id}`)
+        .set(as(userName))
+        .send({ active: false, maxCapacity: 50 })
         .expect(403);
     },
   );
@@ -200,12 +244,19 @@ describe('Locais por organizadores (banco em memória)', () => {
     },
   );
 
-  it('ADMIN global pode excluir local sem eventos futuros', async () => {
+  it('ADMIN global pode editar e excluir local sem eventos futuros', async () => {
     const { body: venue } = await http()
       .post('/venues')
       .set(as('admin'))
       .send(newVenue('Local Temporário'))
       .expect(201);
+
+    const updated = await http()
+      .patch(`/venues/${venue.id}`)
+      .set(as('admin'))
+      .send({ maxCapacity: 600 })
+      .expect(200);
+    expect(updated.body.maxCapacity).toBe(600);
 
     await http().delete(`/venues/${venue.id}`).set(as('admin')).expect(204);
   });
