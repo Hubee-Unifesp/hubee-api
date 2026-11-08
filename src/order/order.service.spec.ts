@@ -436,68 +436,146 @@ describe('OrderService', () => {
 
   describe('update()', () => {
     it('recusa com 403 quando quem altera não é ADMIN', async () => {
-      orderRepository.findById.mockResolvedValue(makeOrder());
-
       await expect(
-        service.update('order-1', { totalAmount: 0 }, mockAuthUser),
+        service.update('order-1', { status: 'cancelado' }, mockAuthUser),
       ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(orderRepository.findByIdForUpdate).not.toHaveBeenCalled();
       expect(orderRepository.update).not.toHaveBeenCalled();
     });
 
-    it('atualiza o status de um pedido pendente', async () => {
-      const updated = makeOrder({ status: 'pago' });
-      orderRepository.findById.mockResolvedValue(makeOrder());
+    it('cancela um pedido pendente travando o pedido na transaction', async () => {
+      const updated = makeOrder({ status: 'cancelado' });
+      orderRepository.findByIdForUpdate.mockResolvedValue(makeOrder());
       orderRepository.update.mockResolvedValue(updated);
 
       const result = await service.update(
         'order-1',
-        { status: 'pago' },
+        { status: 'cancelado' },
         mockAdmin,
       );
 
-      expect(orderRepository.update).toHaveBeenCalledWith('order-1', {
-        status: 'pago',
-      });
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(orderRepository.findByIdForUpdate).toHaveBeenCalledWith(
+        'order-1',
+        tx,
+      );
+      expect(orderRepository.update).toHaveBeenCalledWith(
+        'order-1',
+        { status: 'cancelado' },
+        tx,
+      );
       expect(result).toEqual(updated);
     });
 
-    it('lança NotFound e não escreve quando o pedido não existe', async () => {
-      orderRepository.findById.mockResolvedValue(undefined);
+    it('recusa marcar pedido pendente como pago (só o checkout paga) com 422', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(makeOrder());
 
       await expect(
         service.update('order-1', { status: 'pago' }, mockAdmin),
+      ).rejects.toThrow(
+        new UnprocessableEntityException(
+          'Pedido só pode ser marcado como pago pelo checkout (POST /payments)',
+        ),
+      );
+      expect(orderRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('recusa cancelar pedido pago (ingressos continuariam emitidos) com 422', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(
+        makeOrder({ status: 'pago' }),
+      );
+
+      await expect(
+        service.update('order-1', { status: 'cancelado' }, mockAdmin),
+      ).rejects.toThrow(
+        new UnprocessableEntityException(
+          'Pedido pago não pode ser cancelado; registre um estorno',
+        ),
+      );
+      expect(orderRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('recusa voltar pedido pago para pendente com 422', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(
+        makeOrder({ status: 'pago' }),
+      );
+
+      await expect(
+        service.update('order-1', { status: 'pendente' }, mockAdmin),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(orderRepository.update).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['sem status', {}],
+      ['com o mesmo status', { status: 'pago' as const }],
+    ])(
+      'devolve o pedido sem escrever quando o corpo vem %s',
+      async (_label, dto) => {
+        const paid = makeOrder({ status: 'pago' });
+        orderRepository.findByIdForUpdate.mockResolvedValue(paid);
+
+        await expect(service.update('order-1', dto, mockAdmin)).resolves.toBe(
+          paid,
+        );
+        expect(orderRepository.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('lança NotFound e não escreve quando o pedido não existe', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(undefined as never);
+
+      await expect(
+        service.update('order-1', { status: 'cancelado' }, mockAdmin),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(orderRepository.update).not.toHaveBeenCalled();
     });
 
     it('recusa alteração de pedido cancelado com 422', async () => {
-      orderRepository.findById.mockResolvedValue(
+      orderRepository.findByIdForUpdate.mockResolvedValue(
         makeOrder({ status: 'cancelado' }),
       );
 
       await expect(
-        service.update('order-1', { status: 'pago' }, mockAdmin),
+        service.update('order-1', { status: 'pendente' }, mockAdmin),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
       expect(orderRepository.update).not.toHaveBeenCalled();
     });
   });
 
   describe('cancel()', () => {
-    it('cancela marcando o status em vez de apagar a linha', async () => {
-      orderRepository.findById.mockResolvedValue(makeOrder());
+    it('cancela marcando o status em vez de apagar a linha, com o pedido travado', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(makeOrder());
       orderRepository.update.mockResolvedValue(
         makeOrder({ status: 'cancelado' }),
       );
 
       await service.cancel('order-1', mockAuthUser);
 
-      expect(orderRepository.update).toHaveBeenCalledWith('order-1', {
-        status: 'cancelado',
-      });
+      expect(orderRepository.findByIdForUpdate).toHaveBeenCalledWith(
+        'order-1',
+        tx,
+      );
+      expect(orderRepository.update).toHaveBeenCalledWith(
+        'order-1',
+        { status: 'cancelado' },
+        tx,
+      );
     });
 
     it('lança NotFound quando o pedido não existe', async () => {
-      orderRepository.findById.mockResolvedValue(undefined);
+      orderRepository.findByIdForUpdate.mockResolvedValue(undefined as never);
+
+      await expect(
+        service.cancel('order-1', mockAuthUser),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(orderRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('lança NotFound quando o pedido é de outra pessoa', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(
+        makeOrder({ userId: 'outra-pessoa' }),
+      );
 
       await expect(
         service.cancel('order-1', mockAuthUser),
@@ -506,7 +584,7 @@ describe('OrderService', () => {
     });
 
     it('recusa cancelar pedido já cancelado com 422', async () => {
-      orderRepository.findById.mockResolvedValue(
+      orderRepository.findByIdForUpdate.mockResolvedValue(
         makeOrder({ status: 'cancelado' }),
       );
 
@@ -517,7 +595,9 @@ describe('OrderService', () => {
     });
 
     it('recusa cancelar pedido pago com 422', async () => {
-      orderRepository.findById.mockResolvedValue(makeOrder({ status: 'pago' }));
+      orderRepository.findByIdForUpdate.mockResolvedValue(
+        makeOrder({ status: 'pago' }),
+      );
 
       await expect(
         service.cancel('order-1', mockAuthUser),
@@ -541,7 +621,7 @@ describe('OrderService', () => {
     });
 
     it('responde NotFound para pedido inexistente', async () => {
-      orderRepository.findByIdForUpdate.mockResolvedValue(undefined);
+      orderRepository.findByIdForUpdate.mockResolvedValue(undefined as never);
 
       await expect(
         service.lockPendingForCheckout('order-1', mockAuthUser, tx as never),

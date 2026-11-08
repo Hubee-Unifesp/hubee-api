@@ -12,7 +12,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import { pushSchema } from 'drizzle-kit/api';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import request from 'supertest';
 import { DRIZZLE } from '../database/database.constants';
@@ -490,6 +490,125 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
       ).toHaveLength(0);
 
       await pay('ana', created.body.id).expect(201);
+    });
+  });
+
+  describe('PATCH /orders/:id (GOL-214)', () => {
+    const patch = (name: string, orderId: string, body: object) =>
+      http().patch(`/orders/${orderId}`).set(as(name)).send(body);
+
+    const statusOf = async (orderId: string) => {
+      const [row] = await db
+        .select()
+        .from(schema.orders)
+        .where(eq(schema.orders.id, orderId));
+      return row;
+    };
+
+    it('recusa alterar totalAmount com 400 e não mexe no pedido', async () => {
+      const lot = await newLot(5, 50);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+
+      await patch('admin', created.body.id, { totalAmount: 0 }).expect(400);
+      await patch('admin', created.body.id, {
+        status: 'pendente',
+        totalAmount: 0,
+      }).expect(400);
+
+      expect(await statusOf(created.body.id)).toMatchObject({
+        status: 'pendente',
+        totalAmount: 100,
+      });
+    });
+
+    it('recusa marcar pedido pendente como pago (422): sem pagamento e sem ingressos', async () => {
+      const lot = await newLot(5);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+
+      const response = await patch('admin', created.body.id, {
+        status: 'pago',
+      }).expect(422);
+
+      expect(response.body.message).toContain('checkout');
+      expect((await statusOf(created.body.id)).status).toBe('pendente');
+      expect(
+        await db
+          .select()
+          .from(schema.payments)
+          .where(eq(schema.payments.orderId, created.body.id)),
+      ).toHaveLength(0);
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.orderId, created.body.id)),
+      ).toHaveLength(0);
+    });
+
+    it('recusa cancelar pedido pago (422): ingressos seguem válidos e a vaga não volta ao lote', async () => {
+      const lot = await newLot(2);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+      await pay('ana', created.body.id).expect(201);
+
+      await patch('admin', created.body.id, { status: 'cancelado' }).expect(
+        422,
+      );
+
+      expect((await statusOf(created.body.id)).status).toBe('pago');
+      const tickets = await db
+        .select()
+        .from(schema.tickets)
+        .where(eq(schema.tickets.orderId, created.body.id));
+      expect(tickets.map((ticket) => ticket.status)).toEqual([
+        'emitido',
+        'emitido',
+      ]);
+      await order('bruno', [{ ticketTypeId: lot, quantity: 1 }]).expect(422);
+    });
+
+    it('cancela pedido pendente e devolve a vaga ao lote', async () => {
+      const lot = await newLot(1);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+
+      const response = await patch('admin', created.body.id, {
+        status: 'cancelado',
+      }).expect(200);
+
+      expect(response.body.status).toBe('cancelado');
+      await order('bruno', [{ ticketTypeId: lot, quantity: 1 }]).expect(201);
+      await pay('ana', created.body.id).expect(422);
+    });
+
+    it('nenhum pedido cancelado fica com ingresso emitido', async () => {
+      const cancelledWithValidTickets = await db
+        .select({ id: schema.tickets.id })
+        .from(schema.tickets)
+        .innerJoin(schema.orders, eq(schema.orders.id, schema.tickets.orderId))
+        .where(
+          and(
+            eq(schema.orders.status, 'cancelado'),
+            eq(schema.tickets.status, 'emitido'),
+          ),
+        );
+
+      expect(cancelledWithValidTickets).toEqual([]);
+    });
+
+    it('PATCH continua exclusivo de ADMIN', async () => {
+      const lot = await newLot(5);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+
+      await patch('ana', created.body.id, { status: 'cancelado' }).expect(403);
     });
   });
 

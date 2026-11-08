@@ -18,6 +18,20 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderItemRepository } from './order-item.repository';
 import { FindAllOrdersFilters, OrderRepository } from './order.repository';
+import type { OrderStatus } from '../database/schema';
+
+/**
+ * Trocas de status aceitas no `PATCH /orders/:id`. `pago` nunca é destino
+ * manual: só o checkout paga, porque é ele que registra o pagamento e emite os
+ * ingressos. Pedido pago também não pode ser cancelado aqui, senão os
+ * ingressos continuariam `emitido` enquanto a vaga volta ao lote; o caminho
+ * para desfazer uma compra paga é o estorno.
+ */
+const MANUAL_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  pendente: ['cancelado'],
+  pago: [],
+  cancelado: [],
+};
 
 @Injectable()
 export class OrderService {
@@ -60,30 +74,46 @@ export class OrderService {
       );
     }
 
-    const order = await this.ensureAccessible(id, user);
-    if (order.status === 'cancelado') {
-      throw new UnprocessableEntityException(
-        'Pedido cancelado não pode ser alterado',
-      );
-    }
+    // O pedido fica travado até o fim da transaction: um checkout ao mesmo
+    // tempo espera, e a regra abaixo sempre enxerga o status atual.
+    return this.db.transaction(async (tx) => {
+      const order = await this.lockAccessible(id, user, tx);
+      if (order.status === 'cancelado') {
+        throw new UnprocessableEntityException(
+          'Pedido cancelado não pode ser alterado',
+        );
+      }
 
-    return this.orderRepository.update(id, dto);
+      const target = dto.status;
+      if (target === undefined || target === order.status) {
+        return order;
+      }
+
+      assertManualTransition(order.status, target);
+      return this.orderRepository.update(id, { status: target }, tx);
+    });
   }
 
+  /**
+   * Cancela o pedido do usuário. Trava o pedido antes de conferir o status
+   * para não cancelar um pedido que um checkout simultâneo acabou de pagar.
+   */
   async cancel(id: string, user: AuthenticatedUser): Promise<void> {
-    const order = await this.ensureAccessible(id, user);
+    await this.db.transaction(async (tx) => {
+      const order = await this.lockAccessible(id, user, tx);
 
-    if (order.status === 'cancelado') {
-      throw new UnprocessableEntityException('Pedido já está cancelado');
-    }
+      if (order.status === 'cancelado') {
+        throw new UnprocessableEntityException('Pedido já está cancelado');
+      }
 
-    if (order.status === 'pago') {
-      throw new UnprocessableEntityException(
-        'Pedido pago não pode ser cancelado; registre um estorno',
-      );
-    }
+      if (order.status === 'pago') {
+        throw new UnprocessableEntityException(
+          'Pedido pago não pode ser cancelado; registre um estorno',
+        );
+      }
 
-    await this.orderRepository.update(id, { status: 'cancelado' });
+      await this.orderRepository.update(id, { status: 'cancelado' }, tx);
+    });
   }
 
   /**
@@ -96,10 +126,7 @@ export class OrderService {
     user: AuthenticatedUser,
     executor: DbExecutor,
   ) {
-    const order = await this.orderRepository.findByIdForUpdate(id, executor);
-    if (!order || !canAccess(user, order.userId)) {
-      throw new NotFoundException(`Pedido ${id} não encontrado`);
-    }
+    const order = await this.lockAccessible(id, user, executor);
     if (order.status === 'pago') {
       throw new UnprocessableEntityException('Pedido já foi pago');
     }
@@ -202,6 +229,22 @@ export class OrderService {
     });
   }
 
+  /**
+   * Trava o pedido (`FOR UPDATE`) até o fim da transaction. Pedido de outra
+   * pessoa responde 404, igual a pedido inexistente.
+   */
+  private async lockAccessible(
+    id: string,
+    user: AuthenticatedUser,
+    executor: DbExecutor,
+  ) {
+    const order = await this.orderRepository.findByIdForUpdate(id, executor);
+    if (!order || !canAccess(user, order.userId)) {
+      throw new NotFoundException(`Pedido ${id} não encontrado`);
+    }
+    return order;
+  }
+
   /** Pedido de outra pessoa responde 404, para não revelar quais ids existem. */
   private async ensureAccessible(id: string, user: AuthenticatedUser) {
     const order = await this.findById(id);
@@ -210,6 +253,25 @@ export class OrderService {
     }
     return order;
   }
+}
+
+/** Lança 422 com o motivo quando a troca de status não é permitida no PATCH. */
+function assertManualTransition(from: OrderStatus, to: OrderStatus) {
+  if (MANUAL_STATUS_TRANSITIONS[from].includes(to)) return;
+
+  if (to === 'pago') {
+    throw new UnprocessableEntityException(
+      'Pedido só pode ser marcado como pago pelo checkout (POST /payments)',
+    );
+  }
+  if (from === 'pago') {
+    throw new UnprocessableEntityException(
+      'Pedido pago não pode ser cancelado; registre um estorno',
+    );
+  }
+  throw new UnprocessableEntityException(
+    `Não é permitido alterar o pedido de '${from}' para '${to}'`,
+  );
 }
 
 /** Soma as linhas repetidas do mesmo lote, para validar o saldo uma vez só. */
