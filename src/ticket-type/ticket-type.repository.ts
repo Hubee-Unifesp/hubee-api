@@ -1,17 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
   DrizzleDatabase,
 } from '../database/database.provider';
+import { events, orderItems, ticketTypes, tickets } from '../database/schema';
 import {
-  events,
-  orderItems,
-  orders,
-  ticketTypes,
-  tickets,
-} from '../database/schema';
+  sumCommittedByTicketType,
+  withAvailability,
+} from '../order/order-reservation';
 
 /**
  * Toda leitura e escrita recebe o `eventId` junto do `id`: o tipo de ingresso
@@ -22,12 +20,22 @@ import {
 export class TicketTypeRepository {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDatabase) {}
 
+  /** Lotes do evento com o saldo real (`available`) de cada um. */
   async findAll(eventId: string, executor: DbExecutor = this.db) {
-    return executor
+    const rows = await executor
       .select()
       .from(ticketTypes)
       .where(eq(ticketTypes.eventId, eventId))
       .orderBy(asc(ticketTypes.createdAt));
+    return withAvailability(executor, rows);
+  }
+
+  /** Acrescenta o saldo real (`available`) a lotes já carregados. */
+  withAvailability<T extends { id: string; quantity: number }>(
+    rows: T[],
+    executor: DbExecutor = this.db,
+  ) {
+    return withAvailability(executor, rows);
   }
 
   async findById(eventId: string, id: string, executor: DbExecutor = this.db) {
@@ -107,37 +115,14 @@ export class TicketTypeRepository {
   }
 
   /**
-   * Retorna a quantidade já comprometida (vendida ou reservada) do lote:
-   * o maior valor entre ingressos emitidos/usados e itens de pedidos pendentes/pagos.
+   * Quantidade já comprometida (vendida ou reservada dentro do prazo) do lote,
+   * pela mesma conta que valida o estoque na compra.
    */
   async countCommitted(
     id: string,
     executor: DbExecutor = this.db,
   ): Promise<number> {
-    const [ticketsCountRow] = await executor
-      .select({ count: sql<number>`count(*)::int` })
-      .from(tickets)
-      .where(
-        and(eq(tickets.ticketTypeId, id), ne(tickets.status, 'cancelado')),
-      );
-
-    const ticketsCount = ticketsCountRow?.count ?? 0;
-
-    const [ordersCountRow] = await executor
-      .select({
-        reserved: sql<number>`coalesce(sum(${orderItems.quantity}), 0)::int`,
-      })
-      .from(orderItems)
-      .innerJoin(orders, eq(orders.id, orderItems.orderId))
-      .where(
-        and(
-          eq(orderItems.ticketTypeId, id),
-          inArray(orders.status, ['pendente', 'pago']),
-        ),
-      );
-
-    const ordersCount = ordersCountRow?.reserved ?? 0;
-
-    return Math.max(ticketsCount, ordersCount);
+    const committed = await sumCommittedByTicketType(executor, [id]);
+    return committed.get(id) ?? 0;
   }
 }

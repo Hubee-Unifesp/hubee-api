@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { canAccess } from '../auth/ownership';
@@ -46,14 +47,21 @@ export class PaymentService {
    * na mesma transaction: se algo falhar, o pedido continua pendente e nenhum
    * ingresso é emitido. O pedido fica travado, então dois checkouts ao mesmo
    * tempo não emitem os ingressos duas vezes.
+   *
+   * Pedido com a reserva vencida é cancelado (e a transaction confirma esse
+   * cancelamento) antes de responder 422: o saldo dele já voltou ao lote.
    */
-  checkout(dto: CheckoutDto, user: AuthenticatedUser) {
-    return this.db.transaction(async (tx) => {
+  async checkout(dto: CheckoutDto, user: AuthenticatedUser) {
+    const confirmed = await this.db.transaction(async (tx) => {
       const order = await this.orderService.lockPendingForCheckout(
         dto.orderId,
         user,
         tx,
       );
+
+      if (await this.orderService.cancelIfReservationExpired(order, tx)) {
+        return null;
+      }
 
       const existing = await this.paymentRepository.findByOrderId(order.id, tx);
       if (existing) {
@@ -79,6 +87,13 @@ export class PaymentService {
 
       return payment;
     });
+
+    if (!confirmed) {
+      throw new UnprocessableEntityException(
+        'A reserva deste pedido expirou. Faça um novo pedido para comprar os ingressos.',
+      );
+    }
+    return confirmed;
   }
 
   async create(
