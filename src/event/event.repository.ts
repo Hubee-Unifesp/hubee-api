@@ -29,6 +29,7 @@ import {
   ticketTypes,
   venues,
 } from '../database/schema';
+import { withAvailability } from '../order/order-reservation';
 
 export interface FindAllEventsFilters {
   search?: string;
@@ -190,8 +191,9 @@ export class EventRepository {
     return executor.query.events.findFirst({ where: eq(events.id, id) });
   }
 
+  /** Detalhe público do evento, com o saldo real (`available`) de cada lote. */
   async findDetailById(id: string, executor: DbExecutor = this.db) {
-    return executor.query.events.findFirst({
+    const event = await executor.query.events.findFirst({
       where: eq(events.id, id),
       with: {
         venue: { with: { address: true } },
@@ -205,6 +207,11 @@ export class EventRepository {
         },
       },
     });
+    if (!event) return undefined;
+    return {
+      ...event,
+      ticketTypes: await withAvailability(executor, event.ticketTypes),
+    };
   }
 
   async create(

@@ -38,7 +38,7 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Token inválido ou expirado');
     }
 
-    if (this.usersService) {
+    if (typeof this.usersService?.findActiveUser === 'function') {
       const user = await this.usersService.findActiveUser(payload.sub);
       if (!user || !['USER', 'ADMIN'].includes(user.role)) {
         throw new UnauthorizedException('Usuário inativo ou não encontrado');

@@ -1,4 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { DRIZZLE } from '../database/database.constants';
+import type { DrizzleDatabase } from '../database/database.provider';
 import { UsersService } from '../users/users.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
@@ -10,6 +12,7 @@ import {
 @Injectable()
 export class OrganizationService {
   constructor(
+    @Inject(DRIZZLE) private readonly db: DrizzleDatabase,
     private readonly organizationRepository: OrganizationRepository,
     private readonly usersService: UsersService,
   ) {}
@@ -26,9 +29,31 @@ export class OrganizationService {
     return organization;
   }
 
-  async create(dto: CreateOrganizationDto) {
-    await this.ensureRepresentativeExists(dto.representativeId);
-    return this.organizationRepository.create(dto);
+  async create(dto: CreateOrganizationDto, userId: string) {
+    await this.ensureRepresentativeExists(userId);
+
+    return this.db.transaction(async (tx) => {
+      const organization = await this.organizationRepository.create(
+        {
+          ...dto,
+          representativeId: userId,
+        },
+        tx,
+      );
+
+      await this.organizationRepository.addMember(
+        {
+          orgId: organization.id,
+          userId,
+          role: 'admin',
+          permission: 'full',
+          inviteStatus: 'accepted',
+        },
+        tx,
+      );
+
+      return organization;
+    });
   }
 
   async update(id: string, dto: UpdateOrganizationDto) {
