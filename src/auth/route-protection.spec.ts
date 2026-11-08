@@ -69,12 +69,14 @@ const PUBLIC_ROUTES = [
 
 /**
  * Qualquer usuário logado: o comprador cria o pedido, paga pelo checkout e
- * consulta o que é seu. O service responde 404 para recurso de outra pessoa
- * (coberto nos specs dos services, já que aqui o service é falso).
- * `POST /orders/:orderId/payments` não está aqui de propósito: o corpo aceita
- * `amount` e `status`, então registrar pagamento à mão é só ADMIN.
+ * consulta o que é seu; qualquer usuário autenticado também pode cadastrar uma
+ * organização (`POST /organizations`, GOL-197). O service responde 404 para
+ * recurso de outra pessoa (coberto nos specs dos services, já que aqui o
+ * service é falso). `POST /orders/:orderId/payments` não está aqui de propósito:
+ * o corpo aceita `amount` e `status`, então registrar pagamento à mão é só ADMIN.
  */
 const AUTHENTICATED_ROUTES = [
+  'POST /organizations',
   'POST /orders',
   'POST /payments',
   'GET /orders/:orderId/payments',
@@ -97,9 +99,12 @@ const ORGANIZER_WRITE_ROUTES = [
 
 /**
  * Como `ORGANIZER_WRITE_ROUTES`, mas exige `manage` (administrador da
- * organização), pela matriz RBAC (GOL-143): membro com `full` recebe 403.
+ * organização), pela matriz RBAC (GOL-143 / GOL-197): membro com `full` recebe 403.
  */
-const ORGANIZER_MANAGE_ROUTES = ['DELETE /events/:id'];
+const ORGANIZER_MANAGE_ROUTES = [
+  'DELETE /events/:id',
+  'PATCH /organizations/:id',
+];
 
 const ORGANIZER_ROUTES = [
   ...ORGANIZER_WRITE_ROUTES,
