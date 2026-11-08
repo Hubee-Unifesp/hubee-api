@@ -50,6 +50,9 @@ describe('PaymentService', () => {
     lockPendingForCheckout: jest.Mock<OrderService['lockPendingForCheckout']>;
     markAsPaid: jest.Mock<OrderService['markAsPaid']>;
     findItems: jest.Mock<OrderService['findItems']>;
+    cancelIfReservationExpired: jest.Mock<
+      OrderService['cancelIfReservationExpired']
+    >;
   };
   let ticketService: {
     issueForPaidOrder: jest.Mock<TicketService['issueForPaidOrder']>;
@@ -72,6 +75,8 @@ describe('PaymentService', () => {
       lockPendingForCheckout: jest.fn<OrderService['lockPendingForCheckout']>(),
       markAsPaid: jest.fn<OrderService['markAsPaid']>(),
       findItems: jest.fn<OrderService['findItems']>(),
+      cancelIfReservationExpired:
+        jest.fn<OrderService['cancelIfReservationExpired']>(),
     };
     ticketService = {
       issueForPaidOrder: jest.fn<TicketService['issueForPaidOrder']>(),
@@ -161,6 +166,7 @@ describe('PaymentService', () => {
 
     beforeEach(() => {
       orderService.lockPendingForCheckout.mockResolvedValue(pendingOrder);
+      orderService.cancelIfReservationExpired.mockResolvedValue(false);
       orderService.markAsPaid.mockResolvedValue(paidOrder);
       orderService.findItems.mockResolvedValue(items as never);
       paymentRepository.findByOrderId.mockResolvedValue(undefined);
@@ -234,6 +240,23 @@ describe('PaymentService', () => {
       await expect(service.checkout(dto, OTHER_USER)).rejects.toBeInstanceOf(
         NotFoundException,
       );
+      expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
+    });
+
+    it('cancela o pedido com reserva vencida, responde 422 e não paga nem emite', async () => {
+      orderService.cancelIfReservationExpired.mockResolvedValue(true);
+
+      await expect(service.checkout(dto, BUYER)).rejects.toThrow(
+        new UnprocessableEntityException(
+          'A reserva deste pedido expirou. Faça um novo pedido para comprar os ingressos.',
+        ),
+      );
+      expect(orderService.cancelIfReservationExpired).toHaveBeenCalledWith(
+        pendingOrder,
+        tx,
+      );
+      expect(paymentRepository.create).not.toHaveBeenCalled();
+      expect(orderService.markAsPaid).not.toHaveBeenCalled();
       expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
     });
 

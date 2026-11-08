@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { OptionalJwtAuthGuard } from './optional-jwt-auth.guard';
+import { OrganizerGuard } from './organizer.guard';
 import { RolesGuard } from './roles.guard';
 import { Roles } from '../decorators/roles.decorator';
 import { UsersService } from '../../users/users.service';
@@ -230,5 +231,60 @@ describe('RolesGuard e @Roles', () => {
     const ctx = context({ user: { role: 'USER' } });
     ctx.getClass = () => AdminController;
     expect(() => rolesGuard.canActivate(ctx)).toThrow(ForbiddenException);
+  });
+});
+
+describe('OrganizerGuard', () => {
+  const makeGuard = (rows: unknown[]) =>
+    new OrganizerGuard({
+      select: () => ({
+        from: () => ({
+          innerJoin: () => ({
+            where: () => ({ orderBy: async () => rows }),
+          }),
+        }),
+      }),
+    } as never);
+
+  it('lança UnauthorizedException sem usuário no request', async () => {
+    const organizerGuard = makeGuard([]);
+    await expect(organizerGuard.canActivate(context({}))).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('permite ADMIN global sem consultar organizações', async () => {
+    const organizerGuard = makeGuard([]);
+    await expect(
+      organizerGuard.canActivate(
+        context({ user: { id: 'adm-1', email: 'a@b.com', role: 'ADMIN' } }),
+      ),
+    ).resolves.toBe(true);
+  });
+
+  it('permite USER com vínculo aceito em pelo menos uma organização', async () => {
+    const organizerGuard = makeGuard([
+      {
+        orgId: 'org-1',
+        organizationName: 'Produtora',
+        role: 'member',
+        permission: 'read_only',
+        inviteStatus: 'accepted',
+      },
+    ]);
+    await expect(
+      organizerGuard.canActivate(
+        context({ user: { id: 'usr-1', email: 'u@b.com', role: 'USER' } }),
+      ),
+    ).resolves.toBe(true);
+  });
+
+  it('lança ForbiddenException para USER sem organização ativa', async () => {
+    const organizerGuard = makeGuard([]);
+    await expect(
+      organizerGuard.canActivate(
+        context({ user: { id: 'usr-1', email: 'u@b.com', role: 'USER' } }),
+      ),
+    ).rejects.toThrow(ForbiddenException);
   });
 });

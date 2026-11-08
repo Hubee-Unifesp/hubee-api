@@ -97,7 +97,8 @@ permissões por organização (spike **GOL-109**) já vale para eventos
 | ------- | --------------- | --------------------------------- |
 | `events` | pública, mas só `ADMIN` e membros da organização do evento veem eventos não publicados: para os demais o filtro `?status=` é ignorado e `GET /events/:id` de evento não publicado dá `404`. O membro vê os rascunhos filtrando por `?organizerId=` da sua organização | `ADMIN` ou membro com `write` na organização (`POST`: a do `organizerId` do body; `PATCH`: a dona do evento, e quem é de fora recebe `404`). Cancelar (`DELETE` ou `PATCH` com `status: cancelled`) exige `manage` (administrador da organização). `featured` (destaque na home) só `ADMIN` |
 | `events/:eventId/ticket-types`, `organizations`, `venues` | pública (a home usa sem login) | só `ADMIN` |
-| `suppliers`, `expenses`, `tasks`, `organization-users`, `organization-events` | só `ADMIN` | só `ADMIN` |
+| `suppliers` | `ADMIN` ou membro ativo de qualquer organização (`@OrganizerOnly()`, GOL-202) | `ADMIN` ou membro ativo de qualquer organização (`@OrganizerOnly()`) |
+| `expenses`, `tasks`, `organization-users`, `organization-events` | só `ADMIN` | só `ADMIN` |
 | `orders/:orderId/payments` | dono do pedido ou `ADMIN` | só `ADMIN` (`POST` registra pagamento à mão e `PATCH` muda o status: o body aceita `amount` e `status`, e confirmar o pagamento libera ingressos) |
 | `payments` (checkout) | não tem | `POST /payments`: qualquer usuário logado paga o **próprio** pedido pendente (pedido de outra pessoa responde `404`, pedido já pago ou cancelado `422`) |
 | `tickets` | `GET /tickets` e `GET /users/me/tickets`: só os ingressos em que o usuário é titular, inclusive para `ADMIN`. `GET /tickets/:id` e `GET /orders/:orderId/tickets`: titular, dono do pedido ou `ADMIN` | só `ADMIN` (emissão manual e mudança de status) |
@@ -135,8 +136,9 @@ quais ids existem.
   e o teste falha se ela não estiver protegida. Para tornar uma rota pública,
   adicione-a a `PUBLIC_ROUTES` nesse teste; para liberar a qualquer usuário
   logado, a `AUTHENTICATED_ROUTES`; para liberar a organizadores com
-  `@OrgAccess('write')`, a `ORGANIZER_WRITE_ROUTES`, e com
-  `@OrgAccess('manage')`, a `ORGANIZER_MANAGE_ROUTES`.
+  `@OrgAccess('write')`, a `ORGANIZER_WRITE_ROUTES`, com
+  `@OrgAccess('manage')`, a `ORGANIZER_MANAGE_ROUTES`, e com
+  `@OrganizerOnly()`, a `ORGANIZER_ONLY_ROUTES`.
 
 ## Documentação (OpenAPI / Swagger)
 

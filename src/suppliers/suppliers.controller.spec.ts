@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import { JwtModule } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
+import { DRIZZLE } from '../database/database.constants';
 import { SuppliersController } from './suppliers.controller';
 import { SuppliersService } from './suppliers.service';
 import { SupplierResponseDto } from './dto/supplier-response.dto';
@@ -41,7 +42,10 @@ describe('SuppliersController', () => {
     const module: TestingModule = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [SuppliersController],
-      providers: [{ provide: SuppliersService, useValue: service }],
+      providers: [
+        { provide: SuppliersService, useValue: service },
+        { provide: DRIZZLE, useValue: {} },
+      ],
     }).compile();
 
     controller = module.get(SuppliersController);
@@ -63,7 +67,18 @@ describe('SuppliersController', () => {
 
     const result = await controller.findAll();
 
+    expect(service.findAll).toHaveBeenCalledWith(undefined);
     expect(result[0]).toBeInstanceOf(SupplierResponseDto);
+    expect(result).toEqual([publicSupplier]);
+  });
+
+  it('GET /suppliers repassa os filtros search e category para o service', async () => {
+    service.findAll.mockResolvedValue([row] as never);
+    const query = { search: 'Som', category: 'infraestrutura' };
+
+    const result = await controller.findAll(query);
+
+    expect(service.findAll).toHaveBeenCalledWith(query);
     expect(result).toEqual([publicSupplier]);
   });
 

@@ -16,15 +16,17 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { SuppliersService } from './suppliers.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
+import { QuerySupplierDto } from './dto/query-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { toResponse } from '../common/serialization/to-response';
-import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import { OrganizerOnly } from '../auth/decorators/organizer-only.decorator';
 
 @ApiTags('suppliers')
-@AdminOnly()
+@OrganizerOnly()
 @Controller('suppliers')
 export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
@@ -40,10 +42,10 @@ export class SuppliersController {
 
   @Get()
   @ApiOkResponse({ type: SupplierResponseDto, isArray: true })
-  async findAll() {
+  async findAll(@Query() query?: QuerySupplierDto) {
     return toResponse(
       SupplierResponseDto,
-      await this.suppliersService.findAll(),
+      await this.suppliersService.findAll(query),
     );
   }
 

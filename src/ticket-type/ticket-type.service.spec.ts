@@ -60,6 +60,7 @@ describe('TicketTypeService', () => {
       TicketTypeRepository['hasLinkedTicketsOrOrders']
     >;
     countCommitted: jest.Mock<TicketTypeRepository['countCommitted']>;
+    withAvailability: jest.Mock;
   };
   let eventService: {
     findOne: jest.Mock<EventService['findOne']>;
@@ -76,6 +77,10 @@ describe('TicketTypeService', () => {
       hasLinkedTicketsOrOrders:
         jest.fn<TicketTypeRepository['hasLinkedTicketsOrOrders']>(),
       countCommitted: jest.fn<TicketTypeRepository['countCommitted']>(),
+      // Simula 30 vagas comprometidas em cada lote.
+      withAvailability: jest.fn(async (rows: TicketTypeRow[]) =>
+        rows.map((row) => ({ ...row, available: row.quantity - 30 })),
+      ),
     };
     eventService = {
       findOne: jest.fn<EventService['findOne']>(),
@@ -95,7 +100,7 @@ describe('TicketTypeService', () => {
 
   describe('findAll()', () => {
     it('repassa o evento e viewer para findVisible e chama o repositório', async () => {
-      const rows = [makeTicketType()];
+      const rows = [{ ...makeTicketType(), available: 60 }];
       const viewer: AuthenticatedUser = {
         id: 'u-1',
         email: 'user@example.com',
@@ -173,7 +178,10 @@ describe('TicketTypeService', () => {
 
       await expect(
         service.findVisible('event-1', 'ticket-type-1', viewer),
-      ).resolves.toEqual(ticketType);
+      ).resolves.toEqual({ ...ticketType, available: 70 });
+      expect(ticketTypeRepository.withAvailability).toHaveBeenCalledWith([
+        ticketType,
+      ]);
       expect(eventService.findVisible).toHaveBeenCalledWith('event-1', viewer);
       expect(ticketTypeRepository.findById).toHaveBeenCalledWith(
         'event-1',
@@ -216,7 +224,8 @@ describe('TicketTypeService', () => {
         ...dto,
         eventId: 'event-1',
       });
-      expect(result).toEqual(created);
+      // Lote novo: nada vendido nem reservado, saldo = capacidade.
+      expect(result).toEqual({ ...created, available: 100 });
     });
 
     it('lança NotFound quando o evento não existe', async () => {
@@ -259,7 +268,7 @@ describe('TicketTypeService', () => {
         'ticket-type-1',
         dto,
       );
-      expect(result).toEqual(updated);
+      expect(result).toEqual({ ...updated, available: updated.quantity - 30 });
     });
 
     it('lança UnprocessableEntityException quando a quantidade é menor do que a já vendida/reservada', async () => {
@@ -291,7 +300,7 @@ describe('TicketTypeService', () => {
         'ticket-type-1',
         dto,
       );
-      expect(result).toEqual(updated);
+      expect(result).toEqual({ ...updated, available: updated.quantity - 30 });
     });
 
     it('lança NotFound quando o tipo de ingresso não existe', async () => {

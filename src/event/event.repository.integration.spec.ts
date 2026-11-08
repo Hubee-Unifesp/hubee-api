@@ -435,14 +435,32 @@ describe('EventRepository (banco em memória)', () => {
           batch: 'Lote gratuito',
           price: 0,
           quantity: 50,
+          available: 49,
         },
         {
           eventId: fixture.futureEventId,
           batch: 'Lote pago',
           price: 100,
           quantity: 150,
+          available: 148,
         },
       ]);
+    });
+
+    it('expõe saldo 0 nos lotes esgotados e o saldo restante nos demais (GOL-212)', async () => {
+      const result = await repository.findDetailById(fixture.recifeEventId);
+
+      expect(
+        result?.ticketTypes.map(({ batch, available }) => ({
+          batch,
+          available,
+        })),
+      ).toEqual(
+        expect.arrayContaining([
+          { batch: 'Pista', available: 0 },
+          { batch: 'Camarote', available: 10 },
+        ]),
+      );
     });
 
     it('retorna ticketTypes como array vazio quando o evento não possui lotes', async () => {

@@ -20,8 +20,19 @@ export class TicketTypeResponseDto {
   price: number;
 
   @Expose()
-  @ApiProperty({ type: Number })
+  @ApiProperty({
+    type: Number,
+    description: 'Capacidade total do lote (não é o saldo restante)',
+  })
   quantity: number;
+
+  @Expose()
+  @ApiProperty({
+    type: Number,
+    description:
+      'Saldo disponível: capacidade menos ingressos vendidos e reservas de pedidos pendentes ainda no prazo',
+  })
+  available: number;
 
   @Expose()
   @ApiProperty()

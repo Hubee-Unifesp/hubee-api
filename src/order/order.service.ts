@@ -17,6 +17,7 @@ import { UsersService } from '../users/users.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrderItemRepository } from './order-item.repository';
+import { isReservationExpired } from './order-reservation';
 import { FindAllOrdersFilters, OrderRepository } from './order.repository';
 import type { OrderStatus } from '../database/schema';
 
@@ -138,6 +139,24 @@ export class OrderService {
     return order;
   }
 
+  /**
+   * Pedido pendente cuja reserva já venceu vira `cancelado` (devolvendo a vaga
+   * de vez) e não pode mais ser pago. Devolve `true` quando cancelou.
+   */
+  async cancelIfReservationExpired(
+    order: { id: string; status: string; createdAt: Date },
+    executor: DbExecutor,
+    now: Date = new Date(),
+  ): Promise<boolean> {
+    if (!isReservationExpired(order, now)) return false;
+    await this.orderRepository.update(
+      order.id,
+      { status: 'cancelado' },
+      executor,
+    );
+    return true;
+  }
+
   findItems(orderId: string, executor: DbExecutor) {
     return this.orderItemRepository.findByOrder(orderId, executor);
   }
@@ -149,8 +168,9 @@ export class OrderService {
   /**
    * Trava os lotes pedidos (`FOR UPDATE`), confere o saldo disponível
    * (`capacidade - reservado`) e lança 422 no primeiro lote sem vaga, antes de
-   * qualquer escrita. Reservado = soma de `order_items` de pedidos pendentes e
-   * pagos; cancelado devolve a vaga. Fonte única da regra de estoque, usada
+   * qualquer escrita. Reservado = soma de `order_items` de pedidos pendentes
+   * ainda dentro do prazo (`PENDING_ORDER_TTL_MINUTES`) e pagos; cancelado ou
+   * reserva vencida devolve a vaga. Fonte única da regra de estoque, usada
    * tanto pela compra (`placeOrder`) quanto pela emissão manual de ingressos.
    *
    * Deve rodar dentro de uma transaction (o lock só vale até ela terminar).
@@ -164,11 +184,12 @@ export class OrderService {
     const ids = requested.map((item) => item.ticketTypeId);
     const lots = await this.ticketTypeService.lockForPurchase(ids, executor);
     const lotsById = new Map(lots.map((lot) => [lot.ticketType.id, lot]));
+    const now = new Date();
     const reserved = await this.orderItemRepository.sumReservedByTicketType(
       ids,
       executor,
+      now,
     );
-    const now = new Date();
 
     for (const { ticketTypeId, quantity } of requested) {
       const lot = lotsById.get(ticketTypeId);
