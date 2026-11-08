@@ -572,6 +572,34 @@ describe('OrderService', () => {
     );
   });
 
+  describe('cancelIfReservationExpired()', () => {
+    const now = new Date('2026-11-07T12:00:00Z');
+    const minutesAgo = (minutes: number) =>
+      new Date(now.getTime() - minutes * 60 * 1000);
+
+    it('cancela o pedido pendente com a reserva vencida', async () => {
+      const order = makeOrder({ createdAt: minutesAgo(16) });
+
+      await expect(
+        service.cancelIfReservationExpired(order, tx as never, now),
+      ).resolves.toBe(true);
+      expect(orderRepository.update).toHaveBeenCalledWith(
+        'order-1',
+        { status: 'cancelado' },
+        tx,
+      );
+    });
+
+    it('não mexe no pedido pendente ainda dentro do prazo', async () => {
+      const order = makeOrder({ createdAt: minutesAgo(5) });
+
+      await expect(
+        service.cancelIfReservationExpired(order, tx as never, now),
+      ).resolves.toBe(false);
+      expect(orderRepository.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('markAsPaid()', () => {
     it('muda o status para pago dentro da transaction recebida', async () => {
       const paid = makeOrder({ status: 'pago' });

@@ -87,6 +87,7 @@ const detailRow = {
       batch: '1º Lote',
       price: 35,
       quantity: 100,
+      available: 80,
       createdAt: new Date('2026-01-01T00:00:00Z'),
       updatedAt: new Date('2026-01-01T00:00:00Z'),
     },
@@ -378,6 +379,7 @@ describe('GET /events e GET /events/:id (validação via HTTP)', () => {
           batch: '1º Lote',
           price: 35,
           quantity: 100,
+          available: 80,
         },
       ],
     });

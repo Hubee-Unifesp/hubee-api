@@ -91,6 +91,7 @@ function makeEventDetail(overrides: Partial<Event> = {}): EventDetail {
         batch: '1º Lote',
         price: 35,
         quantity: 100,
+        available: 100,
         createdAt: now,
         updatedAt: now,
       },

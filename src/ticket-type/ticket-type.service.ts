@@ -27,7 +27,11 @@ export class TicketTypeService {
   /** Versão pública de findOne: rascunho sem permissão responde 404. */
   async findVisible(eventId: string, id: string, viewer?: AuthenticatedUser) {
     await this.eventService.findVisible(eventId, viewer);
-    return this.findTicketTypeOfEvent(eventId, id);
+    const ticketType = await this.findTicketTypeOfEvent(eventId, id);
+    const [withAvailable] = await this.ticketTypeRepository.withAvailability([
+      ticketType,
+    ]);
+    return withAvailable;
   }
 
   /** Uso interno: confere se o lote pertence ao evento sem checar visibilidade de rascunho. */
@@ -46,7 +50,12 @@ export class TicketTypeService {
 
   async create(eventId: string, dto: CreateTicketTypeDto) {
     await this.eventService.findOne(eventId);
-    return this.ticketTypeRepository.create({ ...dto, eventId });
+    const ticketType = await this.ticketTypeRepository.create({
+      ...dto,
+      eventId,
+    });
+    // Lote recém-criado não tem nada vendido nem reservado.
+    return { ...ticketType, available: ticketType.quantity };
   }
 
   async update(eventId: string, id: string, dto: UpdateTicketTypeDto) {
@@ -62,7 +71,11 @@ export class TicketTypeService {
       }
     }
 
-    return this.ticketTypeRepository.update(eventId, id, dto);
+    const updated = await this.ticketTypeRepository.update(eventId, id, dto);
+    const [withAvailable] = await this.ticketTypeRepository.withAvailability([
+      updated,
+    ]);
+    return withAvailable;
   }
 
   async remove(eventId: string, id: string): Promise<void> {

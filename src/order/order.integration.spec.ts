@@ -24,12 +24,14 @@ import { PaymentService } from '../payment/payment.service';
 import { TicketController } from '../ticket/ticket.controller';
 import { TicketRepository } from '../ticket/ticket.repository';
 import { TicketService } from '../ticket/ticket.service';
+import { TicketTypeController } from '../ticket-type/ticket-type.controller';
 import { TicketTypeRepository } from '../ticket-type/ticket-type.repository';
 import { TicketTypeService } from '../ticket-type/ticket-type.service';
 import { UsersService } from '../users/users.service';
 import { OrderController } from './order.controller';
 import { OrderItemRepository } from './order-item.repository';
 import { OrderRepository } from './order.repository';
+import { PENDING_ORDER_TTL_MINUTES } from './order-reservation';
 import { OrderService } from './order.service';
 
 /**
@@ -63,6 +65,21 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
   const pay = (name: string, orderId: string, paymentMethod = 'pix') =>
     http().post('/payments').set(as(name)).send({ orderId, paymentMethod });
 
+  /** Simula a passagem do tempo: o pedido passa a ter sido criado há `minutes` minutos. */
+  const ageOrder = (orderId: string, minutes: number) =>
+    db
+      .update(schema.orders)
+      .set({ createdAt: new Date(Date.now() - minutes * 60 * 1000) })
+      .where(eq(schema.orders.id, orderId));
+
+  const availableOf = async (lotId: string) => {
+    const response = await http()
+      .get(`/events/${eventId}/ticket-types`)
+      .expect(200);
+    return response.body.find((lot: { id: string }) => lot.id === lotId)
+      ?.available as number;
+  };
+
   /** Emissão manual de ingressos (rota ADMIN) para um pedido já pago. */
   const issue = (name: string, orderId: string, items: object[]) =>
     http()
@@ -78,7 +95,12 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
 
     const module = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
-      controllers: [OrderController, CheckoutController, TicketController],
+      controllers: [
+        OrderController,
+        CheckoutController,
+        TicketController,
+        TicketTypeController,
+      ],
       providers: [
         OrderService,
         OrderRepository,
@@ -106,7 +128,13 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
             },
           },
         },
-        { provide: EventService, useValue: { findOne: async () => ({}) } },
+        {
+          provide: EventService,
+          useValue: {
+            findOne: async () => ({}),
+            findVisible: async () => ({}),
+          },
+        },
       ],
     }).compile();
     app = module.createNestApplication();
@@ -490,6 +518,107 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
       ).toHaveLength(0);
 
       await pay('ana', created.body.id).expect(201);
+    });
+  });
+
+  describe('expiração da reserva de pedidos pendentes (GOL-212)', () => {
+    const EXPIRED = PENDING_ORDER_TTL_MINUTES + 1;
+
+    it('pedido pendente vencido deixa de bloquear o lote para novos compradores', async () => {
+      const lot = await newLot(2);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+      await order('bruno', [{ ticketTypeId: lot, quantity: 1 }]).expect(422);
+
+      await ageOrder(created.body.id, EXPIRED);
+
+      await order('bruno', [{ ticketTypeId: lot, quantity: 2 }]).expect(201);
+    });
+
+    it('pedido pendente ainda no prazo continua reservando o saldo', async () => {
+      const lot = await newLot(2);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+
+      await ageOrder(created.body.id, PENDING_ORDER_TTL_MINUTES - 1);
+
+      await order('bruno', [{ ticketTypeId: lot, quantity: 1 }]).expect(422);
+    });
+
+    it('pedido vencido não pode ser pago: responde 422, vira cancelado e não emite ingressos', async () => {
+      const lot = await newLot(5);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+      await ageOrder(created.body.id, EXPIRED);
+
+      const response = await pay('ana', created.body.id).expect(422);
+
+      expect(response.body.message).toContain('expirou');
+      const [row] = await db
+        .select()
+        .from(schema.orders)
+        .where(eq(schema.orders.id, created.body.id));
+      expect(row.status).toBe('cancelado');
+      expect(
+        await db
+          .select()
+          .from(schema.payments)
+          .where(eq(schema.payments.orderId, created.body.id)),
+      ).toHaveLength(0);
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.orderId, created.body.id)),
+      ).toHaveLength(0);
+    });
+
+    it('vender o saldo liberado não deixa o pedido vencido roubar a vaga depois', async () => {
+      const lot = await newLot(1);
+      const stale = await order('ana', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+      await ageOrder(stale.body.id, EXPIRED);
+
+      const fresh = await order('bruno', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+      await pay('bruno', fresh.body.id).expect(201);
+
+      await pay('ana', stale.body.id).expect(422);
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.ticketTypeId, lot)),
+      ).toHaveLength(1);
+    });
+
+    it('GET /events/:id/ticket-types expõe o saldo real, descontando vendas e só reservas válidas', async () => {
+      const lot = await newLot(10);
+      expect(await availableOf(lot)).toBe(10);
+
+      const paid = await order('ana', [
+        { ticketTypeId: lot, quantity: 3 },
+      ]).expect(201);
+      await pay('ana', paid.body.id).expect(201);
+      const pending = await order('bruno', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+      expect(await availableOf(lot)).toBe(5);
+
+      await ageOrder(pending.body.id, EXPIRED);
+      expect(await availableOf(lot)).toBe(7);
+    });
+
+    it('GET /events/:id/ticket-types mostra saldo 0 quando o lote está esgotado', async () => {
+      const lot = await newLot(1);
+      await order('ana', [{ ticketTypeId: lot, quantity: 1 }]).expect(201);
+
+      expect(await availableOf(lot)).toBe(0);
     });
   });
 
