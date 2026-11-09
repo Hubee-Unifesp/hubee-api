@@ -70,6 +70,15 @@ export class OrganizationRepository {
     return organization;
   }
 
+  async deleteMembers(
+    orgId: string,
+    executor: DbExecutor = this.db,
+  ): Promise<void> {
+    await executor
+      .delete(organizationUsers)
+      .where(eq(organizationUsers.orgId, orgId));
+  }
+
   async delete(id: string, executor: DbExecutor = this.db): Promise<void> {
     await executor.delete(organizations).where(eq(organizations.id, id));
   }

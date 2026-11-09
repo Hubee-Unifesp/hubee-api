@@ -64,7 +64,12 @@ export class OrganizationService {
 
   async remove(id: string): Promise<void> {
     await this.findOne(id);
-    await this.organizationRepository.delete(id);
+    // organization_users.organization_id has no ON DELETE action, so the
+    // memberships must go first, atomically with the organization itself.
+    await this.db.transaction(async (tx) => {
+      await this.organizationRepository.deleteMembers(id, tx);
+      await this.organizationRepository.delete(id, tx);
+    });
   }
 
   /**
