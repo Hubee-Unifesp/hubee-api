@@ -87,14 +87,19 @@ const AUTHENTICATED_ROUTES = [
 ];
 
 /**
- * ADMIN ou membro da organização com `write` (`@OrgAccess`, GOL-144). Em
- * `POST /events` a organização vem do body; nas demais, do evento, e quem é
- * de fora da organização recebe 404 em vez de 403.
+ * ADMIN ou membro da organização com `write` (`@OrgAccess`, GOL-144 e GOL-206).
+ * Em `POST /events` a organização vem do body, em `POST /venues` vale qualquer
+ * organização aceita, e nas demais vem do evento (quem é de fora da organização
+ * recebe 404 em vez de 403).
  */
 const ORGANIZER_WRITE_ROUTES = [
   'POST /events',
   'PATCH /events/:id',
   'PATCH /events/:id/photo',
+  'POST /events/:eventId/ticket-types',
+  'PATCH /events/:eventId/ticket-types/:id',
+  'DELETE /events/:eventId/ticket-types/:id',
+  'POST /venues',
 ];
 
 /**
@@ -110,6 +115,16 @@ const ORGANIZER_ROUTES = [
   ...ORGANIZER_WRITE_ROUTES,
   ...ORGANIZER_MANAGE_ROUTES,
 ];
+
+/**
+ * Rotas com `@OrgAccess(..., { from: 'event' | 'param' })` resolvem a
+ * organização a partir do recurso da URL (`:id` ou `:eventId`) e respondem 404
+ * (e não 403) para quem não é membro da organização dona, evitando revelar
+ * vínculo/existência. Rotas sem parâmetro de recurso (`POST /events` com
+ * `{ from: 'body' }` e `POST /venues` com `{ from: 'any' }`) respondem 403.
+ */
+const isResourceScoped = (route: { template: string }) =>
+  route.template.includes(':');
 
 /**
  * ADMIN ou membro aceito de qualquer organização (`@OrganizerOnly`, GOL-202):
@@ -307,7 +322,7 @@ describe('Proteção de rotas (GOL-114)', () => {
         expect(operation?.security).toEqual([{ bearer: [] }]);
         const statuses = Object.keys(operation?.responses ?? {});
         expect(statuses).toEqual(expect.arrayContaining(['401', '403']));
-        if (route.template.includes(':id')) expect(statuses).toContain('404');
+        if (isResourceScoped(route)) expect(statuses).toContain('404');
       },
     );
 
@@ -491,7 +506,7 @@ describe('Proteção de rotas (GOL-114)', () => {
         };
         return send(userToken);
       };
-      const byEvent = route.template.includes(':id');
+      const byEvent = isResourceScoped(route);
       const needsManage = ORGANIZER_MANAGE_ROUTES.includes(route.label);
 
       afterEach(() => {

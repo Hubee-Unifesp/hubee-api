@@ -22,7 +22,10 @@ import {
   type OrgAccessMetadata,
   type OrgAccessSource,
 } from '../org-access-level';
-import { findAcceptedMembership } from '../organization-membership';
+import {
+  findAcceptedMembership,
+  findAcceptedMemberships,
+} from '../organization-membership';
 
 /**
  * Confere o nível do usuário na organização do recurso (`@OrgAccess`). Roda
@@ -47,6 +50,15 @@ export class OrganizationAccessGuard implements CanActivate {
     const user: AuthenticatedUser | undefined = request.user;
     if (!user) throw new UnauthorizedException('Token ausente ou inválido');
     if (user.role === 'ADMIN') return true;
+
+    if (access.source.from === 'any') {
+      const memberships = await findAcceptedMemberships(this.db, user.id);
+      const allowed = memberships.some((membership) =>
+        satisfiesLevel(effectiveLevel(membership), access.level),
+      );
+      if (!allowed) throw new ForbiddenException('Acesso negado');
+      return true;
+    }
 
     const organizationId = await this.resolveOrganizationId(
       access.source,
@@ -80,7 +92,7 @@ export class OrganizationAccessGuard implements CanActivate {
   }
 
   private async resolveOrganizationId(
-    source: OrgAccessSource,
+    source: Exclude<OrgAccessSource, { from: 'any' }>,
     request: { params?: Record<string, unknown>; body?: unknown },
   ): Promise<string> {
     if (source.from === 'body') {

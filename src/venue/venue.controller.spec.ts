@@ -7,6 +7,7 @@ import { VenueController } from './venue.controller';
 import { VenueService } from './venue.service';
 import { AddressResponseDto } from '../address/dto/address-response.dto';
 import { VenueResponseDto } from './dto/venue-response.dto';
+import { DRIZZLE } from '../database/database.constants';
 
 const address = {
   id: 'addr-1',
@@ -64,7 +65,10 @@ describe('VenueController', () => {
     const module: TestingModule = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [VenueController],
-      providers: [{ provide: VenueService, useValue: service }],
+      providers: [
+        { provide: VenueService, useValue: service },
+        { provide: DRIZZLE, useValue: {} },
+      ],
     }).compile();
 
     controller = module.get(VenueController);

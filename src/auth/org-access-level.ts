@@ -19,7 +19,9 @@ export type OrgAccessSource =
    */
   | { from: 'event'; param?: string }
   /** Campo do body com o id da organização (padrão: `organizerId`). */
-  | { from: 'body'; field?: string };
+  | { from: 'body'; field?: string }
+  /** Qualquer organização em que o usuário tenha vínculo aceito (ex.: recursos compartilhados como `venues`). */
+  | { from: 'any' };
 
 export interface OrgAccessMetadata {
   level: OrgAccessLevel;
