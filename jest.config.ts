@@ -15,6 +15,10 @@ const config: Config = {
   rootDir: '.',
   setupFiles: ['reflect-metadata'],
   testRegex: '.*\\.spec\\.ts$',
+  // Agent worktrees live under .claude/ with a full copy of the repo
+  // (including node_modules); without this, every suite runs twice.
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/.claude/'],
+  modulePathIgnorePatterns: ['<rootDir>/.claude/'],
   extensionsToTreatAsEsm: ['.ts'],
   transform: {
     '^.+\\.(t|j)s$': [
@@ -30,6 +34,9 @@ const config: Config = {
   ],
   coverageDirectory: './coverage',
   testEnvironment: 'node',
+  // Each worker loads PGlite (~800MB). Using every core exhausts RAM and
+  // makes integration suites time out, so cap the pool.
+  maxWorkers: '50%',
 };
 
 export default config;
