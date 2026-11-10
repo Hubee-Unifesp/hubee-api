@@ -109,7 +109,7 @@ describe('Eventos por organizadores (banco em memória)', () => {
           fullName: name,
           email: `${name}@example.com`,
           password: 'hash',
-          role: name === 'admin' ? 'ADMIN' : 'USER',
+          role: name === 'admin' ? ('ADMIN' as const) : ('USER' as const),
         })),
       )
       .returning();
