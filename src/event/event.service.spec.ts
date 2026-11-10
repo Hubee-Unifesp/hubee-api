@@ -92,6 +92,9 @@ function makeEventDetail(overrides: Partial<Event> = {}): EventDetail {
         price: 35,
         quantity: 100,
         available: 100,
+        modality: 'inteira',
+        salesStartDate: null,
+        salesEndDate: null,
         createdAt: now,
         updatedAt: now,
       },
@@ -136,6 +139,8 @@ describe('EventService', () => {
     create: jest.Mock<EventRepository['create']>;
     update: jest.Mock<EventRepository['update']>;
     findMembership: jest.Mock<EventRepository['findMembership']>;
+    countTicketTypes: jest.Mock<EventRepository['countTicketTypes']>;
+    duplicate: jest.Mock<EventRepository['duplicate']>;
   };
   let organizationService: {
     findOne: jest.Mock<OrganizationService['findOne']>;
@@ -160,6 +165,8 @@ describe('EventService', () => {
       findMembership: jest
         .fn<EventRepository['findMembership']>()
         .mockResolvedValue(undefined),
+      countTicketTypes: jest.fn<EventRepository['countTicketTypes']>(),
+      duplicate: jest.fn<EventRepository['duplicate']>(),
     };
     organizationService = {
       findOne: jest.fn<OrganizationService['findOne']>(),
@@ -192,6 +199,8 @@ describe('EventService', () => {
       venueCity: 'São Paulo',
       minPrice: 50,
       minPriceBatch: '1º Lote',
+      capacity: 100,
+      ticketsSold: 0,
     });
 
     it('repassa os filtros de organização e status para o repositório quando ADMIN', async () => {
@@ -670,6 +679,48 @@ describe('EventService', () => {
       expect(eventRepository.update).not.toHaveBeenCalled();
     });
 
+    it('publica rascunho que já tem lotes', async () => {
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.countTicketTypes.mockResolvedValue(2);
+      eventRepository.update.mockResolvedValue(
+        makeEvent({ status: 'published' }),
+      );
+
+      await service.update('event-1', { status: 'published' }, USER);
+
+      expect(eventRepository.countTicketTypes).toHaveBeenCalledWith('event-1');
+      expect(eventRepository.update).toHaveBeenCalledWith('event-1', {
+        status: 'published',
+      });
+    });
+
+    it('recusa com 422 publicar evento sem lotes', async () => {
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.countTicketTypes.mockResolvedValue(0);
+
+      await expect(
+        service.update('event-1', { status: 'published' }, ADMIN),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(eventRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('não reconta os lotes de evento que já está publicado', async () => {
+      eventRepository.findById.mockResolvedValue(
+        makeEvent({ status: 'published' }),
+      );
+      eventRepository.update.mockResolvedValue(
+        makeEvent({ status: 'published' }),
+      );
+
+      await service.update(
+        'event-1',
+        { status: 'published', name: 'Novo' },
+        ADMIN,
+      );
+
+      expect(eventRepository.countTicketTypes).not.toHaveBeenCalled();
+    });
+
     it('não revalida o local quando ele não muda', async () => {
       eventRepository.findById.mockResolvedValue(makeEvent());
       eventRepository.update.mockResolvedValue(makeEvent());
@@ -814,6 +865,27 @@ describe('EventService', () => {
         UnprocessableEntityException,
       );
       expect(storageService.upload).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('duplicate()', () => {
+    it('retorna a cópia criada pelo repositório', async () => {
+      const copy = makeEvent({
+        id: 'event-2',
+        name: 'Festa Junina 2026 (cópia)',
+      });
+      eventRepository.duplicate.mockResolvedValue(copy);
+
+      await expect(service.duplicate('event-1')).resolves.toEqual(copy);
+      expect(eventRepository.duplicate).toHaveBeenCalledWith('event-1');
+    });
+
+    it('lança 404 quando o evento não existe', async () => {
+      eventRepository.duplicate.mockResolvedValue(undefined);
+
+      await expect(service.duplicate('event-404')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 

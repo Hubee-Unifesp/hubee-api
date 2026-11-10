@@ -12,6 +12,10 @@ import {
 import { eventAgeRating, eventStatus } from '../../database/schema';
 import type { EventAgeRating, EventStatus } from '../../database/schema';
 
+/**
+ * Campos opcionais do evento (`description`, `ageRating`, `salesStartDate`,
+ * `category`, `edition` e `photoUrl`) aceitam `null` para serem apagados.
+ */
 export class UpdateEventDto {
   @IsOptional()
   @IsString()
@@ -20,11 +24,11 @@ export class UpdateEventDto {
 
   @IsOptional()
   @IsString()
-  description?: string;
+  description?: string | null;
 
   @IsOptional()
   @IsIn(eventAgeRating.enumValues)
-  ageRating?: EventAgeRating;
+  ageRating?: EventAgeRating | null;
 
   @IsOptional()
   @IsUUID()
@@ -43,7 +47,7 @@ export class UpdateEventDto {
   @IsOptional()
   @Type(() => Date)
   @IsDate()
-  salesStartDate?: Date;
+  salesStartDate?: Date | null;
 
   @IsOptional()
   @IsIn(eventStatus.enumValues)
@@ -52,17 +56,17 @@ export class UpdateEventDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  category?: string;
+  category?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  edition?: string;
+  edition?: string | null;
 
   @IsOptional()
   @IsUrl()
   @MaxLength(2048)
-  photoUrl?: string;
+  photoUrl?: string | null;
 
   @IsOptional()
   @IsBoolean()
