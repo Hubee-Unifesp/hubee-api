@@ -4,6 +4,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import { pushSchema } from 'drizzle-kit/api';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import request from 'supertest';
 import { DRIZZLE } from '../database/database.constants';
@@ -24,6 +25,7 @@ import { PNG_SIGNATURE } from '../common/validation/image-upload';
 describe('Eventos por organizadores (banco em memória)', () => {
   let app: INestApplication;
   let pglite: PGlite;
+  let db: ReturnType<typeof drizzle<typeof schema>>;
   const tokens: Record<string, string> = {};
   let orgA: string;
   let orgB: string;
@@ -52,7 +54,7 @@ describe('Eventos por organizadores (banco em memória)', () => {
 
   beforeAll(async () => {
     pglite = new PGlite();
-    const db = drizzle(pglite, { schema });
+    db = drizzle(pglite, { schema });
     const { apply } = await pushSchema(schema as never, db as never);
     await apply();
 
@@ -167,6 +169,19 @@ describe('Eventos por organizadores (banco em memória)', () => {
       .send(newEvent(orgA))
       .expect(201);
     expect(created.body).toMatchObject({ organizerId: orgA, status: 'draft' });
+
+    const withoutLots = await http()
+      .patch(`/events/${created.body.id}`)
+      .set(as('organizer'))
+      .send({ status: 'published' })
+      .expect(422);
+    expect(withoutLots.body.message).toBe(
+      'Cadastre ao menos um lote de ingressos antes de publicar o evento',
+    );
+
+    await db
+      .insert(schema.ticketTypes)
+      .values({ eventId: created.body.id, batch: '1º Lote', price: 30 });
 
     const updated = await http()
       .patch(`/events/${created.body.id}`)
@@ -380,6 +395,130 @@ describe('Eventos por organizadores (banco em memória)', () => {
       await http().get(`/events/${draftId}`).set(as('readOnly')).expect(200);
       await http().get(`/events/${draftId}`).set(as('buyer')).expect(404);
       await http().get(`/events/${draftId}`).expect(404);
+    });
+  });
+
+  describe('duplicar evento', () => {
+    let originalId: string;
+
+    beforeAll(async () => {
+      const [original] = await db
+        .insert(schema.events)
+        .values({
+          ...newEvent(orgA, { name: 'Festival', category: 'shows' }),
+          startDate: new Date('2026-12-10T20:00:00Z'),
+          endDate: new Date('2026-12-11T02:00:00Z'),
+          status: 'published',
+          featured: true,
+          photoUrl: 'https://store.public.blob.vercel-storage.com/festival.png',
+        })
+        .returning();
+      originalId = original.id;
+      await db.insert(schema.ticketTypes).values([
+        { eventId: originalId, batch: '1º Lote', price: 40, quantity: 100 },
+        { eventId: originalId, batch: '2º Lote', price: 60, quantity: 50 },
+      ]);
+    });
+
+    it('organizador duplica como rascunho com os mesmos lotes, sem capa nem destaque', async () => {
+      const response = await http()
+        .post(`/events/${originalId}/duplicate`)
+        .set(as('organizer'))
+        .expect(201);
+
+      expect(response.body).toMatchObject({
+        name: 'Festival (cópia)',
+        organizerId: orgA,
+        category: 'shows',
+        status: 'draft',
+        featured: false,
+        photoUrl: null,
+      });
+      expect(response.body.id).not.toBe(originalId);
+
+      const lots = await db
+        .select()
+        .from(schema.ticketTypes)
+        .where(eq(schema.ticketTypes.eventId, response.body.id));
+      expect(
+        lots
+          .map(({ batch, price, quantity }) => ({ batch, price, quantity }))
+          .sort((a, b) => a.price - b.price),
+      ).toEqual([
+        { batch: '1º Lote', price: 40, quantity: 100 },
+        { batch: '2º Lote', price: 60, quantity: 50 },
+      ]);
+    });
+
+    it('membro só leitura recebe 403; de outra organização dá 404', async () => {
+      await http()
+        .post(`/events/${originalId}/duplicate`)
+        .set(as('readOnly'))
+        .expect(403);
+      await http()
+        .post(`/events/${eventOfB}/duplicate`)
+        .set(as('organizer'))
+        .expect(404);
+    });
+  });
+
+  it('listagem traz capacidade e ingressos vendidos de cada evento', async () => {
+    const [event] = await db
+      .insert(schema.events)
+      .values({
+        ...newEvent(orgA, { name: 'Com capacidade' }),
+        startDate: new Date('2026-12-10T20:00:00Z'),
+        endDate: new Date('2026-12-11T02:00:00Z'),
+      })
+      .returning();
+    await db.insert(schema.ticketTypes).values([
+      { eventId: event.id, batch: 'A', price: 10, quantity: 30 },
+      { eventId: event.id, batch: 'B', price: 20, quantity: 20 },
+    ]);
+
+    const response = await http()
+      .get(`/events?organizerId=${orgA}&search=Com%20capacidade`)
+      .set(as('organizer'))
+      .expect(200);
+
+    expect(response.body.data).toEqual([
+      expect.objectContaining({ id: event.id, capacity: 50, ticketsSold: 0 }),
+    ]);
+  });
+
+  it('PATCH com null apaga os campos opcionais do evento', async () => {
+    const { body: event } = await http()
+      .post('/events')
+      .set(as('organizer'))
+      .send(
+        newEvent(orgA, {
+          description: 'Descrição',
+          category: 'festas',
+          edition: '2ª',
+          ageRating: '18',
+          salesStartDate: '2026-11-20T12:00:00Z',
+        }),
+      )
+      .expect(201);
+
+    const cleared = await http()
+      .patch(`/events/${event.id}`)
+      .set(as('organizer'))
+      .send({
+        description: null,
+        category: null,
+        edition: null,
+        ageRating: null,
+        salesStartDate: null,
+      })
+      .expect(200);
+
+    expect(cleared.body).toMatchObject({
+      description: null,
+      category: null,
+      edition: null,
+      ageRating: null,
+      salesStartDate: null,
     });
   });
 });
