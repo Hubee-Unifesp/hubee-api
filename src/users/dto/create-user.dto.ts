@@ -30,7 +30,7 @@ export class CreateUserDto {
 
   @IsString()
   @IsNotEmpty()
-  @Length(6, 20, { message: 'A senha deve ter entre 6 e 20 caracteres' })
+  @Length(8, 72, { message: 'A senha deve ter entre 8 e 72 caracteres' })
   password: string;
 
   @TrimString()

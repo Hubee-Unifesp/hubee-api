@@ -3,6 +3,7 @@ import {
   RegisterResponseDto,
   MeResponseDto,
 } from './dto/register-response.dto';
+import { AuthThrottlerGuard } from './guards/auth-throttler.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import {
   CurrentUser,
@@ -13,6 +14,7 @@ import {
   ApiTags,
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiTooManyRequestsResponse,
 } from '@nestjs/swagger';
 import {
   Body,
@@ -34,7 +36,12 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @UseGuards(AuthThrottlerGuard)
   @ApiCreatedResponse({ type: RegisterResponseDto })
+  @ApiTooManyRequestsResponse({
+    description:
+      'Muitas tentativas em sequência. Tente novamente em instantes.',
+  })
   async register(@Body() data: RegisterDto) {
     return toResponse(
       RegisterResponseDto,
@@ -52,7 +59,12 @@ export class AuthController {
 
   @HttpCode(HttpStatus.OK)
   @Post('login')
+  @UseGuards(AuthThrottlerGuard)
   @ApiOkResponse({ type: LoginResponseDto })
+  @ApiTooManyRequestsResponse({
+    description:
+      'Muitas tentativas em sequência. Tente novamente em instantes.',
+  })
   async login(@Body() loginDto: LoginDto) {
     return toResponse(
       LoginResponseDto,
