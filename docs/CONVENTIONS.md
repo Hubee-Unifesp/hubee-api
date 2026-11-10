@@ -69,6 +69,29 @@ O contrato também é aplicado em **runtime** (task **GOL-112**):
   garante que cada `*ResponseDto` expõe exatamente as propriedades documentadas
   no OpenAPI. Ao criar um DTO de resposta novo, adicione-o à lista desse teste.
 
+## Gestão de eventos e lotes
+
+Regras da GOL-210 para o organizador criar e gerenciar eventos e lotes:
+
+- O evento nasce como `draft`. Para passar a `published` (`PATCH /events/:id`),
+  ele precisa ter **ao menos um lote**; sem lote a resposta é `422`.
+- `POST /events/:id/duplicate` (`write` na organização do evento) cria uma
+  cópia em `draft` com o nome `"<nome> (cópia)"` e os mesmos lotes (batch,
+  preço e capacidade). Vendas, reservas, capa (`photoUrl`) e destaque
+  (`featured`) não são copiados: a capa fica no caminho do evento original e
+  seria apagada quando a cópia trocasse de capa.
+- Lotes de evento `cancelled` ou `finished` não podem ser criados, alterados
+  nem removidos (`422`).
+- Cada lote tem `modality` (`inteira`, `meia`, `estudante`, `vip`, `cortesia`;
+  padrão `inteira`) e uma janela de vendas opcional (`salesStartDate`,
+  `salesEndDate`). A janela do lote restringe a do evento: fora dela,
+  `POST /orders` responde `422`. O fim precisa ser depois do início (`400`).
+- No `PATCH` de evento e de lote, os campos opcionais aceitam `null` para
+  serem apagados (omitir o campo mantém o valor gravado).
+- `GET /events` traz `capacity` (soma das capacidades dos lotes) e
+  `ticketsSold` (ingressos de pedidos pagos) em cada item, para o painel do
+  organizador mostrar o progresso de vendas sem chamar cada lote.
+
 ## Compra, checkout e ingressos
 
 Regras da GOL-175 que atravessam `orders`, `payments` e `tickets`:
