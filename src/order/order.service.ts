@@ -205,6 +205,12 @@ export class OrderService {
         );
       }
 
+      if (checkOnSale && !isLotOnSale(ticketType, now)) {
+        throw new UnprocessableEntityException(
+          `As vendas do ${label} não estão abertas`,
+        );
+      }
+
       const available = ticketType.quantity - (reserved.get(ticketTypeId) ?? 0);
       if (available <= 0) {
         throw new UnprocessableEntityException(`O ${label} está esgotado`);
@@ -319,5 +325,16 @@ function isOnSale(
     event.status === 'published' &&
     (event.salesStartDate === null || event.salesStartDate <= now) &&
     event.endDate > now
+  );
+}
+
+/** A janela do lote, quando definida, restringe a do evento. */
+function isLotOnSale(
+  lot: { salesStartDate: Date | null; salesEndDate: Date | null },
+  now: Date,
+) {
+  return (
+    (!lot.salesStartDate || lot.salesStartDate <= now) &&
+    (!lot.salesEndDate || lot.salesEndDate > now)
   );
 }

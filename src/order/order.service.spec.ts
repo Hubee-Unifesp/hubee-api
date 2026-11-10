@@ -61,6 +61,9 @@ function makeTicketType(overrides: Partial<TicketType> = {}): TicketType {
     batch: '1º lote',
     price: 50,
     quantity: 10,
+    modality: 'inteira',
+    salesStartDate: null,
+    salesEndDate: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -407,6 +410,36 @@ describe('OrderService', () => {
         }),
       ).rejects.toThrow('não estão abertas');
       expect(orderRepository.create).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['que ainda não abriu', { salesStartDate: new Date('2999-01-01') }],
+      ['que já fechou', { salesEndDate: new Date('2000-01-01') }],
+    ])(
+      'recusa comprar de lote com janela de vendas %s',
+      async (_label, lot) => {
+        givenLot(lot);
+
+        await expect(
+          service.create(mockAuthUser, {
+            items: [{ ticketTypeId: 'type-1', quantity: 1 }],
+          }),
+        ).rejects.toThrow('As vendas do lote "1º lote"');
+        expect(orderRepository.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it('vende lote dentro da própria janela de vendas', async () => {
+      givenLot({
+        salesStartDate: new Date('2000-01-01'),
+        salesEndDate: new Date('2999-01-01'),
+      });
+
+      await expect(
+        service.create(mockAuthUser, {
+          items: [{ ticketTypeId: 'type-1', quantity: 1 }],
+        }),
+      ).resolves.toBeDefined();
     });
 
     it('permite criar pedido mesmo com perfil sem CPF ou nascimento (GOL-194)', async () => {

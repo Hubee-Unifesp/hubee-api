@@ -30,6 +30,8 @@ describe('Lotes de ingressos por organizadores (banco em memória)', () => {
   let eventOfA: string;
   let eventOfB: string;
   let lotOfB: string;
+  let cancelledEventOfA: string;
+  let lotOfCancelled: string;
 
   const http = () => request(app.getHttpServer());
   const as = (name: string) => ({ Authorization: `Bearer ${tokens[name]}` });
@@ -96,7 +98,7 @@ describe('Lotes de ingressos por organizadores (banco em memória)', () => {
       .values({ addressId: address.id, name: 'Ginásio', maxCapacity: 500 })
       .returning();
 
-    [{ id: eventOfA }, { id: eventOfB }] = await db
+    [{ id: eventOfA }, { id: eventOfB }, { id: cancelledEventOfA }] = await db
       .insert(schema.events)
       .values([
         {
@@ -115,7 +117,20 @@ describe('Lotes de ingressos por organizadores (banco em memória)', () => {
           endDate: new Date('2026-12-13T02:00:00Z'),
           status: 'published',
         },
+        {
+          name: 'Festa Cancelada',
+          organizerId: orgA,
+          venueId,
+          startDate: new Date('2026-12-14T20:00:00Z'),
+          endDate: new Date('2026-12-15T02:00:00Z'),
+          status: 'cancelled',
+        },
       ])
+      .returning();
+
+    [{ id: lotOfCancelled }] = await db
+      .insert(schema.ticketTypes)
+      .values({ eventId: cancelledEventOfA, batch: 'Lote C', price: 20 })
       .returning();
 
     [{ id: lotOfB }] = await db
@@ -267,5 +282,57 @@ describe('Lotes de ingressos por organizadores (banco em memória)', () => {
       .delete(`/events/${eventOfB}/ticket-types/${created.body.id}`)
       .set(as('admin'))
       .expect(204);
+  });
+
+  it('recusa com 422 criar, editar ou remover lote de evento cancelado', async () => {
+    await http()
+      .post(`/events/${cancelledEventOfA}/ticket-types`)
+      .set(as('organizer'))
+      .send(newLot())
+      .expect(422);
+    await http()
+      .patch(`/events/${cancelledEventOfA}/ticket-types/${lotOfCancelled}`)
+      .set(as('organizer'))
+      .send({ price: 90 })
+      .expect(422);
+    await http()
+      .delete(`/events/${cancelledEventOfA}/ticket-types/${lotOfCancelled}`)
+      .set(as('organizer'))
+      .expect(422);
+  });
+
+  it('grava modalidade e janela de vendas do lote e apaga a janela com null', async () => {
+    const created = await http()
+      .post(`/events/${eventOfA}/ticket-types`)
+      .set(as('organizer'))
+      .send({
+        ...newLot('Meia'),
+        modality: 'meia',
+        salesStartDate: '2026-11-01T12:00:00.000Z',
+        salesEndDate: '2026-12-01T12:00:00.000Z',
+      })
+      .expect(201);
+    expect(created.body).toMatchObject({
+      modality: 'meia',
+      salesStartDate: '2026-11-01T12:00:00.000Z',
+      salesEndDate: '2026-12-01T12:00:00.000Z',
+    });
+
+    const cleared = await http()
+      .patch(`/events/${eventOfA}/ticket-types/${created.body.id}`)
+      .set(as('organizer'))
+      .send({ salesStartDate: null, salesEndDate: null })
+      .expect(200);
+    expect(cleared.body).toMatchObject({
+      modality: 'meia',
+      salesStartDate: null,
+      salesEndDate: null,
+    });
+
+    await http()
+      .post(`/events/${eventOfA}/ticket-types`)
+      .set(as('organizer'))
+      .send({ ...newLot(), modality: 'vip-plus' })
+      .expect(400);
   });
 });
