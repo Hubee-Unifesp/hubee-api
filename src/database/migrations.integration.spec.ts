@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from '@jest/globals';
+import { afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
@@ -24,6 +24,7 @@ function migrationSql(tag: string): string {
 
 describe('Migrations Drizzle (Postgres em memória)', () => {
   let pg: PGlite;
+  let expected: Record<string, unknown[]>;
 
   function database() {
     pg = new PGlite();
@@ -79,6 +80,12 @@ describe('Migrations Drizzle (Postgres em memória)', () => {
     return result;
   }
 
+  // O catálogo esperado não depende do teste: montar uma vez poupa um
+  // pushSchema (e um PGlite) por caso.
+  beforeAll(async () => {
+    expected = await expectedCatalog();
+  });
+
   afterEach(async () => {
     await pg?.close();
   });
@@ -98,7 +105,7 @@ describe('Migrations Drizzle (Postgres em memória)', () => {
 
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
 
-    expect(await catalog(pg)).toEqual(await expectedCatalog());
+    expect(await catalog(pg)).toEqual(expected);
   });
 
   it('reaplica todas as migrations sem erro em um banco já migrado', async () => {
@@ -111,7 +118,7 @@ describe('Migrations Drizzle (Postgres em memória)', () => {
     await pg.exec('DELETE FROM "drizzle"."__drizzle_migrations"');
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
 
-    expect(await catalog(pg)).toEqual(await expectedCatalog());
+    expect(await catalog(pg)).toEqual(expected);
   });
 
   it('aplica as migrations em um banco criado via db:push', async () => {
@@ -121,7 +128,7 @@ describe('Migrations Drizzle (Postgres em memória)', () => {
 
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
 
-    expect(await catalog(pg)).toEqual(await expectedCatalog());
+    expect(await catalog(pg)).toEqual(expected);
   });
 
   it('migra um banco legado sem journal preservando os dados de usuários', async () => {
@@ -143,6 +150,6 @@ describe('Migrations Drizzle (Postgres em memória)', () => {
       { full_name: 'Ana Souza', role: 'ADMIN' },
       { full_name: 'Bruno Lima', role: 'USER' },
     ]);
-    expect(await catalog(pg)).toEqual(await expectedCatalog());
+    expect(await catalog(pg)).toEqual(expected);
   });
 });

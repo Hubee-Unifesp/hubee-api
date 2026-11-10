@@ -99,7 +99,7 @@ describe('JwtAuthGuard', () => {
   });
 
   it('consulta o UsersService quando disponível e sincroniza role/email do banco', async () => {
-    const findActiveUser = jest.fn(async () => ({
+    const findActiveUser = jest.fn(async (_id: string) => ({
       id: 'user-id',
       email: 'atualizado@example.com',
       role: 'ADMIN' as const,
@@ -130,7 +130,7 @@ describe('JwtAuthGuard', () => {
   });
 
   it('recusa com 401 quando a conta está excluída, inativa ou não existe no UsersService', async () => {
-    const findActiveUser = jest.fn(async () => null);
+    const findActiveUser = jest.fn(async (_id: string) => null);
     const guardWithUsers = new JwtAuthGuard(jwt, {
       findActiveUser,
     } as unknown as UsersService);
@@ -229,7 +229,7 @@ describe('RolesGuard e @Roles', () => {
     @Roles('ADMIN')
     class AdminController {}
     const ctx = context({ user: { role: 'USER' } });
-    ctx.getClass = () => AdminController;
+    ctx.getClass = (() => AdminController) as typeof ctx.getClass;
     expect(() => rolesGuard.canActivate(ctx)).toThrow(ForbiddenException);
   });
 });

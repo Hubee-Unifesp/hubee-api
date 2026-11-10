@@ -175,7 +175,10 @@ function routesOf(controller: Type): Route[] {
       handler,
     );
     if (path === undefined || name === 'constructor') return [];
-    const method = METHOD_NAMES[Reflect.getMetadata(METHOD_METADATA, handler)];
+    const method =
+      METHOD_NAMES[
+        Reflect.getMetadata(METHOD_METADATA, handler) as RequestMethod
+      ];
     if (!method) return [];
     const template =
       '/' + [base, path].filter((part) => part && part !== '/').join('/');
@@ -499,11 +502,9 @@ describe('Proteção de rotas (GOL-114)', () => {
       const send = (token?: string) =>
         call(route, token).send({ organizerId: ID });
       const asMember = (permission?: string, role = 'member') => {
-        membership.current = permission && {
-          role,
-          permission,
-          inviteStatus: 'accepted',
-        };
+        membership.current = permission
+          ? { role, permission, inviteStatus: 'accepted' }
+          : undefined;
         return send(userToken);
       };
       const byEvent = isResourceScoped(route);

@@ -35,6 +35,7 @@ describe('OrganizationService', () => {
     create: jest.Mock<OrganizationRepository['create']>;
     addMember: jest.Mock<OrganizationRepository['addMember']>;
     update: jest.Mock<OrganizationRepository['update']>;
+    deleteMembers: jest.Mock<OrganizationRepository['deleteMembers']>;
     delete: jest.Mock<OrganizationRepository['delete']>;
   };
   let usersService: {
@@ -49,6 +50,7 @@ describe('OrganizationService', () => {
       create: jest.fn<OrganizationRepository['create']>(),
       addMember: jest.fn<OrganizationRepository['addMember']>(),
       update: jest.fn<OrganizationRepository['update']>(),
+      deleteMembers: jest.fn<OrganizationRepository['deleteMembers']>(),
       delete: jest.fn<OrganizationRepository['delete']>(),
     };
     usersService = {
@@ -240,13 +242,22 @@ describe('OrganizationService', () => {
   });
 
   describe('remove()', () => {
-    it('remove quando a organização existe', async () => {
+    it('remove os vínculos e a organização na mesma transação quando ela existe', async () => {
       organizationRepository.findById.mockResolvedValue(makeOrganization());
+      organizationRepository.deleteMembers.mockResolvedValue(undefined);
       organizationRepository.delete.mockResolvedValue(undefined);
 
       await service.remove('org-1');
 
-      expect(organizationRepository.delete).toHaveBeenCalledWith('org-1');
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(organizationRepository.deleteMembers).toHaveBeenCalledWith(
+        'org-1',
+        tx,
+      );
+      expect(organizationRepository.delete).toHaveBeenCalledWith('org-1', tx);
+      expect(
+        organizationRepository.deleteMembers.mock.invocationCallOrder[0],
+      ).toBeLessThan(organizationRepository.delete.mock.invocationCallOrder[0]);
     });
 
     it('lança NotFound e não apaga quando a organização não existe', async () => {
@@ -255,7 +266,9 @@ describe('OrganizationService', () => {
       await expect(service.remove('org-1')).rejects.toBeInstanceOf(
         NotFoundException,
       );
+      expect(organizationRepository.deleteMembers).not.toHaveBeenCalled();
       expect(organizationRepository.delete).not.toHaveBeenCalled();
+      expect(db.transaction).not.toHaveBeenCalled();
     });
   });
 });

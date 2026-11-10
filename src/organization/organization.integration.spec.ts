@@ -4,6 +4,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import { pushSchema } from 'drizzle-kit/api';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import request from 'supertest';
 import { DRIZZLE } from '../database/database.constants';
@@ -189,6 +190,30 @@ describe('Organizações — cadastro por usuário autenticado e vínculo de adm
         .set(as('stranger'))
         .send({ name: 'Tentativa Stranger' })
         .expect(404);
+    });
+  });
+
+  describe('DELETE /organizations/:id — exclusão de organização com vínculos', () => {
+    it('ADMIN exclui organização criada pelo fluxo de cadastro e os vínculos em organization_users são removidos', async () => {
+      const created = await http()
+        .post('/organizations')
+        .set(as('creator'))
+        .send({ name: 'Org Para Excluir' })
+        .expect(201);
+      const orgId = created.body.id as string;
+
+      await http()
+        .delete(`/organizations/${orgId}`)
+        .set(as('admin'))
+        .expect(204);
+
+      await http().get(`/organizations/${orgId}`).set(as('admin')).expect(404);
+
+      const memberships = await db
+        .select()
+        .from(schema.organizationUsers)
+        .where(eq(schema.organizationUsers.orgId, orgId));
+      expect(memberships).toHaveLength(0);
     });
   });
 });

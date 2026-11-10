@@ -42,6 +42,7 @@ function makeEvent(overrides: Partial<Event> = {}): Event {
     category: null,
     edition: null,
     photoUrl: null,
+    featured: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -60,7 +61,7 @@ describe('TicketTypeService', () => {
       TicketTypeRepository['hasLinkedTicketsOrOrders']
     >;
     countCommitted: jest.Mock<TicketTypeRepository['countCommitted']>;
-    withAvailability: jest.Mock;
+    withAvailability: jest.Mock<TicketTypeRepository['withAvailability']>;
   };
   let eventService: {
     findOne: jest.Mock<EventService['findOne']>;
@@ -78,8 +79,9 @@ describe('TicketTypeService', () => {
         jest.fn<TicketTypeRepository['hasLinkedTicketsOrOrders']>(),
       countCommitted: jest.fn<TicketTypeRepository['countCommitted']>(),
       // Simula 30 vagas comprometidas em cada lote.
-      withAvailability: jest.fn(async (rows: TicketTypeRow[]) =>
-        rows.map((row) => ({ ...row, available: row.quantity - 30 })),
+      withAvailability: jest.fn<TicketTypeRepository['withAvailability']>(
+        async (rows) =>
+          rows.map((row) => ({ ...row, available: row.quantity - 30 })),
       ),
     };
     eventService = {
