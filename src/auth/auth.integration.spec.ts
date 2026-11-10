@@ -9,6 +9,11 @@ import request from 'supertest';
 import { eq } from 'drizzle-orm';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import {
+  AUTH_THROTTLE_LIMIT,
+  AuthThrottlerGuard,
+  createAuthRateLimitStoreProvider,
+} from './guards/auth-throttler.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UsersService } from '../users/users.service';
 import { DRIZZLE } from '../database/database.constants';
@@ -56,6 +61,8 @@ describe('Auth endpoints (Postgres em memória)', () => {
         AuthService,
         UsersService,
         JwtAuthGuard,
+        createAuthRateLimitStoreProvider(),
+        AuthThrottlerGuard,
         { provide: DRIZZLE, useValue: db },
       ],
     }).compile();
@@ -158,7 +165,8 @@ describe('Auth endpoints (Postgres em memória)', () => {
     { fullName: ' ' },
     { fullName: 'x'.repeat(201) },
     { email: 42 },
-    { password: 'short' },
+    { password: 'short12' },
+    { password: 'x'.repeat(73) },
   ])('register rejeita payload inválido %j', async (override) => {
     await request(app.getHttpServer())
       .post('/auth/register')
@@ -169,6 +177,28 @@ describe('Auth endpoints (Postgres em memória)', () => {
         ...override,
       })
       .expect(400);
+  });
+
+  it('register e login aceitam senha no limite máximo de 72 caracteres', async () => {
+    const maxPassword = 'p'.repeat(72);
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .set('X-Forwarded-For', '10.0.0.72')
+      .send({
+        fullName: 'Ana Limite',
+        email: 'ana72@example.com',
+        password: maxPassword,
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .set('X-Forwarded-For', '10.0.0.72')
+      .send({
+        email: 'ana72@example.com',
+        password: maxPassword,
+      })
+      .expect(200);
   });
 
   it('me exige token e retorna usuário sem senha com perfil incompleto', async () => {
@@ -249,4 +279,44 @@ describe('Auth endpoints (Postgres em memória)', () => {
         .expect(401);
     },
   );
+
+  it('retorna 429 Too Many Requests ao exceder o limite de tentativas em /auth/login e /auth/register', async () => {
+    const loginIp = '198.51.100.10';
+    for (let i = 0; i < AUTH_THROTTLE_LIMIT; i++) {
+      await request(app.getHttpServer())
+        .post('/auth/login')
+        .set('X-Forwarded-For', loginIp)
+        .send({ email: 'new@example.com', password: 'wrongpassword' })
+        .expect(401);
+    }
+    const blockedLogin = await request(app.getHttpServer())
+      .post('/auth/login')
+      .set('X-Forwarded-For', loginIp)
+      .send({ email: 'new@example.com', password: 'wrongpassword' })
+      .expect(429);
+    expect(blockedLogin.headers['retry-after']).toBeDefined();
+
+    const registerIp = '198.51.100.20';
+    for (let i = 0; i < AUTH_THROTTLE_LIMIT; i++) {
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .set('X-Forwarded-For', registerIp)
+        .send({
+          fullName: 'Rate Limit',
+          email: 'invalid-email',
+          password: 'secret123',
+        })
+        .expect(400);
+    }
+    const blockedRegister = await request(app.getHttpServer())
+      .post('/auth/register')
+      .set('X-Forwarded-For', registerIp)
+      .send({
+        fullName: 'Rate Limit Blocked',
+        email: 'ratelimit-blocked@example.com',
+        password: 'secret123',
+      })
+      .expect(429);
+    expect(blockedRegister.headers['retry-after']).toBeDefined();
+  });
 });
