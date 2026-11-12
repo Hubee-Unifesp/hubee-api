@@ -26,7 +26,6 @@ export const createAuthRateLimitStoreProvider = () => ({
 
 interface RateLimitRequest {
   ip?: string;
-  headers?: Record<string, string | string[] | undefined>;
   socket?: { remoteAddress?: string };
 }
 
@@ -52,17 +51,23 @@ export class AuthThrottlerGuard implements CanActivate {
     const res = http.getResponse<RateLimitResponse>();
     const now = Date.now();
 
+    this.pruneExpiredEntries(now);
+
     const handlerName = context.getHandler().name;
     const tracker = this.extractClientIp(req);
     const key = `${handlerName}:${tracker}`;
 
     const current = this.store.get(key);
-    const entry =
-      !current || now >= current.resetAt
-        ? { count: 1, resetAt: now + AUTH_THROTTLE_TTL_MS }
-        : { count: current.count + 1, resetAt: current.resetAt };
+    const isNewWindow = !current || now >= current.resetAt;
+    const entry = isNewWindow
+      ? { count: 1, resetAt: now + AUTH_THROTTLE_TTL_MS }
+      : { count: current.count + 1, resetAt: current.resetAt };
 
     this.store.set(key, entry);
+
+    if (isNewWindow) {
+      this.scheduleEntryCleanup(key, entry.resetAt);
+    }
 
     const remainingSeconds = Math.max(
       1,
@@ -80,14 +85,28 @@ export class AuthThrottlerGuard implements CanActivate {
     return true;
   }
 
+  private pruneExpiredEntries(now: number): void {
+    if (!this.store) {
+      return;
+    }
+    for (const [key, entry] of this.store.entries()) {
+      if (now >= entry.resetAt) {
+        this.store.delete(key);
+      }
+    }
+  }
+
+  private scheduleEntryCleanup(key: string, resetAt: number): void {
+    const timer = setTimeout(() => {
+      const current = this.store?.get(key);
+      if (current && current.resetAt === resetAt) {
+        this.store?.delete(key);
+      }
+    }, AUTH_THROTTLE_TTL_MS);
+    timer.unref?.();
+  }
+
   private extractClientIp(req: RateLimitRequest): string {
-    const forwarded = req.headers?.['x-forwarded-for'];
-    if (typeof forwarded === 'string' && forwarded.trim().length > 0) {
-      return forwarded.split(',')[0].trim();
-    }
-    if (Array.isArray(forwarded) && forwarded.length > 0 && forwarded[0]) {
-      return forwarded[0].trim();
-    }
     return req.ip || req.socket?.remoteAddress || 'unknown';
   }
 }
