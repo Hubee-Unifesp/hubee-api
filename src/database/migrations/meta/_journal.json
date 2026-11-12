@@ -57,6 +57,13 @@
       "when": 1794200000000,
       "tag": "0007_ticket_types_modality_sales_window",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794520562708,
+      "tag": "0008_supplier_reviews",
+      "breakpoints": true
     }
   ]
 }

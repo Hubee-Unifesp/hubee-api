@@ -7,10 +7,22 @@ import {
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { QuerySupplierDto } from './dto/query-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
-import { eq, or, isNull, and, ne, ilike } from 'drizzle-orm';
-import { suppliers } from '../database/schema';
+import { CreateSupplierReviewDto } from './dto/create-supplier-review.dto';
+import { eq, or, isNull, and, ne, ilike, desc, sql } from 'drizzle-orm';
+import { supplierReviews, suppliers, users } from '../database/schema';
 
 const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
+
+const reviewColumns = {
+  id: supplierReviews.id,
+  supplierId: supplierReviews.supplierId,
+  userId: supplierReviews.userId,
+  userName: users.fullName,
+  rating: supplierReviews.rating,
+  comment: supplierReviews.comment,
+  createdAt: supplierReviews.createdAt,
+  updatedAt: supplierReviews.updatedAt,
+};
 
 @Injectable()
 export class SuppliersService {
@@ -121,5 +133,42 @@ export class SuppliersService {
       .update(suppliers)
       .set({ deletedAt: new Date() })
       .where(eq(suppliers.id, id));
+  }
+
+  async saveReview(
+    supplierId: string,
+    userId: string,
+    dto: CreateSupplierReviewDto,
+  ) {
+    await this.findOne(supplierId);
+
+    const values = { rating: dto.rating, comment: dto.comment || null };
+    const [saved] = await this.db
+      .insert(supplierReviews)
+      .values({ supplierId, userId, ...values })
+      .onConflictDoUpdate({
+        target: [supplierReviews.supplierId, supplierReviews.userId],
+        set: { ...values, updatedAt: sql`now()` },
+      })
+      .returning({ id: supplierReviews.id, created: sql<boolean>`xmax = 0` });
+
+    const [review] = await this.db
+      .select(reviewColumns)
+      .from(supplierReviews)
+      .innerJoin(users, eq(users.id, supplierReviews.userId))
+      .where(eq(supplierReviews.id, saved.id));
+
+    return { review, created: saved.created };
+  }
+
+  async findReviews(supplierId: string) {
+    await this.findOne(supplierId);
+
+    return this.db
+      .select(reviewColumns)
+      .from(supplierReviews)
+      .innerJoin(users, eq(users.id, supplierReviews.userId))
+      .where(eq(supplierReviews.supplierId, supplierId))
+      .orderBy(desc(supplierReviews.updatedAt), desc(supplierReviews.id));
   }
 }
