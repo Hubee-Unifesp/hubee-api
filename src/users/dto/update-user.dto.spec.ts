@@ -45,10 +45,7 @@ describe('UpdateUserDto', () => {
   );
 
   it.each([
-    [
-      'a'.repeat(7),
-      { minLength: 'A senha deve ter no mínimo 8 caracteres' },
-    ],
+    ['a'.repeat(7), { minLength: 'A senha deve ter no mínimo 8 caracteres' }],
     [
       'a'.repeat(73),
       {
