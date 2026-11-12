@@ -24,11 +24,9 @@ describe('UpdateUserDto', () => {
     ]);
   });
 
-  it.each([8, 28, 72])(
-    'aceita senha com %d caracteres em CreateUserDto, UpdateUserDto e ChangePasswordDto',
-    async (length) => {
-      const password = 'a'.repeat(length);
-
+  it.each(['a'.repeat(8), 'a'.repeat(28), 'a'.repeat(72), 'á'.repeat(36)])(
+    'aceita senha válida (%s) em CreateUserDto, UpdateUserDto e ChangePasswordDto',
+    async (password) => {
       const createDto = plainToInstance(CreateUserDto, {
         fullName: 'Maria Silva',
         email: 'maria@example.com',
@@ -46,14 +44,35 @@ describe('UpdateUserDto', () => {
     },
   );
 
-  it.each([7, 73])(
-    'rejeita senha com %d caracteres em CreateUserDto, UpdateUserDto e ChangePasswordDto',
-    async (length) => {
-      const password = 'a'.repeat(length);
-      const expectedConstraint = {
-        isLength: 'A senha deve ter entre 8 e 72 caracteres',
-      };
-
+  it.each([
+    [
+      'a'.repeat(7),
+      { minLength: 'A senha deve ter no mínimo 8 caracteres' },
+    ],
+    [
+      'a'.repeat(73),
+      {
+        maxByteLength:
+          'A senha deve ter no máximo 72 bytes (caracteres acentuados e emojis contam mais de um)',
+      },
+    ],
+    [
+      `${'a'.repeat(71)}á`,
+      {
+        maxByteLength:
+          'A senha deve ter no máximo 72 bytes (caracteres acentuados e emojis contam mais de um)',
+      },
+    ],
+    [
+      'á'.repeat(37),
+      {
+        maxByteLength:
+          'A senha deve ter no máximo 72 bytes (caracteres acentuados e emojis contam mais de um)',
+      },
+    ],
+  ])(
+    'rejeita senha inválida (%s) em CreateUserDto, UpdateUserDto e ChangePasswordDto',
+    async (password, expectedConstraint) => {
       const createDto = plainToInstance(CreateUserDto, {
         fullName: 'Maria Silva',
         email: 'maria@example.com',

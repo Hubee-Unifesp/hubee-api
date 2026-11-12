@@ -60,7 +60,20 @@ describe('AuthThrottlerGuard', () => {
     expect(setHeader).toHaveBeenCalledWith('Retry-After', expect.any(Number));
   });
 
-  it('isola contadores por rota (login vs register) e por IP, e reinicia após expirar o TTL', () => {
+  it('ignora cabeçalho X-Forwarded-For manual e contabiliza apenas por req.ip', () => {
+    const store: AuthRateLimitStore = new Map();
+    const guard = new AuthThrottlerGuard(store);
+
+    for (let i = 0; i < AUTH_THROTTLE_LIMIT; i++) {
+      const ctx = makeContext('login', '127.0.0.1', `203.0.113.${i + 1}`);
+      expect(guard.canActivate(ctx)).toBe(true);
+    }
+
+    const spoofedCtx = makeContext('login', '127.0.0.1', '198.51.100.250');
+    expect(() => guard.canActivate(spoofedCtx)).toThrow(HttpException);
+  });
+
+  it('isola contadores por rota (login vs register) e por IP, remove chaves vencidas e reinicia após expirar o TTL', () => {
     const store: AuthRateLimitStore = new Map();
     const guard = new AuthThrottlerGuard(store);
     const loginCtxIpA = makeContext('login', '192.0.2.1');
@@ -75,12 +88,33 @@ describe('AuthThrottlerGuard', () => {
     // Outra rota no mesmo IP e mesma rota em outro IP continuam liberadas:
     expect(guard.canActivate(registerCtxIpA)).toBe(true);
     expect(guard.canActivate(loginCtxIpB)).toBe(true);
+    expect(store.size).toBe(3);
 
-    // Após expirar a janela (TTL), o IP bloqueado volta a passar:
+    // Após expirar a janela (TTL), chaves antigas são removidas do Map e o IP bloqueado volta a passar:
     const nowSpy = jest
       .spyOn(Date, 'now')
       .mockReturnValue(Date.now() + AUTH_THROTTLE_TTL_MS + 1);
     expect(guard.canActivate(loginCtxIpA)).toBe(true);
+    expect(store.has('register:192.0.2.1')).toBe(false);
+    expect(store.has('login:192.0.2.2')).toBe(false);
+    expect(store.size).toBe(1);
     nowSpy.mockRestore();
+  });
+
+  it('remove automaticamente a entrada do Map quando o timer do TTL expira', () => {
+    jest.useFakeTimers();
+    try {
+      const store: AuthRateLimitStore = new Map();
+      const guard = new AuthThrottlerGuard(store);
+      const ctx = makeContext('login', '192.0.2.99');
+
+      expect(guard.canActivate(ctx)).toBe(true);
+      expect(store.has('login:192.0.2.99')).toBe(true);
+
+      jest.advanceTimersByTime(AUTH_THROTTLE_TTL_MS);
+      expect(store.has('login:192.0.2.99')).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
