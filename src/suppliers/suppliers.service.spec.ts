@@ -122,4 +122,86 @@ describe('SuppliersService', () => {
       );
     });
   });
+
+  describe('avaliações', () => {
+    const review = {
+      id: 'review-1',
+      supplierId: 'sup-1',
+      userId: 'user-1',
+      userName: 'Organizadora',
+      rating: 4,
+      comment: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    function mockSelects(supplier: object | undefined, reviews: object[] = []) {
+      const reviewQuery = {
+        from: () => ({
+          innerJoin: () => ({
+            where: jest.fn(() =>
+              Object.assign(Promise.resolve(reviews), {
+                orderBy: async () => reviews,
+              }),
+            ),
+          }),
+        }),
+      };
+      mockDb.select
+        .mockReturnValueOnce({
+          from: () => ({ where: async () => (supplier ? [supplier] : []) }),
+        })
+        .mockReturnValue(reviewQuery);
+    }
+
+    it('saveReview faz upsert pela dupla fornecedor/usuário e devolve created', async () => {
+      mockSelects(supplierRow, [review]);
+      const onConflictDoUpdate = jest.fn(() => ({
+        returning: async () => [{ id: 'review-1', created: false }],
+      }));
+      const values = jest.fn(() => ({ onConflictDoUpdate }));
+      mockDb.insert.mockReturnValue({ values });
+
+      const result = await service.saveReview('sup-1', 'user-1', {
+        rating: 4,
+        comment: '',
+      });
+
+      expect(values).toHaveBeenCalledWith({
+        supplierId: 'sup-1',
+        userId: 'user-1',
+        rating: 4,
+        comment: null,
+      });
+      expect(onConflictDoUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          set: expect.objectContaining({ rating: 4, comment: null }),
+        }),
+      );
+      expect(result).toEqual({ review, created: false });
+    });
+
+    it('saveReview lança NotFoundException para fornecedor removido', async () => {
+      mockSelects({ ...supplierRow, deletedAt: new Date() });
+
+      await expect(
+        service.saveReview('sup-1', 'user-1', { rating: 5 }),
+      ).rejects.toThrow(new NotFoundException('Fornecedor não encontrado.'));
+      expect(mockDb.insert).not.toHaveBeenCalled();
+    });
+
+    it('findReviews lista as avaliações do fornecedor ativo', async () => {
+      mockSelects(supplierRow, [review]);
+
+      await expect(service.findReviews('sup-1')).resolves.toEqual([review]);
+    });
+
+    it('findReviews lança NotFoundException para fornecedor inexistente', async () => {
+      mockSelects(undefined);
+
+      await expect(service.findReviews('sup-404')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
 });

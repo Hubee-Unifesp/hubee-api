@@ -17,6 +17,7 @@ export * from './venue.schema';
 export * from './organization-user';
 export * from './organization-event.schema';
 export * from './supplier';
+export * from './supplier-review.schema';
 export * from './organization.schema';
 export * from './expense.schema';
 export * from './payment.schema';

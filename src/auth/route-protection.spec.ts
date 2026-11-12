@@ -137,6 +137,8 @@ const ORGANIZER_ONLY_ROUTES = [
   'GET /suppliers/:id',
   'PATCH /suppliers/:id',
   'DELETE /suppliers/:id',
+  'POST /suppliers/:id/reviews',
+  'GET /suppliers/:id/reviews',
 ];
 
 /** Rotas de pedido que ganham proteção com checagem de dono na GOL-103. */
