@@ -152,4 +152,38 @@ describe('Migrations Drizzle (Postgres em memória)', () => {
     ]);
     expect(await catalog(pg)).toEqual(expected);
   });
+
+  it('cria supplier_reviews com nota de 1 a 5 e uma avaliação por usuário', async () => {
+    const db = database();
+    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+
+    const {
+      rows: [ids],
+    } = await pg.query<{ supplier_id: string; user_id: string }>(`
+      WITH s AS (
+        INSERT INTO "suppliers" ("company_name", "cnpj_cpf")
+        VALUES ('Buffet', '11222333000181') RETURNING "id"
+      ), u AS (
+        INSERT INTO "users" ("full_name", "email", "password")
+        VALUES ('Ana', 'ana@hubee.com', 'hash') RETURNING "id"
+      )
+      SELECT s.id AS supplier_id, u.id AS user_id FROM s, u
+    `);
+    const insertReview = (rating: number) =>
+      pg.query(
+        'INSERT INTO "supplier_reviews" ("supplier_id", "user_id", "rating") VALUES ($1, $2, $3)',
+        [ids.supplier_id, ids.user_id, rating],
+      );
+
+    await expect(insertReview(0)).rejects.toThrow(
+      /supplier_reviews_rating_range/,
+    );
+    await expect(insertReview(6)).rejects.toThrow(
+      /supplier_reviews_rating_range/,
+    );
+    await insertReview(5);
+    await expect(insertReview(4)).rejects.toThrow(
+      /supplier_reviews_supplier_id_user_id_unique/,
+    );
+  });
 });
