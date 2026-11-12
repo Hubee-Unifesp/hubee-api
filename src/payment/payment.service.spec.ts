@@ -50,6 +50,7 @@ describe('PaymentService', () => {
     lockPendingForCheckout: jest.Mock<OrderService['lockPendingForCheckout']>;
     markAsPaid: jest.Mock<OrderService['markAsPaid']>;
     findItems: jest.Mock<OrderService['findItems']>;
+    findEventsForShare: jest.Mock<OrderService['findEventsForShare']>;
     cancelIfReservationExpired: jest.Mock<
       OrderService['cancelIfReservationExpired']
     >;
@@ -75,6 +76,7 @@ describe('PaymentService', () => {
       lockPendingForCheckout: jest.fn<OrderService['lockPendingForCheckout']>(),
       markAsPaid: jest.fn<OrderService['markAsPaid']>(),
       findItems: jest.fn<OrderService['findItems']>(),
+      findEventsForShare: jest.fn<OrderService['findEventsForShare']>(),
       cancelIfReservationExpired:
         jest.fn<OrderService['cancelIfReservationExpired']>(),
     };
@@ -169,6 +171,15 @@ describe('PaymentService', () => {
       orderService.cancelIfReservationExpired.mockResolvedValue(false);
       orderService.markAsPaid.mockResolvedValue(paidOrder);
       orderService.findItems.mockResolvedValue(items as never);
+      orderService.findEventsForShare.mockResolvedValue([
+        {
+          id: 'event-1',
+          name: 'Calourada',
+          status: 'published',
+          salesStartDate: null,
+          endDate: new Date('2999-12-11T02:00:00Z'),
+        } as never,
+      ]);
       paymentRepository.findByOrderId.mockResolvedValue(undefined);
       paymentRepository.create.mockImplementation(async (data) =>
         makePayment({ ...data, id: 'payment-1' }),
@@ -182,6 +193,10 @@ describe('PaymentService', () => {
       expect(orderService.lockPendingForCheckout).toHaveBeenCalledWith(
         ORDER_ID,
         BUYER,
+        tx,
+      );
+      expect(orderService.findEventsForShare).toHaveBeenCalledWith(
+        ['event-1'],
         tx,
       );
       expect(paymentRepository.create).toHaveBeenCalledWith(
@@ -269,6 +284,78 @@ describe('PaymentService', () => {
       expect(paymentRepository.create).not.toHaveBeenCalled();
       expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
     });
+
+    it('recusa o checkout (422) e não paga nem emite quando o evento do pedido foi cancelado', async () => {
+      orderService.findEventsForShare.mockResolvedValue([
+        {
+          id: 'event-1',
+          name: 'Calourada',
+          status: 'cancelled',
+          salesStartDate: null,
+          endDate: new Date('2999-12-11T02:00:00Z'),
+        } as never,
+      ]);
+
+      await expect(service.checkout(dto, BUYER)).rejects.toThrow(
+        new UnprocessableEntityException('O evento "Calourada" foi cancelado'),
+      );
+      expect(orderService.findEventsForShare).toHaveBeenCalledWith(
+        ['event-1'],
+        tx,
+      );
+      expect(paymentRepository.create).not.toHaveBeenCalled();
+      expect(orderService.markAsPaid).not.toHaveBeenCalled();
+      expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
+    });
+
+    it('recusa o checkout (422) e não paga nem emite quando as vendas do evento foram encerradas', async () => {
+      orderService.findEventsForShare.mockResolvedValue([
+        {
+          id: 'event-1',
+          name: 'Calourada',
+          status: 'published',
+          salesStartDate: null,
+          endDate: new Date('2020-01-01T00:00:00Z'),
+        } as never,
+      ]);
+
+      await expect(service.checkout(dto, BUYER)).rejects.toThrow(
+        new UnprocessableEntityException(
+          'As vendas do evento "Calourada" não estão abertas',
+        ),
+      );
+      expect(orderService.findEventsForShare).toHaveBeenCalledWith(
+        ['event-1'],
+        tx,
+      );
+      expect(paymentRepository.create).not.toHaveBeenCalled();
+      expect(orderService.markAsPaid).not.toHaveBeenCalled();
+      expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
+    });
+
+    it.each(['draft', 'finished'] as const)(
+      'recusa o checkout (422) quando o evento está em status %s',
+      async (status) => {
+        orderService.findEventsForShare.mockResolvedValue([
+          {
+            id: 'event-1',
+            name: 'Calourada',
+            status,
+            salesStartDate: null,
+            endDate: new Date('2999-12-11T02:00:00Z'),
+          } as never,
+        ]);
+
+        await expect(service.checkout(dto, BUYER)).rejects.toThrow(
+          new UnprocessableEntityException(
+            'As vendas do evento "Calourada" não estão abertas',
+          ),
+        );
+        expect(paymentRepository.create).not.toHaveBeenCalled();
+        expect(orderService.markAsPaid).not.toHaveBeenCalled();
+        expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
+      },
+    );
 
     it('propaga a falha da emissão para a transaction desfazer o pagamento', async () => {
       ticketService.issueForPaidOrder.mockRejectedValue(new Error('db fora'));

@@ -494,6 +494,68 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
       await pay('ana', created.body.id).expect(422);
     });
 
+    it('não paga pedido nem emite ingressos quando o evento foi cancelado (GOL-211)', async () => {
+      const lot = await newLot(5);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+
+      await db
+        .update(schema.events)
+        .set({ status: 'cancelled' })
+        .where(eq(schema.events.id, eventId));
+
+      try {
+        const response = await pay('ana', created.body.id).expect(422);
+        expect(response.body.message).toContain('foi cancelado');
+
+        const [row] = await db
+          .select()
+          .from(schema.orders)
+          .where(eq(schema.orders.id, created.body.id));
+        expect(row.status).toBe('pendente');
+        expect(
+          await db
+            .select()
+            .from(schema.payments)
+            .where(eq(schema.payments.orderId, created.body.id)),
+        ).toHaveLength(0);
+        expect(
+          await db
+            .select()
+            .from(schema.tickets)
+            .where(eq(schema.tickets.orderId, created.body.id)),
+        ).toHaveLength(0);
+      } finally {
+        await db
+          .update(schema.events)
+          .set({ status: 'published' })
+          .where(eq(schema.events.id, eventId));
+      }
+    });
+
+    it('não paga pedido quando o evento sai de venda (draft/finished) antes do checkout (GOL-211)', async () => {
+      const lot = await newLot(5);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+
+      await db
+        .update(schema.events)
+        .set({ status: 'finished' })
+        .where(eq(schema.events.id, eventId));
+
+      try {
+        const response = await pay('ana', created.body.id).expect(422);
+        expect(response.body.message).toContain('não estão abertas');
+      } finally {
+        await db
+          .update(schema.events)
+          .set({ status: 'published' })
+          .where(eq(schema.events.id, eventId));
+      }
+    });
+
     it('se a emissão falhar, o pagamento é desfeito e o pedido segue pendente', async () => {
       const lot = await newLot(5);
       const created = await order('ana', [

@@ -90,6 +90,7 @@ describe('OrderService', () => {
   };
   let orderItemRepository: {
     findByOrder: jest.Mock<OrderItemRepository['findByOrder']>;
+    findEventsForShare: jest.Mock<OrderItemRepository['findEventsForShare']>;
     createMany: jest.Mock<OrderItemRepository['createMany']>;
     sumReservedByTicketType: jest.Mock<
       OrderItemRepository['sumReservedByTicketType']
@@ -131,6 +132,7 @@ describe('OrderService', () => {
     };
     orderItemRepository = {
       findByOrder: jest.fn<OrderItemRepository['findByOrder']>(),
+      findEventsForShare: jest.fn<OrderItemRepository['findEventsForShare']>(),
       createMany: jest.fn<OrderItemRepository['createMany']>(),
       sumReservedByTicketType:
         jest.fn<OrderItemRepository['sumReservedByTicketType']>(),

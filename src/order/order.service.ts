@@ -161,6 +161,10 @@ export class OrderService {
     return this.orderItemRepository.findByOrder(orderId, executor);
   }
 
+  findEventsForShare(eventIds: string[], executor: DbExecutor) {
+    return this.orderItemRepository.findEventsForShare(eventIds, executor);
+  }
+
   markAsPaid(id: string, executor: DbExecutor) {
     return this.orderRepository.update(id, { status: 'pago' }, executor);
   }
@@ -311,7 +315,7 @@ function mergeItems(items: CreateOrderDto['items']) {
 }
 
 /** Vende só evento publicado, com vendas já abertas e que ainda não terminou. */
-function isOnSale(
+export function isOnSale(
   event: { status: string; salesStartDate: Date | null; endDate: Date },
   now: Date,
 ) {

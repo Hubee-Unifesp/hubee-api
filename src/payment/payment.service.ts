@@ -9,8 +9,11 @@ import {
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { canAccess } from '../auth/ownership';
 import { DRIZZLE } from '../database/database.constants';
-import type { DrizzleDatabase } from '../database/database.provider';
-import { OrderService } from '../order/order.service';
+import type {
+  DbExecutor,
+  DrizzleDatabase,
+} from '../database/database.provider';
+import { OrderService, isOnSale } from '../order/order.service';
 import { TicketService } from '../ticket/ticket.service';
 import { CheckoutDto } from './dto/checkout.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -70,6 +73,9 @@ export class PaymentService {
         );
       }
 
+      const items = await this.orderService.findItems(order.id, tx);
+      await this.ensureEventsOnSale(items, tx);
+
       const payment = await this.paymentRepository.create(
         {
           orderId: order.id,
@@ -82,7 +88,6 @@ export class PaymentService {
       );
 
       const paidOrder = await this.orderService.markAsPaid(order.id, tx);
-      const items = await this.orderService.findItems(order.id, tx);
       await this.ticketService.issueForPaidOrder(paidOrder, items, tx);
 
       return payment;
@@ -132,6 +137,38 @@ export class PaymentService {
     }
 
     return this.paymentRepository.update(payment.id, dto);
+  }
+
+  private async ensureEventsOnSale(
+    items: Awaited<ReturnType<OrderService['findItems']>>,
+    executor: DbExecutor,
+  ) {
+    const eventIds = [
+      ...new Set(
+        items
+          .map((item) => item.ticketType?.eventId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (eventIds.length === 0) return;
+
+    const lockedEvents = await this.orderService.findEventsForShare(
+      eventIds,
+      executor,
+    );
+    const now = new Date();
+    for (const event of lockedEvents) {
+      if (event.status === 'cancelled') {
+        throw new UnprocessableEntityException(
+          `O evento "${event.name}" foi cancelado`,
+        );
+      }
+      if (!isOnSale(event, now)) {
+        throw new UnprocessableEntityException(
+          `As vendas do evento "${event.name}" não estão abertas`,
+        );
+      }
+    }
   }
 
   private async findByOrder(orderId: string) {
