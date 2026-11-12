@@ -107,7 +107,8 @@ permissões por organização (spike **GOL-109**) já vale para eventos
 | `orders`                                                         | ver GOL-103                                                                                                                                                                                                                                                           | `POST /orders`: qualquer usuário logado com perfil completo; `PATCH` (status): só `ADMIN`; demais, ver GOL-103                                                                                                                                                                              |
 | `users`                                                          | ver GOL-105                                                                                                                                                                                                                                                           | ver GOL-105                                                                                                                                                                                                                                                                                 |
 
-Continuam públicos `POST /auth/login`, `POST /auth/register` e `GET /health`.
+Continuam públicos `POST /auth/login`, `POST /auth/register`, `GET /health` e
+`GET /health/ping`.
 Recurso de outra pessoa responde **`404`** (e não `403`), para não revelar
 quais ids existem.
 

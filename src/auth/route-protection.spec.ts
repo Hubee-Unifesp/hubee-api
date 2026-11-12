@@ -15,6 +15,7 @@ import request from 'supertest';
 import { EventController } from '../event/event.controller';
 import { EventService } from '../event/event.service';
 import { ExpensesController } from '../expenses/expenses.controller';
+import { HealthController } from '../health/health.controller';
 import { OrganizationEventController } from '../organization-event/organization-event.controller';
 import { OrganizationUsersController } from '../organization-users/organization-users.controller';
 import { OrderController } from '../order/order.controller';
@@ -48,6 +49,7 @@ const CONTROLLERS: Type[] = [
   OrderController,
   OrganizationUsersController,
   OrganizationEventController,
+  HealthController,
 ];
 
 /**
@@ -65,6 +67,8 @@ const PUBLIC_ROUTES = [
   'GET /organizations/:id',
   'GET /venues',
   'GET /venues/:id',
+  'GET /health',
+  'GET /health/ping',
 ];
 
 /**
