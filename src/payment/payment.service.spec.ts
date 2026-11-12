@@ -270,6 +270,56 @@ describe('PaymentService', () => {
       expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
     });
 
+    it('recusa o checkout (422) e não paga nem emite quando o evento do pedido foi cancelado', async () => {
+      orderService.findItems.mockResolvedValue([
+        {
+          ...items[0],
+          ticketType: {
+            eventId: 'event-1',
+            event: {
+              name: 'Calourada',
+              status: 'cancelled',
+              salesStartDate: null,
+              endDate: new Date('2999-12-11T02:00:00Z'),
+            },
+          },
+        },
+      ] as never);
+
+      await expect(service.checkout(dto, BUYER)).rejects.toThrow(
+        new UnprocessableEntityException('O evento "Calourada" foi cancelado'),
+      );
+      expect(paymentRepository.create).not.toHaveBeenCalled();
+      expect(orderService.markAsPaid).not.toHaveBeenCalled();
+      expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
+    });
+
+    it('recusa o checkout (422) e não paga nem emite quando as vendas do evento foram encerradas', async () => {
+      orderService.findItems.mockResolvedValue([
+        {
+          ...items[0],
+          ticketType: {
+            eventId: 'event-1',
+            event: {
+              name: 'Calourada',
+              status: 'published',
+              salesStartDate: null,
+              endDate: new Date('2020-01-01T00:00:00Z'),
+            },
+          },
+        },
+      ] as never);
+
+      await expect(service.checkout(dto, BUYER)).rejects.toThrow(
+        new UnprocessableEntityException(
+          'As vendas do evento "Calourada" não estão abertas',
+        ),
+      );
+      expect(paymentRepository.create).not.toHaveBeenCalled();
+      expect(orderService.markAsPaid).not.toHaveBeenCalled();
+      expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
+    });
+
     it('propaga a falha da emissão para a transaction desfazer o pagamento', async () => {
       ticketService.issueForPaidOrder.mockRejectedValue(new Error('db fora'));
 

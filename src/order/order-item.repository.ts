@@ -12,11 +12,11 @@ import { sumCommittedByTicketType } from './order-reservation';
 export class OrderItemRepository {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDatabase) {}
 
-  /** Com o lote junto, porque a emissão dos ingressos precisa do `eventId`. */
+  /** Com o lote e o evento juntos: o checkout revalida o evento e a emissão usa o `eventId`. */
   async findByOrder(orderId: string, executor: DbExecutor = this.db) {
     return executor.query.orderItems.findMany({
       where: eq(orderItems.orderId, orderId),
-      with: { ticketType: true },
+      with: { ticketType: { with: { event: true } } },
       orderBy: [asc(orderItems.createdAt), asc(orderItems.id)],
     });
   }

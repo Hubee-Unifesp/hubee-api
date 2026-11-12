@@ -311,7 +311,7 @@ function mergeItems(items: CreateOrderDto['items']) {
 }
 
 /** Vende só evento publicado, com vendas já abertas e que ainda não terminou. */
-function isOnSale(
+export function isOnSale(
   event: { status: string; salesStartDate: Date | null; endDate: Date },
   now: Date,
 ) {
