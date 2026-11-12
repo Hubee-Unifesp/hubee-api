@@ -9,7 +9,10 @@ import {
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { canAccess } from '../auth/ownership';
 import { DRIZZLE } from '../database/database.constants';
-import type { DrizzleDatabase } from '../database/database.provider';
+import type {
+  DbExecutor,
+  DrizzleDatabase,
+} from '../database/database.provider';
 import { OrderService, isOnSale } from '../order/order.service';
 import { TicketService } from '../ticket/ticket.service';
 import { CheckoutDto } from './dto/checkout.dto';
@@ -71,7 +74,7 @@ export class PaymentService {
       }
 
       const items = await this.orderService.findItems(order.id, tx);
-      this.ensureEventsOnSale(items);
+      await this.ensureEventsOnSale(items, tx);
 
       const payment = await this.paymentRepository.create(
         {
@@ -136,14 +139,25 @@ export class PaymentService {
     return this.paymentRepository.update(payment.id, dto);
   }
 
-  private ensureEventsOnSale(
+  private async ensureEventsOnSale(
     items: Awaited<ReturnType<OrderService['findItems']>>,
+    executor: DbExecutor,
   ) {
-    const now = new Date();
-    for (const item of items) {
-      const event = item.ticketType?.event;
-      if (!event) continue;
+    const eventIds = [
+      ...new Set(
+        items
+          .map((item) => item.ticketType?.eventId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (eventIds.length === 0) return;
 
+    const lockedEvents = await this.orderService.findEventsForShare(
+      eventIds,
+      executor,
+    );
+    const now = new Date();
+    for (const event of lockedEvents) {
       if (event.status === 'cancelled') {
         throw new UnprocessableEntityException(
           `O evento "${event.name}" foi cancelado`,

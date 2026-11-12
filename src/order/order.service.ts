@@ -161,6 +161,10 @@ export class OrderService {
     return this.orderItemRepository.findByOrder(orderId, executor);
   }
 
+  findEventsForShare(eventIds: string[], executor: DbExecutor) {
+    return this.orderItemRepository.findEventsForShare(eventIds, executor);
+  }
+
   markAsPaid(id: string, executor: DbExecutor) {
     return this.orderRepository.update(id, { status: 'pago' }, executor);
   }

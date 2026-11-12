@@ -534,6 +534,28 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
       }
     });
 
+    it('não paga pedido quando o evento sai de venda (draft/finished) antes do checkout (GOL-211)', async () => {
+      const lot = await newLot(5);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+
+      await db
+        .update(schema.events)
+        .set({ status: 'finished' })
+        .where(eq(schema.events.id, eventId));
+
+      try {
+        const response = await pay('ana', created.body.id).expect(422);
+        expect(response.body.message).toContain('não estão abertas');
+      } finally {
+        await db
+          .update(schema.events)
+          .set({ status: 'published' })
+          .where(eq(schema.events.id, eventId));
+      }
+    });
+
     it('se a emissão falhar, o pagamento é desfeito e o pedido segue pendente', async () => {
       const lot = await newLot(5);
       const created = await order('ana', [
