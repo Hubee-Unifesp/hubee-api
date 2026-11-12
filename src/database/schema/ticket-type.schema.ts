@@ -4,12 +4,23 @@ import {
   index,
   integer,
   numeric,
+  pgEnum,
   pgTable,
   timestamp,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
 import { events } from './event.schema';
+
+export const ticketTypeModality = pgEnum('ticket_type_modality', [
+  'inteira',
+  'meia',
+  'estudante',
+  'vip',
+  'cortesia',
+]);
+
+export type TicketTypeModality = (typeof ticketTypeModality.enumValues)[number];
 
 export const ticketTypes = pgTable(
   'ticket_types',
@@ -28,6 +39,10 @@ export const ticketTypes = pgTable(
       mode: 'number',
     }).notNull(),
     quantity: integer('quantity').notNull().default(0),
+    modality: ticketTypeModality('modality').notNull().default('inteira'),
+    // Janela de vendas do lote; `null` deixa o lote seguir a janela do evento.
+    salesStartDate: timestamp('sales_start_date', { withTimezone: true }),
+    salesEndDate: timestamp('sales_end_date', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
