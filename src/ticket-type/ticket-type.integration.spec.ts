@@ -335,4 +335,21 @@ describe('Lotes de ingressos por organizadores (banco em memória)', () => {
       .send({ ...newLot(), modality: 'vip-plus' })
       .expect(400);
   });
+
+  it.each(['batch', 'price', 'quantity', 'modality'])(
+    'PATCH com %s null responde 400',
+    async (field) => {
+      const created = await http()
+        .post(`/events/${eventOfA}/ticket-types`)
+        .set(as('organizer'))
+        .send(newLot())
+        .expect(201);
+
+      await http()
+        .patch(`/events/${eventOfA}/ticket-types/${created.body.id}`)
+        .set(as('organizer'))
+        .send({ [field]: null })
+        .expect(400);
+    },
+  );
 });

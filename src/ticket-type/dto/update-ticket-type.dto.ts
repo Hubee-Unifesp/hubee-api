@@ -9,6 +9,7 @@ import {
   IsString,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { ticketTypeModality } from '../../database/schema';
 import type { TicketTypeModality } from '../../database/schema';
@@ -17,9 +18,12 @@ import type { TicketTypeModality } from '../../database/schema';
  * Não estende `PartialType(CreateTicketTypeDto)` de propósito: o evento de um
  * tipo de ingresso já existente não é uma operação válida, e aqui as datas de
  * venda aceitam `null` para serem apagadas.
+ *
+ * Os campos NOT NULL usam `@ValidateIf` em vez de `@IsOptional()`, para que
+ * `null` responda 400 em vez de chegar ao banco e virar erro 500.
  */
 export class UpdateTicketTypeDto {
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @IsNotEmpty({ message: 'O nome do lote é obrigatório.' })
   @MaxLength(100, {
@@ -27,17 +31,17 @@ export class UpdateTicketTypeDto {
   })
   batch?: string;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0, { message: 'O preço do ingresso não pode ser negativo.' })
   price?: number;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsInt()
   @Min(0, { message: 'A quantidade de ingressos não pode ser negativa.' })
   quantity?: number;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsIn(ticketTypeModality.enumValues, {
     message: 'Modalidade de ingresso inválida.',
   })
