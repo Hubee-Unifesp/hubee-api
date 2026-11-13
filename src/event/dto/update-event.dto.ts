@@ -8,6 +8,7 @@ import {
   IsUUID,
   MaxLength,
   IsBoolean,
+  ValidateIf,
 } from 'class-validator';
 import { eventAgeRating, eventStatus } from '../../database/schema';
 import type { EventAgeRating, EventStatus } from '../../database/schema';
@@ -15,9 +16,14 @@ import type { EventAgeRating, EventStatus } from '../../database/schema';
 /**
  * Campos opcionais do evento (`description`, `ageRating`, `salesStartDate`,
  * `category`, `edition` e `photoUrl`) aceitam `null` para serem apagados.
+ *
+ * Os campos NOT NULL usam `@ValidateIf` em vez de `@IsOptional()`: o
+ * `@IsOptional()` também pula a validação para `null`, que chegaria ao banco
+ * e viraria erro 500. Assim só são ignorados quando ausentes, e `null`
+ * responde 400.
  */
 export class UpdateEventDto {
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @MaxLength(255)
   name?: string;
@@ -30,16 +36,16 @@ export class UpdateEventDto {
   @IsIn(eventAgeRating.enumValues)
   ageRating?: EventAgeRating | null;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsUUID()
   venueId?: string;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @Type(() => Date)
   @IsDate()
   startDate?: Date;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @Type(() => Date)
   @IsDate()
   endDate?: Date;
@@ -49,7 +55,7 @@ export class UpdateEventDto {
   @IsDate()
   salesStartDate?: Date | null;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsIn(eventStatus.enumValues)
   status?: EventStatus;
 
@@ -68,7 +74,7 @@ export class UpdateEventDto {
   @MaxLength(2048)
   photoUrl?: string | null;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsBoolean()
   featured?: boolean;
 }
