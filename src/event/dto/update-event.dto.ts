@@ -8,34 +8,44 @@ import {
   IsUUID,
   MaxLength,
   IsBoolean,
+  ValidateIf,
 } from 'class-validator';
 import { eventAgeRating, eventStatus } from '../../database/schema';
 import type { EventAgeRating, EventStatus } from '../../database/schema';
 
+/**
+ * Campos opcionais do evento (`description`, `ageRating`, `salesStartDate`,
+ * `category`, `edition` e `photoUrl`) aceitam `null` para serem apagados.
+ *
+ * Os campos NOT NULL usam `@ValidateIf` em vez de `@IsOptional()`: o
+ * `@IsOptional()` também pula a validação para `null`, que chegaria ao banco
+ * e viraria erro 500. Assim só são ignorados quando ausentes, e `null`
+ * responde 400.
+ */
 export class UpdateEventDto {
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @MaxLength(255)
   name?: string;
 
   @IsOptional()
   @IsString()
-  description?: string;
+  description?: string | null;
 
   @IsOptional()
   @IsIn(eventAgeRating.enumValues)
-  ageRating?: EventAgeRating;
+  ageRating?: EventAgeRating | null;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsUUID()
   venueId?: string;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @Type(() => Date)
   @IsDate()
   startDate?: Date;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @Type(() => Date)
   @IsDate()
   endDate?: Date;
@@ -43,28 +53,28 @@ export class UpdateEventDto {
   @IsOptional()
   @Type(() => Date)
   @IsDate()
-  salesStartDate?: Date;
+  salesStartDate?: Date | null;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsIn(eventStatus.enumValues)
   status?: EventStatus;
 
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  category?: string;
+  category?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  edition?: string;
+  edition?: string | null;
 
   @IsOptional()
   @IsUrl()
   @MaxLength(2048)
-  photoUrl?: string;
+  photoUrl?: string | null;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsBoolean()
   featured?: boolean;
 }

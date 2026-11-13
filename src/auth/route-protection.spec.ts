@@ -96,6 +96,7 @@ const ORGANIZER_WRITE_ROUTES = [
   'POST /events',
   'PATCH /events/:id',
   'PATCH /events/:id/photo',
+  'POST /events/:id/duplicate',
   'POST /events/:eventId/ticket-types',
   'PATCH /events/:eventId/ticket-types/:id',
   'DELETE /events/:eventId/ticket-types/:id',

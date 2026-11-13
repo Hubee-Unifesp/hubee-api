@@ -150,10 +150,17 @@ export class EventService {
       await this.ensureCanCancel(actor, event.organizerId);
     }
 
+    if (dto.status === 'published' && event.status !== 'published') {
+      await this.ensureHasTicketTypes(id);
+    }
+
     this.validatePeriod({
       startDate: dto.startDate ?? event.startDate,
       endDate: dto.endDate ?? event.endDate,
-      salesStartDate: dto.salesStartDate ?? event.salesStartDate,
+      salesStartDate:
+        dto.salesStartDate !== undefined
+          ? dto.salesStartDate
+          : event.salesStartDate,
     });
 
     if (dto.venueId && dto.venueId !== event.venueId) {
@@ -186,6 +193,19 @@ export class EventService {
     if (event.photoUrl) await this.deletePhoto(event.photoUrl);
 
     return updated;
+  }
+
+  /**
+   * Cria uma cópia do evento como rascunho, com os mesmos lotes e sem vendas.
+   * Quem pode duplicar (`write` na organização do evento) é conferido pelo
+   * `@OrgAccess` no controller.
+   */
+  async duplicate(id: string) {
+    const copy = await this.eventRepository.duplicate(id);
+    if (!copy) {
+      throw new NotFoundException(`Evento ${id} não encontrado`);
+    }
+    return copy;
   }
 
   async cancel(id: string): Promise<void> {
@@ -253,6 +273,15 @@ export class EventService {
     if (!membership || !satisfiesLevel(effectiveLevel(membership), 'manage')) {
       throw new ForbiddenException(
         'Apenas administradores da organização podem cancelar o evento',
+      );
+    }
+  }
+
+  /** Evento publicado sem lote nenhum não teria o que vender. */
+  private async ensureHasTicketTypes(eventId: string): Promise<void> {
+    if ((await this.eventRepository.countTicketTypes(eventId)) === 0) {
+      throw new UnprocessableEntityException(
+        'Cadastre ao menos um lote de ingressos antes de publicar o evento',
       );
     }
   }
