@@ -396,7 +396,7 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
       await http()
         .patch('/users/me/password')
         .set('Authorization', `Bearer ${token}`)
-        .send({ currentPassword: 'errada', newPassword: 'nova123' })
+        .send({ currentPassword: 'errada', newPassword: 'nova1234' })
         .expect(401);
       await http()
         .post('/auth/login')
@@ -404,12 +404,13 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
         .expect(200);
     });
 
-    it('troca a senha: só a nova funciona no login seguinte', async () => {
+    it('troca a senha (inclusive com até 72 caracteres): só a nova funciona no login seguinte', async () => {
       const { token } = await register('troca@example.com');
+      const longPassword = 'n'.repeat(72);
       await http()
         .patch('/users/me/password')
         .set('Authorization', `Bearer ${token}`)
-        .send({ currentPassword: 'secret123', newPassword: 'nova123' })
+        .send({ currentPassword: 'secret123', newPassword: longPassword })
         .expect(204);
       await http()
         .post('/auth/login')
@@ -417,17 +418,18 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
         .expect(401);
       await http()
         .post('/auth/login')
-        .send({ email: 'troca@example.com', password: 'nova123' })
+        .send({ email: 'troca@example.com', password: longPassword })
         .expect(200);
     });
 
     it.each([
       { currentPassword: 'secret123' },
-      { currentPassword: 'secret123', newPassword: 'curta' },
-      { newPassword: 'nova123' },
+      { currentPassword: 'secret123', newPassword: 'curta12' },
+      { currentPassword: 'secret123', newPassword: 'x'.repeat(73) },
+      { newPassword: 'nova1234' },
     ])('recusa payload inválido %j', async (body) => {
       const { token } = await register(
-        `senha-payload-${Object.keys(body).length}-${body.newPassword ?? 'x'}@example.com`,
+        `senha-payload-${Object.keys(body).length}-${body.newPassword?.length ?? 'x'}@example.com`,
       );
       await http()
         .patch('/users/me/password')
