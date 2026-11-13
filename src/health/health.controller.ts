@@ -1,4 +1,4 @@
-import { ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { HealthService } from './health.service';
 import type { DatabaseHealth } from './health.service';
@@ -6,6 +6,10 @@ import type { DatabaseHealth } from './health.service';
 interface HealthResponse {
   status: 'ok' | 'error';
   database: DatabaseHealth;
+}
+
+interface PingResponse {
+  status: 'ok';
 }
 
 @ApiTags('health')
@@ -25,5 +29,11 @@ export class HealthController {
     }
 
     return { status: 'ok', database };
+  }
+
+  @Get('ping')
+  @ApiOkResponse({ description: 'API no ar, sem consultar o banco' })
+  ping(): PingResponse {
+    return { status: 'ok' };
   }
 }
