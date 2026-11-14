@@ -6,12 +6,18 @@ import {
   IsOptional,
   IsString,
   Length,
+  MinLength,
   IsDateString,
   IsNumberString,
 } from 'class-validator';
 import { TrimString } from '../../common/validation/update-validation';
 import { IsCpf } from '../../common/validation/cpf';
 import { IsNotFutureDate } from '../../common/validation/not-future-date';
+import {
+  MaxByteLength,
+  PASSWORD_MAX_BYTES,
+  PASSWORD_MIN_LENGTH,
+} from '../../common/validation/max-byte-length';
 
 export class CreateUserDto {
   @TrimString()
@@ -30,7 +36,10 @@ export class CreateUserDto {
 
   @IsString()
   @IsNotEmpty()
-  @Length(6, 20, { message: 'A senha deve ter entre 6 e 20 caracteres' })
+  @MinLength(PASSWORD_MIN_LENGTH, {
+    message: 'A senha deve ter no mínimo 8 caracteres',
+  })
+  @MaxByteLength(PASSWORD_MAX_BYTES)
   password: string;
 
   @TrimString()
