@@ -697,4 +697,20 @@ describe('OrderService', () => {
       );
     });
   });
+
+  describe('markAsCancelled()', () => {
+    it('muda o status para cancelado dentro da transaction recebida', async () => {
+      const cancelled = makeOrder({ status: 'cancelado' });
+      orderRepository.update.mockResolvedValue(cancelled);
+
+      await expect(
+        service.markAsCancelled('order-1', tx as never),
+      ).resolves.toBe(cancelled);
+      expect(orderRepository.update).toHaveBeenCalledWith(
+        'order-1',
+        { status: 'cancelado' },
+        tx,
+      );
+    });
+  });
 });

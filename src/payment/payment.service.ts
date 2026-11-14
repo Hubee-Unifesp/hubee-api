@@ -136,6 +136,19 @@ export class PaymentService {
       }
     }
 
+    if (dto.status === 'estornado' && payment.status !== 'estornado') {
+      return this.db.transaction(async (tx) => {
+        const updatedPayment = await this.paymentRepository.update(
+          payment.id,
+          dto,
+          tx,
+        );
+        await this.orderService.markAsCancelled(orderId, tx);
+        await this.ticketService.cancelByOrder(orderId, tx);
+        return updatedPayment;
+      });
+    }
+
     return this.paymentRepository.update(payment.id, dto);
   }
 

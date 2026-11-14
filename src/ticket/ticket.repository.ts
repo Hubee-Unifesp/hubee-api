@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, ne } from 'drizzle-orm';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
@@ -60,5 +60,14 @@ export class TicketRepository {
       .where(and(eq(tickets.id, id), eq(tickets.status, from)))
       .returning();
     return ticket;
+  }
+
+  /** Cancela todos os ingressos vinculados ao pedido (usado no estorno). */
+  async cancelByOrder(orderId: string, executor: DbExecutor = this.db) {
+    return executor
+      .update(tickets)
+      .set({ status: 'cancelado', updatedAt: new Date() })
+      .where(and(eq(tickets.orderId, orderId), ne(tickets.status, 'cancelado')))
+      .returning();
   }
 }

@@ -96,6 +96,7 @@ describe('TicketService', () => {
     findById: jest.Mock<TicketRepository['findById']>;
     createMany: jest.Mock<TicketRepository['createMany']>;
     updateStatus: jest.Mock<TicketRepository['updateStatus']>;
+    cancelByOrder: jest.Mock<TicketRepository['cancelByOrder']>;
   };
   // Executa o callback com um `tx` de mentira: o service não inspeciona o
   // executor, só o repassa adiante (order service e repository são mockados).
@@ -121,6 +122,7 @@ describe('TicketService', () => {
       findById: jest.fn<TicketRepository['findById']>(),
       createMany: jest.fn<TicketRepository['createMany']>(),
       updateStatus: jest.fn<TicketRepository['updateStatus']>(),
+      cancelByOrder: jest.fn<TicketRepository['cancelByOrder']>(),
     };
     db.transaction.mockClear();
     orderService = {
@@ -529,6 +531,21 @@ describe('TicketService', () => {
       await expect(
         service.update('ticket-1', { status: 'usado' }),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+  });
+
+  describe('cancelByOrder()', () => {
+    it('cancela todos os ingressos do pedido dentro da transaction recebida', async () => {
+      const cancelled = [makeTicket({ status: 'cancelado' })];
+      ticketRepository.cancelByOrder.mockResolvedValue(cancelled);
+
+      await expect(service.cancelByOrder('order-1', tx)).resolves.toBe(
+        cancelled,
+      );
+      expect(ticketRepository.cancelByOrder).toHaveBeenCalledWith(
+        'order-1',
+        tx,
+      );
     });
   });
 });

@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import {
+  BadRequestException,
   ConflictException,
   NotFoundException,
   UnprocessableEntityException,
@@ -49,6 +50,7 @@ describe('PaymentService', () => {
     findById: jest.Mock<OrderService['findById']>;
     lockPendingForCheckout: jest.Mock<OrderService['lockPendingForCheckout']>;
     markAsPaid: jest.Mock<OrderService['markAsPaid']>;
+    markAsCancelled: jest.Mock<OrderService['markAsCancelled']>;
     findItems: jest.Mock<OrderService['findItems']>;
     findEventsForShare: jest.Mock<OrderService['findEventsForShare']>;
     cancelIfReservationExpired: jest.Mock<
@@ -57,6 +59,7 @@ describe('PaymentService', () => {
   };
   let ticketService: {
     issueForPaidOrder: jest.Mock<TicketService['issueForPaidOrder']>;
+    cancelByOrder: jest.Mock<TicketService['cancelByOrder']>;
   };
   const tx = { tx: true };
   const db = {
@@ -75,6 +78,7 @@ describe('PaymentService', () => {
       findById: jest.fn<OrderService['findById']>(),
       lockPendingForCheckout: jest.fn<OrderService['lockPendingForCheckout']>(),
       markAsPaid: jest.fn<OrderService['markAsPaid']>(),
+      markAsCancelled: jest.fn<OrderService['markAsCancelled']>(),
       findItems: jest.fn<OrderService['findItems']>(),
       findEventsForShare: jest.fn<OrderService['findEventsForShare']>(),
       cancelIfReservationExpired:
@@ -82,6 +86,7 @@ describe('PaymentService', () => {
     };
     ticketService = {
       issueForPaidOrder: jest.fn<TicketService['issueForPaidOrder']>(),
+      cancelByOrder: jest.fn<TicketService['cancelByOrder']>(),
     };
     db.transaction.mockClear();
 
@@ -435,6 +440,61 @@ describe('PaymentService', () => {
         service.update(ORDER_ID, { status: 'confirmado' }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(paymentRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('propaga estorno em transaction para o pedido e todos os ingressos', async () => {
+      paymentRepository.findByOrderId.mockResolvedValue(
+        makePayment({ status: 'confirmado' }),
+      );
+      const refunded = makePayment({ status: 'estornado' });
+      paymentRepository.update.mockResolvedValue(refunded);
+      orderService.markAsCancelled.mockResolvedValue({
+        id: ORDER_ID,
+        status: 'cancelado',
+      } as never);
+      ticketService.cancelByOrder.mockResolvedValue([]);
+
+      const result = await service.update(ORDER_ID, { status: 'estornado' });
+
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(paymentRepository.update).toHaveBeenCalledWith(
+        'payment-1',
+        { status: 'estornado' },
+        tx,
+      );
+      expect(orderService.markAsCancelled).toHaveBeenCalledWith(ORDER_ID, tx);
+      expect(ticketService.cancelByOrder).toHaveBeenCalledWith(ORDER_ID, tx);
+      expect(result).toEqual(refunded);
+    });
+
+    it('rejeita transição inválida (pendente -> estornado) sem abrir transaction', async () => {
+      paymentRepository.findByOrderId.mockResolvedValue(
+        makePayment({ status: 'pendente' }),
+      );
+
+      await expect(
+        service.update(ORDER_ID, { status: 'estornado' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.transaction).not.toHaveBeenCalled();
+      expect(paymentRepository.update).not.toHaveBeenCalled();
+      expect(orderService.markAsCancelled).not.toHaveBeenCalled();
+      expect(ticketService.cancelByOrder).not.toHaveBeenCalled();
+    });
+
+    it('propaga falha no cancelamento do pedido para a transaction fazer rollback', async () => {
+      paymentRepository.findByOrderId.mockResolvedValue(
+        makePayment({ status: 'confirmado' }),
+      );
+      paymentRepository.update.mockResolvedValue(
+        makePayment({ status: 'estornado' }),
+      );
+      orderService.markAsCancelled.mockRejectedValue(new Error('db fora'));
+
+      await expect(
+        service.update(ORDER_ID, { status: 'estornado' }),
+      ).rejects.toThrow('db fora');
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(ticketService.cancelByOrder).not.toHaveBeenCalled();
     });
   });
 });

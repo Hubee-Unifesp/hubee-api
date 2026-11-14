@@ -169,6 +169,10 @@ export class OrderService {
     return this.orderRepository.update(id, { status: 'pago' }, executor);
   }
 
+  markAsCancelled(id: string, executor: DbExecutor) {
+    return this.orderRepository.update(id, { status: 'cancelado' }, executor);
+  }
+
   /**
    * Trava os lotes pedidos (`FOR UPDATE`), confere o saldo disponível
    * (`capacidade - reservado`) e lança 422 no primeiro lote sem vaga, antes de

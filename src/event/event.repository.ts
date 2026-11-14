@@ -59,6 +59,7 @@ const soldInBatch = sql`(
   INNER JOIN ${orders} ON ${orders.id} = ${tickets.orderId}
   WHERE ${tickets.ticketTypeId} = ${ticketTypes.id}
     AND ${orders.status} = 'pago'
+    AND ${tickets.status} <> 'cancelado'
 )`;
 
 const cheapestTicketType = (column: AnyPgColumn) => sql`(
@@ -166,6 +167,7 @@ export class EventRepository {
           INNER JOIN ${orders} ON ${orders.id} = ${tickets.orderId}
           WHERE ${tickets.eventId} = ${events.id}
             AND ${orders.status} = 'pago'
+            AND ${tickets.status} <> 'cancelado'
         )`,
       })
       .from(events)
