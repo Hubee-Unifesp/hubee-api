@@ -522,24 +522,20 @@ describe('Eventos por organizadores (banco em memória)', () => {
     });
   });
 
-  it.each([
-    'name',
-    'venueId',
-    'startDate',
-    'endDate',
-    'status',
-    'featured',
-  ])('PATCH com %s null responde 400', async (field) => {
-    const { body: event } = await http()
-      .post('/events')
-      .set(as('organizer'))
-      .send(newEvent(orgA))
-      .expect(201);
+  it.each(['name', 'venueId', 'startDate', 'endDate', 'status', 'featured'])(
+    'PATCH com %s null responde 400',
+    async (field) => {
+      const { body: event } = await http()
+        .post('/events')
+        .set(as('organizer'))
+        .send(newEvent(orgA))
+        .expect(201);
 
-    await http()
-      .patch(`/events/${event.id}`)
-      .set(as('organizer'))
-      .send({ [field]: null })
-      .expect(400);
-  });
+      await http()
+        .patch(`/events/${event.id}`)
+        .set(as('organizer'))
+        .send({ [field]: null })
+        .expect(400);
+    },
+  );
 });
