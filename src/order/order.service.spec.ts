@@ -411,15 +411,22 @@ describe('OrderService', () => {
       expect(orderRepository.create).not.toHaveBeenCalled();
     });
 
-    it('permite criar pedido mesmo com perfil sem CPF ou nascimento (GOL-194)', async () => {
+    it('recusa criar pedido se perfil estiver incompleto', async () => {
       usersService.findOne.mockResolvedValue({ id: 'user-1' } as never);
-      givenLot();
 
       await expect(
         service.create(mockAuthUser, {
           items: [{ ticketTypeId: 'type-1', quantity: 1 }],
         }),
-      ).resolves.toBeDefined();
+      ).rejects.toMatchObject({
+        response: {
+          statusCode: 403,
+          error: 'Forbidden',
+          code: 'PROFILE_INCOMPLETE',
+          missing: ['cpf', 'birthDate'],
+        },
+      });
+      expect(db.transaction).not.toHaveBeenCalled();
     });
 
     it('lança NotFound e não cria quando o comprador não existe', async () => {
