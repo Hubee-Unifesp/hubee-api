@@ -391,4 +391,185 @@ describe('Fornecedores por organizadores (GOL-202, banco em memória)', () => {
         .expect(404);
     });
   });
+
+  describe('agregação, filtro minRating e ordenação sortBy (GOL-250)', () => {
+    let supAlpha: string;
+    let supBeta: string;
+    let supGamma: string;
+    let supSemAvaliacao: string;
+
+    beforeAll(async () => {
+      const createRankingSupplier = async (
+        companyName: string,
+        cnpjCpf: string,
+      ) => {
+        const res = await http()
+          .post('/suppliers')
+          .set(as('organizer'))
+          .send({
+            companyName,
+            cnpjCpf,
+            category: 'Ranking GOL-250',
+          })
+          .expect(201);
+
+        expect(res.body.averageRating).toBeNull();
+        expect(res.body.reviewsCount).toBe(0);
+        return res.body.id as string;
+      };
+
+      supAlpha = await createRankingSupplier('Alpha Buffet', '88111222000150');
+      supBeta = await createRankingSupplier('Beta Eventos', '88222333000161');
+      supGamma = await createRankingSupplier('Gamma Som', '88333444000172');
+      supSemAvaliacao = await createRankingSupplier(
+        'Delta Sem Notas',
+        '88444555000183',
+      );
+
+      // Alpha: notas 5, 4, 4 -> média 4.333... arredondada para 4.3 (3 avaliações)
+      await http()
+        .post(`/suppliers/${supAlpha}/reviews`)
+        .set(as('organizer'))
+        .send({ rating: 5 })
+        .expect(201);
+      await http()
+        .post(`/suppliers/${supAlpha}/reviews`)
+        .set(as('readOnly'))
+        .send({ rating: 4 })
+        .expect(201);
+      await http()
+        .post(`/suppliers/${supAlpha}/reviews`)
+        .set(as('admin'))
+        .send({ rating: 4 })
+        .expect(201);
+
+      // Beta: notas 5, 4 -> média 4.5 (2 avaliações)
+      await http()
+        .post(`/suppliers/${supBeta}/reviews`)
+        .set(as('organizer'))
+        .send({ rating: 5 })
+        .expect(201);
+      await http()
+        .post(`/suppliers/${supBeta}/reviews`)
+        .set(as('readOnly'))
+        .send({ rating: 4 })
+        .expect(201);
+
+      // Gamma: nota 3 -> média 3 (1 avaliação)
+      await http()
+        .post(`/suppliers/${supGamma}/reviews`)
+        .set(as('organizer'))
+        .send({ rating: 3 })
+        .expect(201);
+    });
+
+    it('retorna averageRating (1 casa decimal ou null) e reviewsCount em GET /suppliers/:id e GET /suppliers', async () => {
+      const alphaRes = await http()
+        .get(`/suppliers/${supAlpha}`)
+        .set(as('organizer'))
+        .expect(200);
+      expect(alphaRes.body).toMatchObject({
+        id: supAlpha,
+        companyName: 'Alpha Buffet',
+        averageRating: 4.3,
+        reviewsCount: 3,
+      });
+
+      const deltaRes = await http()
+        .get(`/suppliers/${supSemAvaliacao}`)
+        .set(as('organizer'))
+        .expect(200);
+      expect(deltaRes.body).toMatchObject({
+        id: supSemAvaliacao,
+        companyName: 'Delta Sem Notas',
+        averageRating: null,
+        reviewsCount: 0,
+      });
+    });
+
+    it('filtra por minRating=4 e ordena por sortBy=rating da maior para a menor nota', async () => {
+      const res = await http()
+        .get('/suppliers?category=Ranking%20GOL-250&minRating=4&sortBy=rating')
+        .set(as('organizer'))
+        .expect(200);
+
+      expect(
+        res.body.map(
+          (s: {
+            companyName: string;
+            averageRating: number | null;
+            reviewsCount: number;
+          }) => ({
+            companyName: s.companyName,
+            averageRating: s.averageRating,
+            reviewsCount: s.reviewsCount,
+          }),
+        ),
+      ).toEqual([
+        { companyName: 'Beta Eventos', averageRating: 4.5, reviewsCount: 2 },
+        { companyName: 'Alpha Buffet', averageRating: 4.3, reviewsCount: 3 },
+      ]);
+    });
+
+    it('coloca fornecedores sem avaliações (averageRating: null) por último ao ordenar por sortBy=rating', async () => {
+      const res = await http()
+        .get('/suppliers?category=Ranking%20GOL-250&sortBy=rating')
+        .set(as('organizer'))
+        .expect(200);
+
+      expect(
+        res.body.map(
+          (s: {
+            companyName: string;
+            averageRating: number | null;
+            reviewsCount: number;
+          }) => ({
+            companyName: s.companyName,
+            averageRating: s.averageRating,
+            reviewsCount: s.reviewsCount,
+          }),
+        ),
+      ).toEqual([
+        { companyName: 'Beta Eventos', averageRating: 4.5, reviewsCount: 2 },
+        { companyName: 'Alpha Buffet', averageRating: 4.3, reviewsCount: 3 },
+        { companyName: 'Gamma Som', averageRating: 3, reviewsCount: 1 },
+        {
+          companyName: 'Delta Sem Notas',
+          averageRating: null,
+          reviewsCount: 0,
+        },
+      ]);
+    });
+
+    it('ordena por companyName ASC quando sortBy=companyName', async () => {
+      const res = await http()
+        .get('/suppliers?category=Ranking%20GOL-250&sortBy=companyName')
+        .set(as('organizer'))
+        .expect(200);
+
+      expect(
+        res.body.map((s: { companyName: string }) => s.companyName),
+      ).toEqual([
+        'Alpha Buffet',
+        'Beta Eventos',
+        'Delta Sem Notas',
+        'Gamma Som',
+      ]);
+    });
+
+    it('rejeita minRating fora de 1..5 ou sortBy inválido com 400', async () => {
+      await http()
+        .get('/suppliers?minRating=0')
+        .set(as('organizer'))
+        .expect(400);
+      await http()
+        .get('/suppliers?minRating=6')
+        .set(as('organizer'))
+        .expect(400);
+      await http()
+        .get('/suppliers?sortBy=invalido')
+        .set(as('organizer'))
+        .expect(400);
+    });
+  });
 });

@@ -8,10 +8,38 @@ import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { QuerySupplierDto } from './dto/query-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { CreateSupplierReviewDto } from './dto/create-supplier-review.dto';
-import { eq, or, isNull, and, ne, ilike, desc, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  isNull,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { supplierReviews, suppliers, users } from '../database/schema';
 
 const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
+
+const nullableNumber = (value: unknown) =>
+  value === null || value === undefined ? null : Number(value);
+
+const averageRating = sql<
+  number | null
+>`ROUND(AVG(${supplierReviews.rating})::numeric, 1)`.mapWith(nullableNumber);
+
+const reviewsCount = sql<number>`COUNT(${supplierReviews.id})::int`.mapWith(
+  Number,
+);
+
+const supplierColumns = {
+  ...getTableColumns(suppliers),
+  averageRating,
+  reviewsCount,
+};
 
 const reviewColumns = {
   id: supplierReviews.id,
@@ -52,7 +80,11 @@ export class SuppliersService {
       .values(createSupplierDto)
       .returning();
 
-    return newSupplier;
+    return {
+      ...newSupplier,
+      averageRating: null,
+      reviewsCount: 0,
+    };
   }
 
   async findAll(query: QuerySupplierDto = {}) {
@@ -66,17 +98,46 @@ export class SuppliersService {
         : undefined,
     ].filter((c) => c !== undefined);
 
-    return this.db
-      .select()
+    const baseQuery = this.db
+      .select(supplierColumns)
       .from(suppliers)
-      .where(and(...conditions));
+      .leftJoin(supplierReviews, eq(supplierReviews.supplierId, suppliers.id))
+      .where(and(...conditions))
+      .groupBy(suppliers.id);
+
+    const filteredQuery =
+      query.minRating !== undefined
+        ? baseQuery.having(
+            sql`AVG(${supplierReviews.rating}) >= ${query.minRating}`,
+          )
+        : baseQuery;
+
+    if (query.sortBy === 'rating') {
+      return filteredQuery.orderBy(
+        sql`${averageRating} DESC NULLS LAST`,
+        desc(reviewsCount),
+        asc(suppliers.companyName),
+      );
+    }
+
+    if (query.sortBy === 'companyName') {
+      return filteredQuery.orderBy(asc(suppliers.companyName));
+    }
+
+    if (query.sortBy === 'createdAt') {
+      return filteredQuery.orderBy(desc(suppliers.createdAt));
+    }
+
+    return filteredQuery;
   }
 
   async findOne(id: string) {
     const [supplier] = await this.db
-      .select()
+      .select(supplierColumns)
       .from(suppliers)
-      .where(eq(suppliers.id, id));
+      .leftJoin(supplierReviews, eq(supplierReviews.supplierId, suppliers.id))
+      .where(eq(suppliers.id, id))
+      .groupBy(suppliers.id);
 
     if (!supplier || supplier.deletedAt) {
       throw new NotFoundException('Fornecedor não encontrado.');
@@ -86,7 +147,7 @@ export class SuppliersService {
   }
 
   async update(id: string, updateSupplierDto: UpdateSupplierDto) {
-    await this.findOne(id);
+    const current = await this.findOne(id);
 
     if (updateSupplierDto.cnpjCpf || updateSupplierDto.email) {
       const conflictConditions = [
@@ -123,7 +184,11 @@ export class SuppliersService {
       .where(eq(suppliers.id, id))
       .returning();
 
-    return updatedSupplier;
+    return {
+      ...updatedSupplier,
+      averageRating: current.averageRating,
+      reviewsCount: current.reviewsCount,
+    };
   }
 
   async remove(id: string): Promise<void> {
