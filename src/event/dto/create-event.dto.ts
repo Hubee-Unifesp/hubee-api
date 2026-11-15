@@ -9,8 +9,8 @@ import {
   MaxLength,
   IsBoolean,
 } from 'class-validator';
-import { eventAgeRating } from '../../database/schema';
-import type { EventAgeRating } from '../../database/schema';
+import { EVENT_CATEGORIES, eventAgeRating } from '../../database/schema';
+import type { EventAgeRating, EventCategory } from '../../database/schema';
 
 export class CreateEventDto {
   @IsString()
@@ -45,9 +45,8 @@ export class CreateEventDto {
   salesStartDate?: Date;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  category?: string;
+  @IsIn(EVENT_CATEGORIES)
+  category?: EventCategory;
 
   @IsOptional()
   @IsString()

@@ -77,7 +77,7 @@ describe('UsersController', () => {
 
   it('rotas /me usam o id do usuário autenticado', async () => {
     const body = { fullName: 'Novo Nome' };
-    const passwords = { currentPassword: 'old123', newPassword: 'new123' };
+    const passwords = { currentPassword: 'old12345', newPassword: 'new12345' };
     const file = {
       mimetype: 'image/png',
       buffer: Buffer.from('img'),

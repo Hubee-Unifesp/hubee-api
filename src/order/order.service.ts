@@ -56,6 +56,15 @@ export class OrderService {
     return order;
   }
 
+  /** Trava o pedido (`FOR UPDATE`) até o fim da transaction. */
+  async lockById(id: string, executor: DbExecutor) {
+    const order = await this.orderRepository.findByIdForUpdate(id, executor);
+    if (!order) {
+      throw new NotFoundException(`Pedido ${id} não encontrado`);
+    }
+    return order;
+  }
+
   async findOne(id: string, user: AuthenticatedUser) {
     const order = await this.ensureAccessible(id, user);
     const items = await this.orderItemRepository.findByOrder(id);
@@ -63,7 +72,21 @@ export class OrderService {
   }
 
   async create(authUser: AuthenticatedUser, dto: CreateOrderDto) {
-    await this.usersService.findOne(authUser.id);
+    const user = await this.usersService.findOne(authUser.id);
+
+    const missing: string[] = [];
+    if (!user.cpf) missing.push('cpf');
+    if (!user.birthDate) missing.push('birthDate');
+
+    if (missing.length > 0) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: 'Complete o perfil antes de comprar',
+        error: 'Forbidden',
+        code: 'PROFILE_INCOMPLETE',
+        missing,
+      });
+    }
 
     return this.placeOrder(authUser.id, dto);
   }
@@ -213,6 +236,12 @@ export class OrderService {
         );
       }
 
+      if (checkOnSale && !isLotOnSale(ticketType, now)) {
+        throw new UnprocessableEntityException(
+          `As vendas do ${label} não estão abertas`,
+        );
+      }
+
       const available = ticketType.quantity - (reserved.get(ticketTypeId) ?? 0);
       if (available <= 0) {
         throw new UnprocessableEntityException(`O ${label} está esgotado`);
@@ -327,5 +356,16 @@ export function isOnSale(
     event.status === 'published' &&
     (event.salesStartDate === null || event.salesStartDate <= now) &&
     event.endDate > now
+  );
+}
+
+/** A janela do lote, quando definida, restringe a do evento. */
+function isLotOnSale(
+  lot: { salesStartDate: Date | null; salesEndDate: Date | null },
+  now: Date,
+) {
+  return (
+    (!lot.salesStartDate || lot.salesStartDate <= now) &&
+    (!lot.salesEndDate || lot.salesEndDate > now)
   );
 }

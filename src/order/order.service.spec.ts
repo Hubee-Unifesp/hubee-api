@@ -61,6 +61,9 @@ function makeTicketType(overrides: Partial<TicketType> = {}): TicketType {
     batch: '1º lote',
     price: 50,
     quantity: 10,
+    modality: 'inteira',
+    salesStartDate: null,
+    salesEndDate: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -411,15 +414,52 @@ describe('OrderService', () => {
       expect(orderRepository.create).not.toHaveBeenCalled();
     });
 
-    it('permite criar pedido mesmo com perfil sem CPF ou nascimento (GOL-194)', async () => {
-      usersService.findOne.mockResolvedValue({ id: 'user-1' } as never);
-      givenLot();
+    it.each([
+      ['que ainda não abriu', { salesStartDate: new Date('2999-01-01') }],
+      ['que já fechou', { salesEndDate: new Date('2000-01-01') }],
+    ])(
+      'recusa comprar de lote com janela de vendas %s',
+      async (_label, lot) => {
+        givenLot(lot);
+
+        await expect(
+          service.create(mockAuthUser, {
+            items: [{ ticketTypeId: 'type-1', quantity: 1 }],
+          }),
+        ).rejects.toThrow('As vendas do lote "1º lote"');
+        expect(orderRepository.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it('vende lote dentro da própria janela de vendas', async () => {
+      givenLot({
+        salesStartDate: new Date('2000-01-01'),
+        salesEndDate: new Date('2999-01-01'),
+      });
 
       await expect(
         service.create(mockAuthUser, {
           items: [{ ticketTypeId: 'type-1', quantity: 1 }],
         }),
       ).resolves.toBeDefined();
+    });
+
+    it('recusa criar pedido se perfil estiver incompleto', async () => {
+      usersService.findOne.mockResolvedValue({ id: 'user-1' } as never);
+
+      await expect(
+        service.create(mockAuthUser, {
+          items: [{ ticketTypeId: 'type-1', quantity: 1 }],
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          statusCode: 403,
+          error: 'Forbidden',
+          code: 'PROFILE_INCOMPLETE',
+          missing: ['cpf', 'birthDate'],
+        },
+      });
+      expect(db.transaction).not.toHaveBeenCalled();
     });
 
     it('lança NotFound e não cria quando o comprador não existe', async () => {
@@ -679,6 +719,29 @@ describe('OrderService', () => {
         service.cancelIfReservationExpired(order, tx as never, now),
       ).resolves.toBe(false);
       expect(orderRepository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('lockById()', () => {
+    it('trava e devolve o pedido quando existe', async () => {
+      const order = makeOrder();
+      orderRepository.findByIdForUpdate.mockResolvedValue(order);
+
+      await expect(service.lockById('order-1', tx as never)).resolves.toBe(
+        order,
+      );
+      expect(orderRepository.findByIdForUpdate).toHaveBeenCalledWith(
+        'order-1',
+        tx,
+      );
+    });
+
+    it('lança NotFound quando o pedido não existe', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(undefined);
+
+      await expect(
+        service.lockById('order-1', tx as never),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

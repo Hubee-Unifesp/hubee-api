@@ -86,7 +86,7 @@ describe('EventRepository (banco em memória)', () => {
         {
           name: 'Evento Futuro',
           description: 'Resumo para home',
-          category: 'Música',
+          category: 'festas',
           organizerId: organization.id,
           venueId: venue.id,
           startDate: new Date('2099-06-20T18:00:00Z'),
@@ -235,7 +235,7 @@ describe('EventRepository (banco em memória)', () => {
       expect(result[0]).toMatchObject({
         name: 'Evento Futuro',
         description: 'Resumo para home',
-        category: 'Música',
+        category: 'festas',
         featured: true,
         organizerName: 'Produtora Teste',
         venueName: 'Espaço Teste',
@@ -471,7 +471,7 @@ describe('EventRepository (banco em memória)', () => {
         id: fixture.futureEventId,
         name: 'Evento Futuro',
         description: 'Resumo para home',
-        category: 'Música',
+        category: 'festas',
         status: 'published',
         featured: true,
         organizerId: fixture.organizationId,

@@ -1,4 +1,9 @@
-import { IsNotEmpty, IsString, Length } from 'class-validator';
+import { IsNotEmpty, IsString, MinLength } from 'class-validator';
+import {
+  MaxByteLength,
+  PASSWORD_MAX_BYTES,
+  PASSWORD_MIN_LENGTH,
+} from '../../common/validation/max-byte-length';
 
 export class ChangePasswordDto {
   @IsString()
@@ -7,6 +12,9 @@ export class ChangePasswordDto {
 
   @IsString()
   @IsNotEmpty()
-  @Length(6, 20, { message: 'A senha deve ter entre 6 e 20 caracteres' })
+  @MinLength(PASSWORD_MIN_LENGTH, {
+    message: 'A senha deve ter no mínimo 8 caracteres',
+  })
+  @MaxByteLength(PASSWORD_MAX_BYTES)
   newPassword: string;
 }

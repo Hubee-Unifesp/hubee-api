@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import {
+  BadRequestException,
   ConflictException,
   NotFoundException,
   UnprocessableEntityException,
@@ -21,6 +22,9 @@ function makeTicketType(overrides: Partial<TicketTypeRow> = {}): TicketTypeRow {
     batch: '1º Lote',
     price: 100,
     quantity: 100,
+    modality: 'inteira',
+    salesStartDate: null,
+    salesEndDate: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -405,6 +409,84 @@ describe('TicketTypeService', () => {
         service.remove('event-1', 'ticket-type-1'),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(ticketTypeRepository.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe.each(['cancelled', 'finished'] as const)('evento %s', (status) => {
+    beforeEach(() => {
+      eventService.findOne.mockResolvedValue(makeEvent({ status }));
+      ticketTypeRepository.findById.mockResolvedValue(makeTicketType());
+    });
+
+    it('recusa criar lote com 422', async () => {
+      await expect(
+        service.create('event-1', { batch: '2º Lote', price: 50 }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(ticketTypeRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('recusa alterar lote com 422', async () => {
+      await expect(
+        service.update('event-1', 'ticket-type-1', { price: 50 }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(ticketTypeRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('recusa excluir lote com 422', async () => {
+      await expect(
+        service.remove('event-1', 'ticket-type-1'),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(ticketTypeRepository.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('janela de vendas do lote', () => {
+    const start = new Date('2026-05-01T12:00:00Z');
+    const end = new Date('2026-05-10T12:00:00Z');
+
+    beforeEach(() => {
+      eventService.findOne.mockResolvedValue(makeEvent());
+    });
+
+    it('recusa criar lote com fim das vendas antes do início', async () => {
+      await expect(
+        service.create('event-1', {
+          batch: 'Lote',
+          price: 10,
+          salesStartDate: end,
+          salesEndDate: start,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(ticketTypeRepository.create).not.toHaveBeenCalled();
+    });
+
+    it('valida o novo fim contra o início já gravado', async () => {
+      ticketTypeRepository.findById.mockResolvedValue(
+        makeTicketType({ salesStartDate: end }),
+      );
+
+      await expect(
+        service.update('event-1', 'ticket-type-1', { salesEndDate: start }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(ticketTypeRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('apaga o início das vendas com null sem validar contra o valor antigo', async () => {
+      ticketTypeRepository.findById.mockResolvedValue(
+        makeTicketType({ salesStartDate: end }),
+      );
+      ticketTypeRepository.update.mockResolvedValue(makeTicketType());
+
+      await service.update('event-1', 'ticket-type-1', {
+        salesStartDate: null,
+        salesEndDate: start,
+      });
+
+      expect(ticketTypeRepository.update).toHaveBeenCalledWith(
+        'event-1',
+        'ticket-type-1',
+        { salesStartDate: null, salesEndDate: start },
+      );
     });
   });
 });

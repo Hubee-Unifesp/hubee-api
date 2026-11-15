@@ -13,8 +13,8 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { eventStatus } from '../../database/schema';
-import type { EventStatus } from '../../database/schema';
+import { EVENT_CATEGORIES, eventStatus } from '../../database/schema';
+import type { EventCategory, EventStatus } from '../../database/schema';
 
 export const DEFAULT_PAGE = 1;
 export const DEFAULT_LIMIT = 20;
@@ -24,6 +24,9 @@ const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
+
+const trimLower = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim().toLowerCase() : value;
 
 const toEndDate = ({ value }: { value: unknown }) =>
   typeof value === 'string' && DATE_ONLY.test(value)
@@ -46,12 +49,13 @@ export class QueryEventDto {
   @MaxLength(255, { message: 'A busca deve ter no máximo 255 caracteres' })
   search?: string;
 
-  @ApiPropertyOptional({ example: 'shows' })
+  @ApiPropertyOptional({ enum: EVENT_CATEGORIES, example: 'shows' })
   @IsOptional()
-  @Transform(trim)
-  @IsString({ message: 'A categoria deve ser um texto' })
-  @IsNotEmpty({ message: 'A categoria não pode ser vazia' })
-  category?: string;
+  @Transform(trimLower)
+  @IsIn(EVENT_CATEGORIES, {
+    message: `A categoria deve ser uma das seguintes: ${EVENT_CATEGORIES.join(', ')}`,
+  })
+  category?: EventCategory;
 
   @ApiPropertyOptional({ example: 'São Paulo' })
   @IsOptional()

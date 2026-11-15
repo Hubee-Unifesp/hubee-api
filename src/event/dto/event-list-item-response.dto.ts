@@ -25,4 +25,18 @@ export class EventListItemResponseDto extends EventResponseDto {
     description: 'Lote que tem o menor preço',
   })
   minPriceBatch: string | null;
+
+  @Expose()
+  @ApiProperty({
+    type: Number,
+    description: 'Soma das capacidades dos lotes do evento',
+  })
+  capacity: number;
+
+  @Expose()
+  @ApiProperty({
+    type: Number,
+    description: 'Ingressos de pedidos pagos do evento',
+  })
+  ticketsSold: number;
 }

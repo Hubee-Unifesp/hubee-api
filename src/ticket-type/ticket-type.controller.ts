@@ -1,8 +1,10 @@
 import {
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiTags,
+  ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { TicketTypeResponseDto } from './dto/ticket-type-response.dto';
 import {
@@ -38,6 +40,9 @@ export class TicketTypeController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: TicketTypeResponseDto })
+  @ApiUnprocessableEntityResponse({
+    description: 'Evento cancelado ou encerrado',
+  })
   async create(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Body() dto: CreateTicketTypeDto,
@@ -78,6 +83,10 @@ export class TicketTypeController {
   @OrgAccess('write', { from: 'event', param: 'eventId' })
   @Patch(':id')
   @ApiOkResponse({ type: TicketTypeResponseDto })
+  @ApiUnprocessableEntityResponse({
+    description:
+      'Evento cancelado ou encerrado, ou capacidade menor que o já vendido ou reservado',
+  })
   async update(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -93,6 +102,12 @@ export class TicketTypeController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
+  @ApiConflictResponse({
+    description: 'Lote com ingressos ou pedidos vinculados',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Evento cancelado ou encerrado',
+  })
   async remove(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('id', ParseUUIDPipe) id: string,

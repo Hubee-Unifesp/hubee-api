@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -49,7 +50,8 @@ export class TicketTypeService {
   }
 
   async create(eventId: string, dto: CreateTicketTypeDto) {
-    await this.eventService.findOne(eventId);
+    await this.findEditableEvent(eventId);
+    validateSalesWindow(dto.salesStartDate, dto.salesEndDate);
     const ticketType = await this.ticketTypeRepository.create({
       ...dto,
       eventId,
@@ -59,8 +61,14 @@ export class TicketTypeService {
   }
 
   async update(eventId: string, id: string, dto: UpdateTicketTypeDto) {
-    await this.eventService.findOne(eventId);
-    await this.findTicketTypeOfEvent(eventId, id);
+    await this.findEditableEvent(eventId);
+    const current = await this.findTicketTypeOfEvent(eventId, id);
+    validateSalesWindow(
+      dto.salesStartDate !== undefined
+        ? dto.salesStartDate
+        : current.salesStartDate,
+      dto.salesEndDate !== undefined ? dto.salesEndDate : current.salesEndDate,
+    );
 
     if (dto.quantity !== undefined) {
       const committed = await this.ticketTypeRepository.countCommitted(id);
@@ -79,7 +87,7 @@ export class TicketTypeService {
   }
 
   async remove(eventId: string, id: string): Promise<void> {
-    await this.eventService.findOne(eventId);
+    await this.findEditableEvent(eventId);
     await this.findTicketTypeOfEvent(eventId, id);
 
     const hasLinkedRecords =
@@ -107,11 +115,33 @@ export class TicketTypeService {
     }
   }
 
+  /** Lote de evento cancelado ou encerrado não muda mais. */
+  private async findEditableEvent(eventId: string) {
+    const event = await this.eventService.findOne(eventId);
+    if (event.status === 'cancelled' || event.status === 'finished') {
+      throw new UnprocessableEntityException(
+        'Lotes de evento cancelado ou encerrado não podem ser alterados',
+      );
+    }
+    return event;
+  }
+
   private async findTicketTypeOfEvent(eventId: string, id: string) {
     const ticketType = await this.ticketTypeRepository.findById(eventId, id);
     if (!ticketType) {
       throw new NotFoundException(`Tipo de ingresso ${id} não encontrado`);
     }
     return ticketType;
+  }
+}
+
+function validateSalesWindow(
+  start: Date | null | undefined,
+  end: Date | null | undefined,
+): void {
+  if (start && end && end <= start) {
+    throw new BadRequestException(
+      'O fim das vendas do lote deve ser posterior ao início',
+    );
   }
 }

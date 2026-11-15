@@ -1,6 +1,10 @@
 import { Expose } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
-import { eventAgeRating, eventStatus } from '../../database/schema';
+import {
+  EVENT_CATEGORIES,
+  eventAgeRating,
+  eventStatus,
+} from '../../database/schema';
 
 /** Contrato de saída (público) de um evento. */
 export class EventResponseDto {
@@ -49,7 +53,7 @@ export class EventResponseDto {
   status: string;
 
   @Expose()
-  @ApiProperty({ nullable: true, required: false })
+  @ApiProperty({ enum: EVENT_CATEGORIES, nullable: true, required: false })
   category: string | null;
 
   @Expose()

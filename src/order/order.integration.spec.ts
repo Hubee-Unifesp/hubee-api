@@ -1008,6 +1008,12 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
         .set(as('admin'))
         .send({ status: 'confirmado' })
         .expect(400);
+
+      await http()
+        .patch(`/orders/${created.body.id}/payments`)
+        .set(as('admin'))
+        .send({ status: 'estornado' })
+        .expect(400);
     });
   });
 });
