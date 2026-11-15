@@ -28,6 +28,24 @@ export class SupplierResponseDto {
   category: string | null;
 
   @Expose()
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description:
+      'Média das avaliações (1 a 5, arredondada para 1 casa decimal) ou null quando não há avaliações',
+    example: 4.5,
+  })
+  ratingAverage: number | null;
+
+  @Expose()
+  @ApiProperty({
+    type: Number,
+    description: 'Quantidade total de avaliações recebidas',
+    example: 12,
+  })
+  ratingCount: number;
+
+  @Expose()
   @ApiProperty()
   createdAt: Date;
 

@@ -19,10 +19,28 @@ describe('SuppliersService', () => {
     phone: '11999999999',
     email: 'contato@estrela.com',
     category: 'Buffet',
+    ratingAverage: null,
+    ratingCount: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
   };
+
+  function mockSupplierSelectChain(rows: object[]) {
+    const orderBy = jest.fn(async () => rows);
+    const havingResult = Object.assign(Promise.resolve(rows), { orderBy });
+    const having = jest.fn(() => havingResult);
+    const groupByResult = Object.assign(Promise.resolve(rows), {
+      having,
+      orderBy,
+    });
+    const groupBy = jest.fn(() => groupByResult);
+    const where = jest.fn(() => ({ groupBy }));
+    const leftJoin = jest.fn(() => ({ where }));
+    const from = jest.fn(() => ({ leftJoin }));
+
+    return { from, leftJoin, where, groupBy, having, orderBy };
+  }
 
   beforeEach(async () => {
     mockDb = {
@@ -79,44 +97,77 @@ describe('SuppliersService', () => {
   });
 
   describe('findAll', () => {
-    it('lista fornecedores ativos aplicando filtros opcionais', async () => {
-      const whereMock = jest.fn(async () => [supplierRow]);
-      mockDb.select.mockReturnValue({
-        from: () => ({ where: whereMock }),
-      });
+    it('lista fornecedores ativos com agregação de avaliações aplicando filtros opcionais', async () => {
+      const chain = mockSupplierSelectChain([supplierRow]);
+      mockDb.select.mockReturnValue({ from: chain.from });
 
       const result = await service.findAll({
         search: 'Estrela',
         category: 'Buffet',
       });
 
-      expect(whereMock).toHaveBeenCalledTimes(1);
+      expect(chain.leftJoin).toHaveBeenCalledTimes(1);
+      expect(chain.where).toHaveBeenCalledTimes(1);
+      expect(chain.groupBy).toHaveBeenCalledTimes(1);
+      expect(chain.having).not.toHaveBeenCalled();
+      expect(chain.orderBy).not.toHaveBeenCalled();
       expect(result).toEqual([supplierRow]);
     });
+
+    it('aplica HAVING com minRating e ORDER BY quando sortBy é informado', async () => {
+      const ratedSupplier = {
+        ...supplierRow,
+        ratingAverage: 4.5,
+        ratingCount: 2,
+      };
+      const chain = mockSupplierSelectChain([ratedSupplier]);
+      mockDb.select.mockReturnValue({ from: chain.from });
+
+      const result = await service.findAll({
+        minRating: 4,
+        sortBy: 'rating',
+      });
+
+      expect(chain.having).toHaveBeenCalledTimes(1);
+      expect(chain.orderBy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual([ratedSupplier]);
+    });
+
+    it.each(['companyName', 'createdAt'] as const)(
+      'ordena quando sortBy=%s',
+      async (sortBy) => {
+        const chain = mockSupplierSelectChain([supplierRow]);
+        mockDb.select.mockReturnValue({ from: chain.from });
+
+        await expect(service.findAll({ sortBy })).resolves.toEqual([
+          supplierRow,
+        ]);
+        expect(chain.orderBy).toHaveBeenCalledTimes(1);
+      },
+    );
   });
 
   describe('findOne', () => {
-    it('retorna fornecedor ativo existente', async () => {
-      mockDb.select.mockReturnValue({
-        from: () => ({ where: async () => [supplierRow] }),
-      });
+    it('retorna fornecedor ativo existente com agregação de avaliações', async () => {
+      const chain = mockSupplierSelectChain([supplierRow]);
+      mockDb.select.mockReturnValue({ from: chain.from });
 
       await expect(service.findOne('sup-1')).resolves.toEqual(supplierRow);
+      expect(chain.leftJoin).toHaveBeenCalledTimes(1);
+      expect(chain.groupBy).toHaveBeenCalledTimes(1);
     });
 
     it('lança NotFoundException quando não existe ou está deletado', async () => {
-      mockDb.select.mockReturnValue({
-        from: () => ({ where: async () => [] }),
-      });
+      const emptyChain = mockSupplierSelectChain([]);
+      mockDb.select.mockReturnValue({ from: emptyChain.from });
       await expect(service.findOne('sup-404')).rejects.toThrow(
         new NotFoundException('Fornecedor não encontrado.'),
       );
 
-      mockDb.select.mockReturnValue({
-        from: () => ({
-          where: async () => [{ ...supplierRow, deletedAt: new Date() }],
-        }),
-      });
+      const deletedChain = mockSupplierSelectChain([
+        { ...supplierRow, deletedAt: new Date() },
+      ]);
+      mockDb.select.mockReturnValue({ from: deletedChain.from });
       await expect(service.findOne('sup-1')).rejects.toThrow(
         new NotFoundException('Fornecedor não encontrado.'),
       );
@@ -136,6 +187,7 @@ describe('SuppliersService', () => {
     };
 
     function mockSelects(supplier: object | undefined, reviews: object[] = []) {
+      const supplierChain = mockSupplierSelectChain(supplier ? [supplier] : []);
       const reviewQuery = {
         from: () => ({
           innerJoin: () => ({
@@ -148,9 +200,7 @@ describe('SuppliersService', () => {
         }),
       };
       mockDb.select
-        .mockReturnValueOnce({
-          from: () => ({ where: async () => (supplier ? [supplier] : []) }),
-        })
+        .mockReturnValueOnce({ from: supplierChain.from })
         .mockReturnValue(reviewQuery);
     }
 
