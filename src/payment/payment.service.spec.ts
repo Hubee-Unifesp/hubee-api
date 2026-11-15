@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import {
+  BadRequestException,
   ConflictException,
   NotFoundException,
   UnprocessableEntityException,
@@ -47,8 +48,10 @@ describe('PaymentService', () => {
   };
   let orderService: {
     findById: jest.Mock<OrderService['findById']>;
+    lockById: jest.Mock<OrderService['lockById']>;
     lockPendingForCheckout: jest.Mock<OrderService['lockPendingForCheckout']>;
     markAsPaid: jest.Mock<OrderService['markAsPaid']>;
+    markAsCancelled: jest.Mock<OrderService['markAsCancelled']>;
     findItems: jest.Mock<OrderService['findItems']>;
     findEventsForShare: jest.Mock<OrderService['findEventsForShare']>;
     cancelIfReservationExpired: jest.Mock<
@@ -57,6 +60,7 @@ describe('PaymentService', () => {
   };
   let ticketService: {
     issueForPaidOrder: jest.Mock<TicketService['issueForPaidOrder']>;
+    cancelByOrder: jest.Mock<TicketService['cancelByOrder']>;
   };
   const tx = { tx: true };
   const db = {
@@ -73,8 +77,10 @@ describe('PaymentService', () => {
     };
     orderService = {
       findById: jest.fn<OrderService['findById']>(),
+      lockById: jest.fn<OrderService['lockById']>(),
       lockPendingForCheckout: jest.fn<OrderService['lockPendingForCheckout']>(),
       markAsPaid: jest.fn<OrderService['markAsPaid']>(),
+      markAsCancelled: jest.fn<OrderService['markAsCancelled']>(),
       findItems: jest.fn<OrderService['findItems']>(),
       findEventsForShare: jest.fn<OrderService['findEventsForShare']>(),
       cancelIfReservationExpired:
@@ -82,6 +88,7 @@ describe('PaymentService', () => {
     };
     ticketService = {
       issueForPaidOrder: jest.fn<TicketService['issueForPaidOrder']>(),
+      cancelByOrder: jest.fn<TicketService['cancelByOrder']>(),
     };
     db.transaction.mockClear();
 
@@ -98,6 +105,10 @@ describe('PaymentService', () => {
     service = module.get(PaymentService);
 
     orderService.findById.mockResolvedValue({
+      id: ORDER_ID,
+      userId: BUYER.id,
+    } as never);
+    orderService.lockById.mockResolvedValue({
       id: ORDER_ID,
       userId: BUYER.id,
     } as never);
@@ -413,7 +424,7 @@ describe('PaymentService', () => {
   });
 
   describe('update()', () => {
-    it('atualiza o status do payment existente', async () => {
+    it('atualiza o status do payment existente com lock no pedido dentro da transaction', async () => {
       paymentRepository.findByOrderId.mockResolvedValue(makePayment());
       const updated = makePayment({ status: 'confirmado' });
       paymentRepository.update.mockResolvedValue(updated);
@@ -422,10 +433,28 @@ describe('PaymentService', () => {
         status: 'confirmado',
       });
 
-      expect(paymentRepository.update).toHaveBeenCalledWith('payment-1', {
-        status: 'confirmado',
-      });
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(orderService.lockById).toHaveBeenCalledWith(ORDER_ID, tx);
+      expect(paymentRepository.findByOrderId).toHaveBeenCalledWith(
+        ORDER_ID,
+        tx,
+      );
+      expect(paymentRepository.update).toHaveBeenCalledWith(
+        'payment-1',
+        { status: 'confirmado' },
+        tx,
+      );
       expect(result).toEqual(updated);
+    });
+
+    it('lança NotFound quando o pedido não existe', async () => {
+      orderService.lockById.mockRejectedValue(new NotFoundException());
+
+      await expect(
+        service.update(ORDER_ID, { status: 'confirmado' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(paymentRepository.findByOrderId).not.toHaveBeenCalled();
+      expect(paymentRepository.update).not.toHaveBeenCalled();
     });
 
     it('lança NotFound quando o payment não existe', async () => {
@@ -435,6 +464,74 @@ describe('PaymentService', () => {
         service.update(ORDER_ID, { status: 'confirmado' }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(paymentRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('propaga estorno em transaction para o pedido e todos os ingressos', async () => {
+      paymentRepository.findByOrderId.mockResolvedValue(
+        makePayment({ status: 'confirmado' }),
+      );
+      const refunded = makePayment({ status: 'estornado' });
+      paymentRepository.update.mockResolvedValue(refunded);
+      orderService.markAsCancelled.mockResolvedValue({
+        id: ORDER_ID,
+        status: 'cancelado',
+      } as never);
+      ticketService.cancelByOrder.mockResolvedValue([]);
+
+      const result = await service.update(ORDER_ID, { status: 'estornado' });
+
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(orderService.lockById).toHaveBeenCalledWith(ORDER_ID, tx);
+      expect(paymentRepository.findByOrderId).toHaveBeenCalledWith(
+        ORDER_ID,
+        tx,
+      );
+      expect(paymentRepository.update).toHaveBeenCalledWith(
+        'payment-1',
+        { status: 'estornado' },
+        tx,
+      );
+      expect(orderService.markAsCancelled).toHaveBeenCalledWith(ORDER_ID, tx);
+      expect(ticketService.cancelByOrder).toHaveBeenCalledWith(ORDER_ID, tx);
+      expect(result).toEqual(refunded);
+    });
+
+    it.each(['pendente', 'estornado'] as const)(
+      'rejeita transição inválida (%s -> estornado) dentro da transaction sem alterar registros',
+      async (currentStatus) => {
+        paymentRepository.findByOrderId.mockResolvedValue(
+          makePayment({ status: currentStatus }),
+        );
+
+        await expect(
+          service.update(ORDER_ID, { status: 'estornado' }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(db.transaction).toHaveBeenCalledTimes(1);
+        expect(orderService.lockById).toHaveBeenCalledWith(ORDER_ID, tx);
+        expect(paymentRepository.findByOrderId).toHaveBeenCalledWith(
+          ORDER_ID,
+          tx,
+        );
+        expect(paymentRepository.update).not.toHaveBeenCalled();
+        expect(orderService.markAsCancelled).not.toHaveBeenCalled();
+        expect(ticketService.cancelByOrder).not.toHaveBeenCalled();
+      },
+    );
+
+    it('propaga falha no cancelamento do pedido para a transaction fazer rollback', async () => {
+      paymentRepository.findByOrderId.mockResolvedValue(
+        makePayment({ status: 'confirmado' }),
+      );
+      paymentRepository.update.mockResolvedValue(
+        makePayment({ status: 'estornado' }),
+      );
+      orderService.markAsCancelled.mockRejectedValue(new Error('db fora'));
+
+      await expect(
+        service.update(ORDER_ID, { status: 'estornado' }),
+      ).rejects.toThrow('db fora');
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(ticketService.cancelByOrder).not.toHaveBeenCalled();
     });
   });
 });

@@ -56,6 +56,15 @@ export class OrderService {
     return order;
   }
 
+  /** Trava o pedido (`FOR UPDATE`) até o fim da transaction. */
+  async lockById(id: string, executor: DbExecutor) {
+    const order = await this.orderRepository.findByIdForUpdate(id, executor);
+    if (!order) {
+      throw new NotFoundException(`Pedido ${id} não encontrado`);
+    }
+    return order;
+  }
+
   async findOne(id: string, user: AuthenticatedUser) {
     const order = await this.ensureAccessible(id, user);
     const items = await this.orderItemRepository.findByOrder(id);
@@ -181,6 +190,10 @@ export class OrderService {
 
   markAsPaid(id: string, executor: DbExecutor) {
     return this.orderRepository.update(id, { status: 'pago' }, executor);
+  }
+
+  markAsCancelled(id: string, executor: DbExecutor) {
+    return this.orderRepository.update(id, { status: 'cancelado' }, executor);
   }
 
   /**

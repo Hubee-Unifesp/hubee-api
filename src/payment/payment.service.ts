@@ -122,21 +122,37 @@ export class PaymentService {
 
   /** Só ADMIN chega aqui (confirmação/estorno), então não checa dono. */
   async update(orderId: string, dto: UpdatePaymentDto) {
-    await this.findOrder(orderId);
-    const payment = await this.findByOrder(orderId);
+    return this.db.transaction(async (tx) => {
+      // Adquire lock no pedido para evitar duas requisições simultâneas
+      // lendo o mesmo payment.status antes do commit (GOL-215).
+      await this.lockOrderById(orderId, tx);
+      const payment = await this.findByOrder(orderId, tx);
 
-    // Validação de transição de status
-    if (dto.status && dto.status !== payment.status) {
-      const allowedTransitions = VALID_STATUS_TRANSITIONS[payment.status] ?? [];
+      // Validação de transição de status dentro da transaction
+      if (dto.status) {
+        const allowedTransitions =
+          VALID_STATUS_TRANSITIONS[payment.status] ?? [];
 
-      if (!allowedTransitions.includes(dto.status)) {
-        throw new BadRequestException(
-          `Transição de status inválida: não é permitido alterar de '${payment.status}' para '${dto.status}'.`,
-        );
+        if (!allowedTransitions.includes(dto.status)) {
+          throw new BadRequestException(
+            `Transição de status inválida: não é permitido alterar de '${payment.status}' para '${dto.status}'.`,
+          );
+        }
       }
-    }
 
-    return this.paymentRepository.update(payment.id, dto);
+      const updatedPayment = await this.paymentRepository.update(
+        payment.id,
+        dto,
+        tx,
+      );
+
+      if (dto.status === 'estornado') {
+        await this.orderService.markAsCancelled(orderId, tx);
+        await this.ticketService.cancelByOrder(orderId, tx);
+      }
+
+      return updatedPayment;
+    });
   }
 
   private async ensureEventsOnSale(
@@ -171,14 +187,21 @@ export class PaymentService {
     }
   }
 
-  private async findByOrder(orderId: string) {
-    const payment = await this.paymentRepository.findByOrderId(orderId);
+  private async findByOrder(orderId: string, executor?: DbExecutor) {
+    const payment = await this.paymentRepository.findByOrderId(
+      orderId,
+      executor,
+    );
     if (!payment) {
       throw new NotFoundException(
         `Pagamento do pedido ${orderId} não encontrado`,
       );
     }
     return payment;
+  }
+
+  private lockOrderById(orderId: string, executor: DbExecutor) {
+    return this.orderService.lockById(orderId, executor);
   }
 
   /**

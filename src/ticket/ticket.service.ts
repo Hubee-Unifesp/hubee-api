@@ -179,6 +179,11 @@ export class TicketService {
     return this.ticketRepository.findAllByHolder(userId);
   }
 
+  /** Invalida todos os ingressos do pedido na mesma transaction do estorno. */
+  cancelByOrder(orderId: string, executor: DbExecutor) {
+    return this.ticketRepository.cancelByOrder(orderId, executor);
+  }
+
   async update(id: string, dto: UpdateTicketDto) {
     const ticket = await this.findById(id);
 

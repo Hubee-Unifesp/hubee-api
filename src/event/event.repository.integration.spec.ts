@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { PGlite } from '@electric-sql/pglite';
 import { pushSchema } from 'drizzle-kit/api';
+import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import * as schema from '../database/schema';
 import type { DrizzleDatabase } from '../database/database.provider';
@@ -8,6 +9,7 @@ import { EventRepository } from './event.repository';
 
 describe('EventRepository (banco em memória)', () => {
   let pglite: PGlite;
+  let db: ReturnType<typeof drizzle<typeof schema>>;
   let repository: EventRepository;
   let fixture: {
     organizationId: string;
@@ -22,7 +24,7 @@ describe('EventRepository (banco em memória)', () => {
 
   beforeAll(async () => {
     pglite = new PGlite();
-    const db = drizzle(pglite, { schema });
+    db = drizzle(pglite, { schema });
     const { apply } = await pushSchema(schema as never, db as never);
     await apply();
     repository = new EventRepository(db as unknown as DrizzleDatabase);
@@ -257,6 +259,26 @@ describe('EventRepository (banco em memória)', () => {
         fixture.draftEventId,
       );
     });
+
+    it('ignora ingressos cancelados na contagem de ticketsSold (GOL-215)', async () => {
+      await db
+        .update(schema.tickets)
+        .set({ status: 'cancelado' })
+        .where(eq(schema.tickets.qrCode, 'paid-ticket-2'));
+
+      try {
+        const result = await repository.findUpcomingSummaries();
+        const futureSummary = result.find(
+          (event) => event.id === fixture.futureEventId,
+        );
+        expect(futureSummary?.ticketsSold).toBe(1);
+      } finally {
+        await db
+          .update(schema.tickets)
+          .set({ status: 'emitido' })
+          .where(eq(schema.tickets.qrCode, 'paid-ticket-2'));
+      }
+    });
   });
 
   describe('findAll()', () => {
@@ -302,6 +324,50 @@ describe('EventRepository (banco em memória)', () => {
         minPrice: 0,
         minPriceBatch: 'Lote gratuito',
       });
+    });
+
+    it('soldInBatch desconta ingressos cancelados e volta a exibir lote como disponível (GOL-215)', async () => {
+      const [recifeTicket] = await db
+        .select()
+        .from(schema.tickets)
+        .where(
+          and(
+            eq(schema.tickets.eventId, fixture.recifeEventId),
+            eq(schema.tickets.status, 'emitido'),
+          ),
+        );
+
+      await db
+        .update(schema.tickets)
+        .set({ status: 'cancelado' })
+        .where(eq(schema.tickets.id, recifeTicket.id));
+
+      try {
+        const { data } = await repository.findAll({}, firstPage);
+        const recife = data.find((event) => event.id === fixture.recifeEventId);
+        expect(recife).toMatchObject({
+          minPrice: 40,
+          minPriceBatch: 'Pista',
+        });
+
+        const detail = await repository.findDetailById(fixture.recifeEventId);
+        expect(
+          detail?.ticketTypes.map(({ batch, available }) => ({
+            batch,
+            available,
+          })),
+        ).toEqual(
+          expect.arrayContaining([
+            { batch: 'Pista', available: 1 },
+            { batch: 'Camarote', available: 10 },
+          ]),
+        );
+      } finally {
+        await db
+          .update(schema.tickets)
+          .set({ status: 'emitido' })
+          .where(eq(schema.tickets.id, recifeTicket.id));
+      }
     });
 
     it('filtra por cidade sem diferenciar maiúsculas, combinado com status', async () => {

@@ -17,8 +17,10 @@ import { drizzle } from 'drizzle-orm/pglite';
 import request from 'supertest';
 import { DRIZZLE } from '../database/database.constants';
 import * as schema from '../database/schema';
+import { EventRepository } from '../event/event.repository';
 import { EventService } from '../event/event.service';
 import { CheckoutController } from '../payment/checkout.controller';
+import { PaymentController } from '../payment/payment.controller';
 import { PaymentRepository } from '../payment/payment.repository';
 import { PaymentService } from '../payment/payment.service';
 import { TicketController } from '../ticket/ticket.controller';
@@ -44,6 +46,7 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
   let pglite: PGlite;
   let db: ReturnType<typeof drizzle<typeof schema>>;
   let ticketRepository: TicketRepository;
+  let eventRepository: EventRepository;
   const tokens: Record<string, string> = {};
   const ids: Record<string, string> = {};
   let eventId: string;
@@ -98,10 +101,12 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
       controllers: [
         OrderController,
         CheckoutController,
+        PaymentController,
         TicketController,
         TicketTypeController,
       ],
       providers: [
+        EventRepository,
         OrderService,
         OrderRepository,
         OrderItemRepository,
@@ -147,6 +152,7 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
     );
     await app.init();
     ticketRepository = module.get(TicketRepository);
+    eventRepository = module.get(EventRepository);
 
     const [organization] = await db
       .insert(schema.organizations)
@@ -921,6 +927,93 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
       const orderId = await paidOrder(lot, 1);
 
       await issue('ana', orderId, [{ eventId, ticketTypeId: lot }]).expect(403);
+    });
+  });
+
+  describe('PATCH /orders/:orderId/payments (estorno, GOL-215)', () => {
+    it('propaga estorno do pagamento para o pedido e ingressos, devolvendo saldo e descontando de ticketsSold', async () => {
+      const lot = await newLot(3, 80);
+      const [summaryBeforeCheckout] =
+        await eventRepository.findUpcomingSummaries();
+      const soldBefore = summaryBeforeCheckout.ticketsSold;
+
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+      await pay('ana', created.body.id).expect(201);
+
+      expect(await availableOf(lot)).toBe(1);
+      const [summaryAfterCheckout] =
+        await eventRepository.findUpcomingSummaries();
+      expect(summaryAfterCheckout.ticketsSold).toBe(soldBefore + 2);
+
+      const refundResponse = await http()
+        .patch(`/orders/${created.body.id}/payments`)
+        .set(as('admin'))
+        .send({ status: 'estornado' })
+        .expect(200);
+
+      expect(refundResponse.body.status).toBe('estornado');
+
+      const [updatedOrder] = await db
+        .select()
+        .from(schema.orders)
+        .where(eq(schema.orders.id, created.body.id));
+      expect(updatedOrder.status).toBe('cancelado');
+
+      const orderTickets = await db
+        .select()
+        .from(schema.tickets)
+        .where(eq(schema.tickets.orderId, created.body.id));
+      expect(orderTickets).toHaveLength(2);
+      expect(orderTickets.map((ticket) => ticket.status)).toEqual([
+        'cancelado',
+        'cancelado',
+      ]);
+
+      expect(await availableOf(lot)).toBe(3);
+
+      const detail = await eventRepository.findDetailById(eventId);
+      expect(
+        detail?.ticketTypes.find((ticketType) => ticketType.id === lot)
+          ?.available,
+      ).toBe(3);
+
+      const [summaryAfterRefund] =
+        await eventRepository.findUpcomingSummaries();
+      expect(summaryAfterRefund.ticketsSold).toBe(soldBefore);
+    });
+
+    it('rejeita estorno por usuário comum (403) e impede transição inválida após estorno (400)', async () => {
+      const lot = await newLot(2, 50);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+      await pay('ana', created.body.id).expect(201);
+
+      await http()
+        .patch(`/orders/${created.body.id}/payments`)
+        .set(as('ana'))
+        .send({ status: 'estornado' })
+        .expect(403);
+
+      await http()
+        .patch(`/orders/${created.body.id}/payments`)
+        .set(as('admin'))
+        .send({ status: 'estornado' })
+        .expect(200);
+
+      await http()
+        .patch(`/orders/${created.body.id}/payments`)
+        .set(as('admin'))
+        .send({ status: 'confirmado' })
+        .expect(400);
+
+      await http()
+        .patch(`/orders/${created.body.id}/payments`)
+        .set(as('admin'))
+        .send({ status: 'estornado' })
+        .expect(400);
     });
   });
 });

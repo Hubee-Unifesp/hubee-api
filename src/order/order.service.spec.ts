@@ -722,6 +722,29 @@ describe('OrderService', () => {
     });
   });
 
+  describe('lockById()', () => {
+    it('trava e devolve o pedido quando existe', async () => {
+      const order = makeOrder();
+      orderRepository.findByIdForUpdate.mockResolvedValue(order);
+
+      await expect(service.lockById('order-1', tx as never)).resolves.toBe(
+        order,
+      );
+      expect(orderRepository.findByIdForUpdate).toHaveBeenCalledWith(
+        'order-1',
+        tx,
+      );
+    });
+
+    it('lança NotFound quando o pedido não existe', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(undefined);
+
+      await expect(
+        service.lockById('order-1', tx as never),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   describe('markAsPaid()', () => {
     it('muda o status para pago dentro da transaction recebida', async () => {
       const paid = makeOrder({ status: 'pago' });
@@ -733,6 +756,22 @@ describe('OrderService', () => {
       expect(orderRepository.update).toHaveBeenCalledWith(
         'order-1',
         { status: 'pago' },
+        tx,
+      );
+    });
+  });
+
+  describe('markAsCancelled()', () => {
+    it('muda o status para cancelado dentro da transaction recebida', async () => {
+      const cancelled = makeOrder({ status: 'cancelado' });
+      orderRepository.update.mockResolvedValue(cancelled);
+
+      await expect(
+        service.markAsCancelled('order-1', tx as never),
+      ).resolves.toBe(cancelled);
+      expect(orderRepository.update).toHaveBeenCalledWith(
+        'order-1',
+        { status: 'cancelado' },
         tx,
       );
     });
