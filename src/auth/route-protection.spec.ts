@@ -100,6 +100,7 @@ const ORGANIZER_WRITE_ROUTES = [
   'POST /events',
   'PATCH /events/:id',
   'PATCH /events/:id/photo',
+  'POST /events/:id/duplicate',
   'POST /events/:eventId/ticket-types',
   'PATCH /events/:eventId/ticket-types/:id',
   'DELETE /events/:eventId/ticket-types/:id',
@@ -140,6 +141,8 @@ const ORGANIZER_ONLY_ROUTES = [
   'GET /suppliers/:id',
   'PATCH /suppliers/:id',
   'DELETE /suppliers/:id',
+  'POST /suppliers/:id/reviews',
+  'GET /suppliers/:id/reviews',
 ];
 
 /** Rotas de pedido que ganham proteção com checagem de dono na GOL-103. */

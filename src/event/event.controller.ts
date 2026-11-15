@@ -6,6 +6,7 @@ import {
   ApiNoContentResponse,
   ApiOkResponse,
   ApiTags,
+  ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { EventResponseDto } from './dto/event-response.dto';
 import { EventDetailResponseDto } from './dto/event-detail-response.dto';
@@ -107,6 +108,10 @@ export class EventController {
   @OrgAccess('write', { from: 'event', param: 'id' })
   @Patch(':id')
   @ApiOkResponse({ type: EventResponseDto })
+  @ApiUnprocessableEntityResponse({
+    description:
+      'Evento cancelado, ou publicação de evento sem lotes de ingressos',
+  })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateEventDto,
@@ -116,6 +121,19 @@ export class EventController {
       EventResponseDto,
       await this.eventService.update(id, dto, user),
     );
+  }
+
+  /**
+   * Duplica o evento como rascunho, com os mesmos lotes (sem vendas, capa nem
+   * destaque). ADMIN ou membro com `write` na organização do evento; de fora
+   * dá 404.
+   */
+  @OrgAccess('write', { from: 'event', param: 'id' })
+  @Post(':id/duplicate')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiCreatedResponse({ type: EventResponseDto })
+  async duplicate(@Param('id', ParseUUIDPipe) id: string) {
+    return toResponse(EventResponseDto, await this.eventService.duplicate(id));
   }
 
   @OrgAccess('write', { from: 'event', param: 'id' })

@@ -261,4 +261,134 @@ describe('Fornecedores por organizadores (GOL-202, banco em memória)', () => {
       expect(empty.body).toEqual([]);
     });
   });
+
+  describe('avaliações de fornecedores (GOL-245)', () => {
+    let supplierId: string;
+
+    beforeAll(async () => {
+      const res = await http()
+        .post('/suppliers')
+        .set(as('organizer'))
+        .send({ companyName: 'Doces da Vovó', cnpjCpf: '66777888000136' })
+        .expect(201);
+      supplierId = res.body.id;
+    });
+
+    const review = (user: string, body: object, id = supplierId) =>
+      http().post(`/suppliers/${id}/reviews`).set(as(user)).send(body);
+
+    it('bloqueia sem token (401) e comprador ou convite pendente (403)', async () => {
+      await http()
+        .post(`/suppliers/${supplierId}/reviews`)
+        .send({ rating: 5 })
+        .expect(401);
+      await http().get(`/suppliers/${supplierId}/reviews`).expect(401);
+
+      for (const role of ['buyer', 'pending']) {
+        await review(role, { rating: 5 }).expect(403);
+        await http()
+          .get(`/suppliers/${supplierId}/reviews`)
+          .set(as(role))
+          .expect(403);
+      }
+    });
+
+    it('cria a avaliação com 201 e atualiza a mesma avaliação com 200', async () => {
+      const created = await review('organizer', {
+        rating: 4,
+        comment: '  Doces ótimos, entrega atrasou um pouco.  ',
+      }).expect(201);
+
+      expect(created.body).toMatchObject({
+        supplierId,
+        userName: 'organizer',
+        rating: 4,
+        comment: 'Doces ótimos, entrega atrasou um pouco.',
+      });
+
+      const updated = await review('organizer', { rating: 5 }).expect(200);
+
+      expect(updated.body).toMatchObject({
+        id: created.body.id,
+        rating: 5,
+        comment: null,
+      });
+      expect(new Date(updated.body.updatedAt).getTime()).toBeGreaterThan(
+        new Date(created.body.updatedAt).getTime(),
+      );
+    });
+
+    it('lista as avaliações do fornecedor das mais recentes para as mais antigas', async () => {
+      await review('readOnly', { rating: 3, comment: 'Ok.' }).expect(201);
+      await review('admin', { rating: 2 }).expect(201);
+
+      const res = await http()
+        .get(`/suppliers/${supplierId}/reviews`)
+        .set(as('readOnly'))
+        .expect(200);
+
+      expect(res.body.map((r: { userName: string }) => r.userName)).toEqual([
+        'admin',
+        'readOnly',
+        'organizer',
+      ]);
+      expect(res.body[0]).toEqual({
+        id: expect.any(String),
+        supplierId,
+        userId: expect.any(String),
+        userName: 'admin',
+        rating: 2,
+        comment: null,
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+      });
+    });
+
+    it.each([0, 6, 3.5, '5', null])(
+      'rejeita nota %p com 400 em português',
+      async (rating) => {
+        const res = await review('organizer', { rating }).expect(400);
+        expect(res.body.message.join(' ')).toMatch(/nota/i);
+      },
+    );
+
+    it('rejeita comentário com mais de 500 caracteres e campos extras', async () => {
+      const long = await review('organizer', {
+        rating: 5,
+        comment: 'a'.repeat(501),
+      }).expect(400);
+      expect(long.body.message).toContain(
+        'O comentário deve ter no máximo 500 caracteres.',
+      );
+
+      await review('organizer', { rating: 5, userId: supplierId }).expect(400);
+    });
+
+    it('retorna 404 para fornecedor inexistente ou removido', async () => {
+      const missing = '11111111-1111-4111-8111-111111111111';
+      await review('organizer', { rating: 5 }, missing).expect(404);
+      await http()
+        .get(`/suppliers/${missing}/reviews`)
+        .set(as('organizer'))
+        .expect(404);
+
+      const removed = await http()
+        .post('/suppliers')
+        .set(as('organizer'))
+        .send({ companyName: 'Fechou as Portas', cnpjCpf: '77888999000147' })
+        .expect(201);
+      await http()
+        .delete(`/suppliers/${removed.body.id}`)
+        .set(as('organizer'))
+        .expect(204);
+
+      const res = await review('organizer', { rating: 5 }, removed.body.id);
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe('Fornecedor não encontrado.');
+      await http()
+        .get(`/suppliers/${removed.body.id}/reviews`)
+        .set(as('organizer'))
+        .expect(404);
+    });
+  });
 });
