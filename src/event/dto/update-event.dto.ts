@@ -10,8 +10,16 @@ import {
   IsBoolean,
   ValidateIf,
 } from 'class-validator';
-import { eventAgeRating, eventStatus } from '../../database/schema';
-import type { EventAgeRating, EventStatus } from '../../database/schema';
+import {
+  EVENT_CATEGORIES,
+  eventAgeRating,
+  eventStatus,
+} from '../../database/schema';
+import type {
+  EventAgeRating,
+  EventCategory,
+  EventStatus,
+} from '../../database/schema';
 
 /**
  * Campos opcionais do evento (`description`, `ageRating`, `salesStartDate`,
@@ -60,9 +68,8 @@ export class UpdateEventDto {
   status?: EventStatus;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  category?: string | null;
+  @IsIn(EVENT_CATEGORIES)
+  category?: EventCategory | null;
 
   @IsOptional()
   @IsString()
