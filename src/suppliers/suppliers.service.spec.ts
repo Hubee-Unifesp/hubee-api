@@ -19,8 +19,8 @@ describe('SuppliersService', () => {
     phone: '11999999999',
     email: 'contato@estrela.com',
     category: 'Buffet',
-    averageRating: null,
-    reviewsCount: 0,
+    ratingAverage: null,
+    ratingCount: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -117,8 +117,8 @@ describe('SuppliersService', () => {
     it('aplica HAVING com minRating e ORDER BY quando sortBy é informado', async () => {
       const ratedSupplier = {
         ...supplierRow,
-        averageRating: 4.5,
-        reviewsCount: 2,
+        ratingAverage: 4.5,
+        ratingCount: 2,
       };
       const chain = mockSupplierSelectChain([ratedSupplier]);
       mockDb.select.mockReturnValue({ from: chain.from });

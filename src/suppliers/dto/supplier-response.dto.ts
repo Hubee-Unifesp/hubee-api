@@ -35,7 +35,7 @@ export class SupplierResponseDto {
       'Média das avaliações (1 a 5, arredondada para 1 casa decimal) ou null quando não há avaliações',
     example: 4.5,
   })
-  averageRating: number | null;
+  ratingAverage: number | null;
 
   @Expose()
   @ApiProperty({
@@ -43,7 +43,7 @@ export class SupplierResponseDto {
     description: 'Quantidade total de avaliações recebidas',
     example: 12,
   })
-  reviewsCount: number;
+  ratingCount: number;
 
   @Expose()
   @ApiProperty()

@@ -27,18 +27,18 @@ const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
 const nullableNumber = (value: unknown) =>
   value === null || value === undefined ? null : Number(value);
 
-const averageRating = sql<
+const ratingAverage = sql<
   number | null
 >`ROUND(AVG(${supplierReviews.rating})::numeric, 1)`.mapWith(nullableNumber);
 
-const reviewsCount = sql<number>`COUNT(${supplierReviews.id})::int`.mapWith(
+const ratingCount = sql<number>`COUNT(${supplierReviews.id})::int`.mapWith(
   Number,
 );
 
 const supplierColumns = {
   ...getTableColumns(suppliers),
-  averageRating,
-  reviewsCount,
+  ratingAverage,
+  ratingCount,
 };
 
 const reviewColumns = {
@@ -82,8 +82,8 @@ export class SuppliersService {
 
     return {
       ...newSupplier,
-      averageRating: null,
-      reviewsCount: 0,
+      ratingAverage: null,
+      ratingCount: 0,
     };
   }
 
@@ -108,14 +108,14 @@ export class SuppliersService {
     const filteredQuery =
       query.minRating !== undefined
         ? baseQuery.having(
-            sql`AVG(${supplierReviews.rating}) >= ${query.minRating}`,
+            sql`ROUND(AVG(${supplierReviews.rating})::numeric, 1) >= ${query.minRating}`,
           )
         : baseQuery;
 
     if (query.sortBy === 'rating') {
       return filteredQuery.orderBy(
-        sql`${averageRating} DESC NULLS LAST`,
-        desc(reviewsCount),
+        sql`${ratingAverage} DESC NULLS LAST`,
+        desc(ratingCount),
         asc(suppliers.companyName),
       );
     }
@@ -186,8 +186,8 @@ export class SuppliersService {
 
     return {
       ...updatedSupplier,
-      averageRating: current.averageRating,
-      reviewsCount: current.reviewsCount,
+      ratingAverage: current.ratingAverage,
+      ratingCount: current.ratingCount,
     };
   }
 
