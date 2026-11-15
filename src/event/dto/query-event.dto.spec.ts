@@ -63,7 +63,15 @@ describe('QueryEventDto', () => {
     ['search', { search: '   ' }],
     ['city', { city: '' }],
     ['category', { category: '' }],
+    ['category', { category: 'teatro' }],
   ])('recusa %s inválido (%j)', async (field, query) => {
     await expect(invalidFields(query)).resolves.toEqual([field]);
+  });
+
+  it('normaliza category para minúsculas antes de validar', async () => {
+    const dto = toDto({ category: '  SHOWS  ' });
+
+    await expect(validate(dto)).resolves.toEqual([]);
+    expect(dto.category).toBe('shows');
   });
 });
