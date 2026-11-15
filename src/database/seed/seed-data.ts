@@ -21,6 +21,8 @@ export interface SeedUser {
   email: string;
   role: 'USER' | 'ADMIN';
   signupIntent: 'BUY' | 'ORGANIZE' | null;
+  cpf?: string;
+  birthDate?: string;
 }
 
 export const seedUsers: SeedUser[] = [
@@ -58,6 +60,8 @@ export const seedUsers: SeedUser[] = [
     email: 'comprador@hubee.com.br',
     role: 'USER',
     signupIntent: 'BUY',
+    cpf: '52998224725',
+    birthDate: '1998-05-15',
   },
 ];
 
