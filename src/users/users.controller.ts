@@ -142,7 +142,7 @@ export class UsersController {
   ) {
     return toResponse(
       OrderResponseDto,
-      await this.orderService.findAll({ ...query, userId: user.id }),
+      await this.orderService.findAllWithDetails({ ...query, userId: user.id }),
     );
   }
 

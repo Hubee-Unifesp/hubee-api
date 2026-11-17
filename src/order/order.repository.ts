@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
@@ -26,6 +26,56 @@ export class OrderRepository {
       .select()
       .from(orders)
       .where(conditions.length ? and(...conditions) : undefined);
+  }
+
+  /**
+   * Busca pedidos com itens (incluindo lote e evento) e pagamento embutidos.
+   * Uma única query relacional em vez de N+1.
+   */
+  async findAllWithDetails(
+    filters: FindAllOrdersFilters,
+    executor: DbExecutor = this.db,
+  ) {
+    const conditions = [
+      filters.userId ? eq(orders.userId, filters.userId) : undefined,
+      filters.status ? eq(orders.status, filters.status) : undefined,
+    ].filter((condition) => condition !== undefined);
+
+    const rows = await executor.query.orders.findMany({
+      where: conditions.length ? and(...conditions) : undefined,
+      orderBy: [desc(orders.createdAt)],
+      with: {
+        items: {
+          with: {
+            ticketType: {
+              with: { event: true },
+            },
+          },
+        },
+        payment: true,
+      },
+    });
+
+    return rows;
+  }
+
+  /**
+   * Busca um pedido por ID com itens (incluindo lote e evento) e pagamento.
+   */
+  async findByIdWithDetails(id: string, executor: DbExecutor = this.db) {
+    return executor.query.orders.findFirst({
+      where: eq(orders.id, id),
+      with: {
+        items: {
+          with: {
+            ticketType: {
+              with: { event: true },
+            },
+          },
+        },
+        payment: true,
+      },
+    });
   }
 
   async findById(id: string, executor: DbExecutor = this.db) {

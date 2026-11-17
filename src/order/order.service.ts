@@ -48,6 +48,15 @@ export class OrderService {
     return this.orderRepository.findAll(filters);
   }
 
+  /**
+   * Retorna pedidos com dados enriquecidos (itens com lote/evento, pagamento).
+   * Usado pelo `GET /users/me/orders` para evitar chamadas N+1 no frontend.
+   */
+  async findAllWithDetails(filters: FindAllOrdersFilters) {
+    const rows = await this.orderRepository.findAllWithDetails(filters);
+    return rows.map(flattenOrderDetails);
+  }
+
   async findById(id: string) {
     const order = await this.orderRepository.findById(id);
     if (!order) {
@@ -66,9 +75,12 @@ export class OrderService {
   }
 
   async findOne(id: string, user: AuthenticatedUser) {
-    const order = await this.ensureAccessible(id, user);
-    const items = await this.orderItemRepository.findByOrder(id);
-    return { ...order, items };
+    await this.ensureAccessible(id, user);
+    const orderWithDetails = await this.orderRepository.findByIdWithDetails(id);
+    if (!orderWithDetails) {
+      throw new NotFoundException(`Pedido ${id} não encontrado`);
+    }
+    return flattenOrderDetails(orderWithDetails);
   }
 
   async create(authUser: AuthenticatedUser, dto: CreateOrderDto) {
@@ -311,6 +323,55 @@ export class OrderService {
     }
     return order;
   }
+}
+
+/** Extrai itens enriquecidos, evento associado e pagamento para resposta plana. */
+export function flattenOrderDetails(order: any) {
+  const items = (order.items ?? []).map((item: any) => ({
+    id: item.id,
+    ticketTypeId: item.ticketTypeId,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    ticketTypeBatch: item.ticketType?.batch ?? null,
+    ticketTypeModality: item.ticketType?.modality ?? null,
+  }));
+
+  // O evento do pedido pode ser deduzido do primeiro lote associado
+  const firstEvent = order.items?.find((item: any) => item.ticketType?.event)
+    ?.ticketType?.event;
+
+  const event = firstEvent
+    ? {
+        id: firstEvent.id,
+        name: firstEvent.name,
+        startDate: firstEvent.startDate,
+        endDate: firstEvent.endDate,
+        photoUrl: firstEvent.photoUrl ?? null,
+        status: firstEvent.status,
+      }
+    : null;
+
+  const payment = order.payment
+    ? {
+        id: order.payment.id,
+        status: order.payment.status,
+        paymentMethod: order.payment.paymentMethod,
+        amount: order.payment.amount,
+        paidAt: order.payment.paidAt ?? null,
+      }
+    : null;
+
+  return {
+    id: order.id,
+    userId: order.userId,
+    status: order.status,
+    totalAmount: order.totalAmount,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+    items,
+    event,
+    payment,
+  };
 }
 
 /** Lança 422 com o motivo quando a troca de status não é permitida no PATCH. */
