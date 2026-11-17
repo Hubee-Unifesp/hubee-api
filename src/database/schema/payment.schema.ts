@@ -56,7 +56,6 @@ export const payments = pgTable(
   ],
 );
 
-
 export const paymentsRelations = relations(payments, ({ one }) => ({
   order: one(orders, {
     fields: [payments.orderId],
