@@ -15,6 +15,7 @@ import request from 'supertest';
 import { EventController } from '../event/event.controller';
 import { EventService } from '../event/event.service';
 import { ExpensesController } from '../expenses/expenses.controller';
+import { HealthController } from '../health/health.controller';
 import { OrganizationEventController } from '../organization-event/organization-event.controller';
 import { OrganizationUsersController } from '../organization-users/organization-users.controller';
 import { OrderController } from '../order/order.controller';
@@ -25,6 +26,7 @@ import { SuppliersController } from '../suppliers/suppliers.controller';
 import { TaskController } from '../task/task.controller';
 import { TicketController } from '../ticket/ticket.controller';
 import { TicketTypeController } from '../ticket-type/ticket-type.controller';
+import { TicketTypeService } from '../ticket-type/ticket-type.service';
 import { VenueController } from '../venue/venue.controller';
 import { DRIZZLE } from '../database/database.constants';
 import { events } from '../database/schema';
@@ -47,6 +49,7 @@ const CONTROLLERS: Type[] = [
   OrderController,
   OrganizationUsersController,
   OrganizationEventController,
+  HealthController,
 ];
 
 /**
@@ -64,16 +67,20 @@ const PUBLIC_ROUTES = [
   'GET /organizations/:id',
   'GET /venues',
   'GET /venues/:id',
+  'GET /health',
+  'GET /health/ping',
 ];
 
 /**
  * Qualquer usuário logado: o comprador cria o pedido, paga pelo checkout e
- * consulta o que é seu. O service responde 404 para recurso de outra pessoa
- * (coberto nos specs dos services, já que aqui o service é falso).
- * `POST /orders/:orderId/payments` não está aqui de propósito: o corpo aceita
- * `amount` e `status`, então registrar pagamento à mão é só ADMIN.
+ * consulta o que é seu; qualquer usuário autenticado também pode cadastrar uma
+ * organização (`POST /organizations`, GOL-197). O service responde 404 para
+ * recurso de outra pessoa (coberto nos specs dos services, já que aqui o
+ * service é falso). `POST /orders/:orderId/payments` não está aqui de propósito:
+ * o corpo aceita `amount` e `status`, então registrar pagamento à mão é só ADMIN.
  */
 const AUTHENTICATED_ROUTES = [
+  'POST /organizations',
   'POST /orders',
   'POST /payments',
   'GET /orders/:orderId/payments',
@@ -84,21 +91,58 @@ const AUTHENTICATED_ROUTES = [
 ];
 
 /**
- * ADMIN ou membro da organização com `write` (`@OrgAccess`, GOL-144). Em
- * `POST /events` a organização vem do body; nas demais, do evento, e quem é
- * de fora da organização recebe 404 em vez de 403.
+ * ADMIN ou membro da organização com `write` (`@OrgAccess`, GOL-144 e GOL-206).
+ * Em `POST /events` a organização vem do body, em `POST /venues` vale qualquer
+ * organização aceita, e nas demais vem do evento (quem é de fora da organização
+ * recebe 404 em vez de 403).
  */
-const ORGANIZER_WRITE_ROUTES = ['POST /events', 'PATCH /events/:id'];
+const ORGANIZER_WRITE_ROUTES = [
+  'POST /events',
+  'PATCH /events/:id',
+  'PATCH /events/:id/photo',
+  'POST /events/:id/duplicate',
+  'POST /events/:eventId/ticket-types',
+  'PATCH /events/:eventId/ticket-types/:id',
+  'DELETE /events/:eventId/ticket-types/:id',
+  'POST /venues',
+];
 
 /**
  * Como `ORGANIZER_WRITE_ROUTES`, mas exige `manage` (administrador da
- * organização), pela matriz RBAC (GOL-143): membro com `full` recebe 403.
+ * organização), pela matriz RBAC (GOL-143 / GOL-197): membro com `full` recebe 403.
  */
-const ORGANIZER_MANAGE_ROUTES = ['DELETE /events/:id'];
+const ORGANIZER_MANAGE_ROUTES = [
+  'DELETE /events/:id',
+  'PATCH /organizations/:id',
+];
 
 const ORGANIZER_ROUTES = [
   ...ORGANIZER_WRITE_ROUTES,
   ...ORGANIZER_MANAGE_ROUTES,
+];
+
+/**
+ * Rotas com `@OrgAccess(..., { from: 'event' | 'param' })` resolvem a
+ * organização a partir do recurso da URL (`:id` ou `:eventId`) e respondem 404
+ * (e não 403) para quem não é membro da organização dona, evitando revelar
+ * vínculo/existência. Rotas sem parâmetro de recurso (`POST /events` com
+ * `{ from: 'body' }` e `POST /venues` com `{ from: 'any' }`) respondem 403.
+ */
+const isResourceScoped = (route: { template: string }) =>
+  route.template.includes(':');
+
+/**
+ * ADMIN ou membro aceito de qualquer organização (`@OrganizerOnly`, GOL-202):
+ * catálogo compartilhado de fornecedores.
+ */
+const ORGANIZER_ONLY_ROUTES = [
+  'POST /suppliers',
+  'GET /suppliers',
+  'GET /suppliers/:id',
+  'PATCH /suppliers/:id',
+  'DELETE /suppliers/:id',
+  'POST /suppliers/:id/reviews',
+  'GET /suppliers/:id/reviews',
 ];
 
 /** Rotas de pedido que ganham proteção com checagem de dono na GOL-103. */
@@ -138,7 +182,10 @@ function routesOf(controller: Type): Route[] {
       handler,
     );
     if (path === undefined || name === 'constructor') return [];
-    const method = METHOD_NAMES[Reflect.getMetadata(METHOD_METADATA, handler)];
+    const method =
+      METHOD_NAMES[
+        Reflect.getMetadata(METHOD_METADATA, handler) as RequestMethod
+      ];
     if (!method) return [];
     const template =
       '/' + [base, path].filter((part) => part && part !== '/').join('/');
@@ -170,19 +217,24 @@ const authenticatedRoutes = ROUTES.filter((r) =>
 const organizerRoutes = ROUTES.filter((r) =>
   ORGANIZER_ROUTES.includes(r.label),
 );
+const organizerOnlyRoutes = ROUTES.filter((r) =>
+  ORGANIZER_ONLY_ROUTES.includes(r.label),
+);
 const protectedRoutes = ROUTES.filter(
   (r) =>
     ![
       ...PUBLIC_ROUTES,
       ...AUTHENTICATED_ROUTES,
       ...ORGANIZER_ROUTES,
+      ...ORGANIZER_ONLY_ROUTES,
       ...PENDING_GOL_103_ROUTES,
     ].includes(r.label),
 );
 
 /**
- * Banco falso para o `OrganizationAccessGuard`: todo evento é da organização
- * `ID`, e o vínculo do usuário com ela é o que estiver em `membership.current`.
+ * Banco falso para o `OrganizationAccessGuard` e o `OrganizerGuard`: todo
+ * evento é da organização `ID`, e o vínculo do usuário com ela é o que
+ * estiver em `membership.current`.
  */
 const membership: { current?: Record<string, string> } = {};
 const fakeDrizzle = {
@@ -192,6 +244,20 @@ const fakeDrizzle = {
         if (table === events) return [{ organizerId: ID }];
         return membership.current ? [membership.current] : [];
       },
+      innerJoin: () => ({
+        where: () => ({
+          orderBy: async () =>
+            membership.current
+              ? [
+                  {
+                    orgId: ID,
+                    organizationName: 'Hubee',
+                    ...membership.current,
+                  },
+                ]
+              : [],
+        }),
+      }),
     }),
   }),
 };
@@ -266,7 +332,18 @@ describe('Proteção de rotas (GOL-114)', () => {
         expect(operation?.security).toEqual([{ bearer: [] }]);
         const statuses = Object.keys(operation?.responses ?? {});
         expect(statuses).toEqual(expect.arrayContaining(['401', '403']));
-        if (route.template.includes(':id')) expect(statuses).toContain('404');
+        if (isResourceScoped(route)) expect(statuses).toContain('404');
+      },
+    );
+
+    it.each(organizerOnlyRoutes.map((r) => [r.label, r] as const))(
+      '%s documenta Bearer e respostas 401/403',
+      (_label, route) => {
+        const operation = operationOf(route);
+        expect(operation?.security).toEqual([{ bearer: [] }]);
+        expect(Object.keys(operation?.responses ?? {})).toEqual(
+          expect.arrayContaining(['401', '403']),
+        );
       },
     );
 
@@ -295,6 +372,7 @@ describe('Proteção de rotas (GOL-114)', () => {
       ...PUBLIC_ROUTES,
       ...AUTHENTICATED_ROUTES,
       ...ORGANIZER_ROUTES,
+      ...ORGANIZER_ONLY_ROUTES,
       ...PENDING_GOL_103_ROUTES,
     ])
       expect(labels).toContain(route);
@@ -359,6 +437,49 @@ describe('Proteção de rotas (GOL-114)', () => {
         .set('Authorization', 'Bearer token-invalido')
         .expect(401);
     });
+
+    const ticketTypeService = () =>
+      app.get(TicketTypeService) as unknown as {
+        findAll: jest.Mock;
+        findVisible: jest.Mock;
+      };
+
+    it('GET /events/:eventId/ticket-types com token inválido dá 401', async () => {
+      await request(app.getHttpServer())
+        .get(`/events/${ID}/ticket-types`)
+        .set('Authorization', 'Bearer token-invalido')
+        .expect(401);
+    });
+
+    it('GET /events/:eventId/ticket-types/:id com token inválido dá 401', async () => {
+      await request(app.getHttpServer())
+        .get(`/events/${ID}/ticket-types/${ID}`)
+        .set('Authorization', 'Bearer token-invalido')
+        .expect(401);
+    });
+
+    it('GET /events/:eventId/ticket-types com token de ADMIN repassa o ADMIN para o service', async () => {
+      await request(app.getHttpServer())
+        .get(`/events/${ID}/ticket-types`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(ticketTypeService().findAll).toHaveBeenLastCalledWith(
+        ID,
+        expect.objectContaining({ role: 'ADMIN' }),
+      );
+    });
+
+    it('GET /events/:eventId/ticket-types/:id com token de ADMIN repassa o ADMIN para o service', async () => {
+      await request(app.getHttpServer())
+        .get(`/events/${ID}/ticket-types/${ID}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(ticketTypeService().findVisible).toHaveBeenLastCalledWith(
+        ID,
+        ID,
+        expect.objectContaining({ role: 'ADMIN' }),
+      );
+    });
   });
 
   describe.each(authenticatedRoutes.map((r) => [r.label, r] as const))(
@@ -388,14 +509,12 @@ describe('Proteção de rotas (GOL-114)', () => {
       const send = (token?: string) =>
         call(route, token).send({ organizerId: ID });
       const asMember = (permission?: string, role = 'member') => {
-        membership.current = permission && {
-          role,
-          permission,
-          inviteStatus: 'accepted',
-        };
+        membership.current = permission
+          ? { role, permission, inviteStatus: 'accepted' }
+          : undefined;
         return send(userToken);
       };
-      const byEvent = route.template.includes(':id');
+      const byEvent = isResourceScoped(route);
       const needsManage = ORGANIZER_MANAGE_ROUTES.includes(route.label);
 
       afterEach(() => {
@@ -436,6 +555,42 @@ describe('Proteção de rotas (GOL-114)', () => {
 
       it('2xx com token de ADMIN, sem vínculo', async () => {
         const response = await send(adminToken);
+        expect(response.status).toBeLessThan(300);
+      });
+    },
+  );
+
+  describe.each(organizerOnlyRoutes.map((r) => [r.label, r] as const))(
+    '%s (ADMIN ou membro de organização)',
+    (_label, route) => {
+      afterEach(() => {
+        membership.current = undefined;
+      });
+
+      it('401 sem token', async () => {
+        await call(route).expect(401);
+      });
+
+      it('401 com token inválido', async () => {
+        await call(route, 'token-invalido').expect(401);
+      });
+
+      it('403 para USER sem organização ativa', async () => {
+        await call(route, userToken).expect(403);
+      });
+
+      it('2xx para membro de organização', async () => {
+        membership.current = {
+          role: 'member',
+          permission: 'full',
+          inviteStatus: 'accepted',
+        };
+        const response = await call(route, userToken);
+        expect(response.status).toBeLessThan(300);
+      });
+
+      it('2xx com token de ADMIN', async () => {
+        const response = await call(route, adminToken);
         expect(response.status).toBeLessThan(300);
       });
     },

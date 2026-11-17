@@ -43,6 +43,7 @@ function makeEvent(overrides: Partial<Event> = {}): Event {
     category: null,
     edition: null,
     photoUrl: null,
+    featured: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

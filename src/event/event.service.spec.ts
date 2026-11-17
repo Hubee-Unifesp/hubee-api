@@ -3,15 +3,21 @@ import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { events } from '../database/schema';
 import { OrganizationService } from '../organization/organization.service';
+import { StorageService } from '../storage/storage.service';
 import { VenueService } from '../venue/venue.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { EventRepository } from './event.repository';
 import { EventService } from './event.service';
+import {
+  JPEG_SIGNATURE,
+  PNG_SIGNATURE,
+} from '../common/validation/image-upload';
 
 type Event = typeof events.$inferSelect;
 type EventDetail = NonNullable<
@@ -85,6 +91,10 @@ function makeEventDetail(overrides: Partial<Event> = {}): EventDetail {
         batch: '1º Lote',
         price: 35,
         quantity: 100,
+        available: 100,
+        modality: 'inteira',
+        salesStartDate: null,
+        salesEndDate: null,
         createdAt: now,
         updatedAt: now,
       },
@@ -129,12 +139,18 @@ describe('EventService', () => {
     create: jest.Mock<EventRepository['create']>;
     update: jest.Mock<EventRepository['update']>;
     findMembership: jest.Mock<EventRepository['findMembership']>;
+    countTicketTypes: jest.Mock<EventRepository['countTicketTypes']>;
+    duplicate: jest.Mock<EventRepository['duplicate']>;
   };
   let organizationService: {
     findOne: jest.Mock<OrganizationService['findOne']>;
   };
   let venueService: {
     findOne: jest.Mock<VenueService['findOne']>;
+  };
+  let storageService: {
+    upload: jest.Mock<StorageService['upload']>;
+    delete: jest.Mock<StorageService['delete']>;
   };
 
   beforeEach(async () => {
@@ -149,12 +165,18 @@ describe('EventService', () => {
       findMembership: jest
         .fn<EventRepository['findMembership']>()
         .mockResolvedValue(undefined),
+      countTicketTypes: jest.fn<EventRepository['countTicketTypes']>(),
+      duplicate: jest.fn<EventRepository['duplicate']>(),
     };
     organizationService = {
       findOne: jest.fn<OrganizationService['findOne']>(),
     };
     venueService = {
       findOne: jest.fn<VenueService['findOne']>(),
+    };
+    storageService = {
+      upload: jest.fn<StorageService['upload']>(),
+      delete: jest.fn<StorageService['delete']>(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -163,6 +185,7 @@ describe('EventService', () => {
         { provide: EventRepository, useValue: eventRepository },
         { provide: OrganizationService, useValue: organizationService },
         { provide: VenueService, useValue: venueService },
+        { provide: StorageService, useValue: storageService },
       ],
     }).compile();
 
@@ -176,6 +199,8 @@ describe('EventService', () => {
       venueCity: 'São Paulo',
       minPrice: 50,
       minPriceBatch: '1º Lote',
+      capacity: 100,
+      ticketsSold: 0,
     });
 
     it('repassa os filtros de organização e status para o repositório quando ADMIN', async () => {
@@ -654,6 +679,48 @@ describe('EventService', () => {
       expect(eventRepository.update).not.toHaveBeenCalled();
     });
 
+    it('publica rascunho que já tem lotes', async () => {
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.countTicketTypes.mockResolvedValue(2);
+      eventRepository.update.mockResolvedValue(
+        makeEvent({ status: 'published' }),
+      );
+
+      await service.update('event-1', { status: 'published' }, USER);
+
+      expect(eventRepository.countTicketTypes).toHaveBeenCalledWith('event-1');
+      expect(eventRepository.update).toHaveBeenCalledWith('event-1', {
+        status: 'published',
+      });
+    });
+
+    it('recusa com 422 publicar evento sem lotes', async () => {
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.countTicketTypes.mockResolvedValue(0);
+
+      await expect(
+        service.update('event-1', { status: 'published' }, ADMIN),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(eventRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('não reconta os lotes de evento que já está publicado', async () => {
+      eventRepository.findById.mockResolvedValue(
+        makeEvent({ status: 'published' }),
+      );
+      eventRepository.update.mockResolvedValue(
+        makeEvent({ status: 'published' }),
+      );
+
+      await service.update(
+        'event-1',
+        { status: 'published', name: 'Novo' },
+        ADMIN,
+      );
+
+      expect(eventRepository.countTicketTypes).not.toHaveBeenCalled();
+    });
+
     it('não revalida o local quando ele não muda', async () => {
       eventRepository.findById.mockResolvedValue(makeEvent());
       eventRepository.update.mockResolvedValue(makeEvent());
@@ -661,6 +728,164 @@ describe('EventService', () => {
       await service.update('event-1', { venueId: 'venue-1' }, ADMIN);
 
       expect(venueService.findOne).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updatePhoto()', () => {
+    const NEW_URL = 'https://store.public.blob.vercel-storage.com/nova.png';
+    const OLD_URL = 'https://store.public.blob.vercel-storage.com/antiga.png';
+    const file = {
+      mimetype: 'image/png',
+      buffer: Buffer.concat([PNG_SIGNATURE, Buffer.from('img')]),
+    };
+
+    beforeEach(() => {
+      storageService.upload.mockResolvedValue(NEW_URL);
+      storageService.delete.mockResolvedValue(undefined);
+    });
+
+    it('envia a imagem e grava a URL no evento', async () => {
+      const updated = makeEvent({ photoUrl: NEW_URL });
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.update.mockResolvedValue(updated);
+
+      await expect(service.updatePhoto('event-1', file)).resolves.toBe(updated);
+
+      expect(storageService.upload).toHaveBeenCalledWith({
+        pathname: 'events/event-1/cover.png',
+        buffer: file.buffer,
+        contentType: 'image/png',
+      });
+      expect(eventRepository.update).toHaveBeenCalledWith('event-1', {
+        photoUrl: NEW_URL,
+      });
+      expect(storageService.delete).not.toHaveBeenCalled();
+    });
+
+    it('usa o tipo dos bytes, não o informado pelo cliente', async () => {
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      eventRepository.update.mockResolvedValue(makeEvent());
+
+      await service.updatePhoto('event-1', {
+        mimetype: 'image/png',
+        buffer: Buffer.concat([JPEG_SIGNATURE, Buffer.from('img')]),
+      });
+
+      expect(storageService.upload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pathname: 'events/event-1/cover.jpg',
+          contentType: 'image/jpeg',
+        }),
+      );
+    });
+
+    it('apaga a imagem anterior depois de gravar a nova', async () => {
+      eventRepository.findById.mockResolvedValue(
+        makeEvent({ photoUrl: OLD_URL }),
+      );
+      eventRepository.update.mockResolvedValue(makeEvent());
+
+      await service.updatePhoto('event-1', file);
+
+      expect(storageService.delete).toHaveBeenCalledWith(OLD_URL);
+      expect(eventRepository.update.mock.invocationCallOrder[0]).toBeLessThan(
+        storageService.delete.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('não falha quando a imagem anterior não pode ser apagada', async () => {
+      const updated = makeEvent({ photoUrl: NEW_URL });
+      eventRepository.findById.mockResolvedValue(
+        makeEvent({ photoUrl: OLD_URL }),
+      );
+      eventRepository.update.mockResolvedValue(updated);
+      storageService.delete.mockRejectedValue(new Error('falhou'));
+
+      await expect(service.updatePhoto('event-1', file)).resolves.toBe(updated);
+    });
+
+    it('apaga a imagem nova e mantém a anterior se o banco falhar', async () => {
+      eventRepository.findById.mockResolvedValue(
+        makeEvent({ photoUrl: OLD_URL }),
+      );
+      eventRepository.update.mockRejectedValue(new Error('banco fora'));
+
+      await expect(service.updatePhoto('event-1', file)).rejects.toThrow(
+        'banco fora',
+      );
+
+      expect(storageService.delete).toHaveBeenCalledTimes(1);
+      expect(storageService.delete).toHaveBeenCalledWith(NEW_URL);
+    });
+
+    it('responde 503 quando o storage falha, sem alterar o evento', async () => {
+      eventRepository.findById.mockResolvedValue(makeEvent());
+      storageService.upload.mockRejectedValue(new Error('rede'));
+
+      await expect(service.updatePhoto('event-1', file)).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      expect(eventRepository.update).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['sem arquivo', undefined, 'Arquivo de imagem é obrigatório.'],
+      [
+        'arquivo que não é imagem',
+        { ...file, buffer: Buffer.from('<html></html>') },
+        'Formato inválido. Use uma imagem .jpg, .png ou .jpeg.',
+      ],
+      [
+        'maior que 2MB',
+        { ...file, size: 2 * 1024 * 1024 + 1 },
+        'A imagem deve ter no máximo 2MB.',
+      ],
+    ])('rejeita %s sem enviar ao storage', async (_name, invalid, message) => {
+      await expect(service.updatePhoto('event-1', invalid)).rejects.toThrow(
+        new BadRequestException(message),
+      );
+      expect(storageService.upload).not.toHaveBeenCalled();
+    });
+
+    it('responde 404 para evento inexistente', async () => {
+      eventRepository.findById.mockResolvedValue(undefined);
+
+      await expect(service.updatePhoto('event-1', file)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(storageService.upload).not.toHaveBeenCalled();
+    });
+
+    it('responde 422 para evento cancelado', async () => {
+      eventRepository.findById.mockResolvedValue(
+        makeEvent({ status: 'cancelled' }),
+      );
+
+      await expect(service.updatePhoto('event-1', file)).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      expect(storageService.upload).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('duplicate()', () => {
+    it('retorna a cópia criada pelo repositório', async () => {
+      const copy = makeEvent({
+        id: 'event-2',
+        name: 'Festa Junina 2026 (cópia)',
+      });
+      eventRepository.duplicate.mockResolvedValue(copy);
+
+      await expect(service.duplicate('event-1')).resolves.toEqual(copy);
+      expect(eventRepository.duplicate).toHaveBeenCalledWith('event-1');
+    });
+
+    it('lança 404 quando o evento não existe', async () => {
+      eventRepository.duplicate.mockResolvedValue(undefined);
+
+      await expect(service.duplicate('event-404')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 

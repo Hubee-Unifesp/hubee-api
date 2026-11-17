@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   check,
   numeric,
@@ -55,3 +55,10 @@ export const payments = pgTable(
     check('pagamentos_amount_non_negative', sql`${table.amount} >= 0`),
   ],
 );
+
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  order: one(orders, {
+    fields: [payments.orderId],
+    references: [orders.id],
+  }),
+}));

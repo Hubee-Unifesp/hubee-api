@@ -1,4 +1,9 @@
-import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiTags,
+  ApiUnprocessableEntityResponse,
+} from '@nestjs/swagger';
 import {
   MyTicketResponseDto,
   TicketResponseDto,
@@ -46,6 +51,10 @@ export class TicketController {
   @Post('orders/:orderId/tickets')
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: TicketResponseDto, isArray: true })
+  @ApiUnprocessableEntityResponse({
+    description:
+      'Pedido não pago, evento cancelado, lote fora do pedido ou sem vagas suficientes',
+  })
   async create(
     @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() dto: CreateTicketsDto,

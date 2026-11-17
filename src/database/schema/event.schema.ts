@@ -33,6 +33,17 @@ export const eventAgeRating = pgEnum('event_age_rating', [
 
 export type EventAgeRating = (typeof eventAgeRating.enumValues)[number];
 
+export const EVENT_CATEGORIES = [
+  'festas',
+  'shows',
+  'palestras',
+  'esportes',
+  'academicos',
+  'outros',
+] as const;
+
+export type EventCategory = (typeof EVENT_CATEGORIES)[number];
+
 export const events = pgTable(
   'events',
   {

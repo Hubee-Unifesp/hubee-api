@@ -5,9 +5,52 @@ import {
   Inject,
 } from '@nestjs/common';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
+import { QuerySupplierDto } from './dto/query-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
-import { eq, or, isNull, and, ne } from 'drizzle-orm';
-import { suppliers } from '../database/schema';
+import { CreateSupplierReviewDto } from './dto/create-supplier-review.dto';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  isNull,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
+import { supplierReviews, suppliers, users } from '../database/schema';
+
+const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
+
+const nullableNumber = (value: unknown) =>
+  value === null || value === undefined ? null : Number(value);
+
+const ratingAverage = sql<
+  number | null
+>`ROUND(AVG(${supplierReviews.rating})::numeric, 1)`.mapWith(nullableNumber);
+
+const ratingCount = sql<number>`COUNT(${supplierReviews.id})::int`.mapWith(
+  Number,
+);
+
+const supplierColumns = {
+  ...getTableColumns(suppliers),
+  ratingAverage,
+  ratingCount,
+};
+
+const reviewColumns = {
+  id: supplierReviews.id,
+  supplierId: supplierReviews.supplierId,
+  userId: supplierReviews.userId,
+  userName: users.fullName,
+  rating: supplierReviews.rating,
+  comment: supplierReviews.comment,
+  createdAt: supplierReviews.createdAt,
+  updatedAt: supplierReviews.updatedAt,
+};
 
 @Injectable()
 export class SuppliersService {
@@ -37,18 +80,64 @@ export class SuppliersService {
       .values(createSupplierDto)
       .returning();
 
-    return newSupplier;
+    return {
+      ...newSupplier,
+      ratingAverage: null,
+      ratingCount: 0,
+    };
   }
 
-  async findAll() {
-    return this.db.select().from(suppliers).where(isNull(suppliers.deletedAt));
+  async findAll(query: QuerySupplierDto = {}) {
+    const conditions = [
+      isNull(suppliers.deletedAt),
+      query.search
+        ? ilike(suppliers.companyName, `%${escapeLike(query.search)}%`)
+        : undefined,
+      query.category
+        ? ilike(suppliers.category, escapeLike(query.category))
+        : undefined,
+    ].filter((c) => c !== undefined);
+
+    const baseQuery = this.db
+      .select(supplierColumns)
+      .from(suppliers)
+      .leftJoin(supplierReviews, eq(supplierReviews.supplierId, suppliers.id))
+      .where(and(...conditions))
+      .groupBy(suppliers.id);
+
+    const filteredQuery =
+      query.minRating !== undefined
+        ? baseQuery.having(
+            sql`ROUND(AVG(${supplierReviews.rating})::numeric, 1) >= ${query.minRating}`,
+          )
+        : baseQuery;
+
+    if (query.sortBy === 'rating') {
+      return filteredQuery.orderBy(
+        sql`${ratingAverage} DESC NULLS LAST`,
+        desc(ratingCount),
+        asc(suppliers.companyName),
+      );
+    }
+
+    if (query.sortBy === 'companyName') {
+      return filteredQuery.orderBy(asc(suppliers.companyName));
+    }
+
+    if (query.sortBy === 'createdAt') {
+      return filteredQuery.orderBy(desc(suppliers.createdAt));
+    }
+
+    return filteredQuery;
   }
 
   async findOne(id: string) {
     const [supplier] = await this.db
-      .select()
+      .select(supplierColumns)
       .from(suppliers)
-      .where(eq(suppliers.id, id));
+      .leftJoin(supplierReviews, eq(supplierReviews.supplierId, suppliers.id))
+      .where(eq(suppliers.id, id))
+      .groupBy(suppliers.id);
 
     if (!supplier || supplier.deletedAt) {
       throw new NotFoundException('Fornecedor não encontrado.');
@@ -58,7 +147,7 @@ export class SuppliersService {
   }
 
   async update(id: string, updateSupplierDto: UpdateSupplierDto) {
-    await this.findOne(id);
+    const current = await this.findOne(id);
 
     if (updateSupplierDto.cnpjCpf || updateSupplierDto.email) {
       const conflictConditions = [
@@ -95,7 +184,11 @@ export class SuppliersService {
       .where(eq(suppliers.id, id))
       .returning();
 
-    return updatedSupplier;
+    return {
+      ...updatedSupplier,
+      ratingAverage: current.ratingAverage,
+      ratingCount: current.ratingCount,
+    };
   }
 
   async remove(id: string): Promise<void> {
@@ -105,5 +198,42 @@ export class SuppliersService {
       .update(suppliers)
       .set({ deletedAt: new Date() })
       .where(eq(suppliers.id, id));
+  }
+
+  async saveReview(
+    supplierId: string,
+    userId: string,
+    dto: CreateSupplierReviewDto,
+  ) {
+    await this.findOne(supplierId);
+
+    const values = { rating: dto.rating, comment: dto.comment || null };
+    const [saved] = await this.db
+      .insert(supplierReviews)
+      .values({ supplierId, userId, ...values })
+      .onConflictDoUpdate({
+        target: [supplierReviews.supplierId, supplierReviews.userId],
+        set: { ...values, updatedAt: sql`now()` },
+      })
+      .returning({ id: supplierReviews.id, created: sql<boolean>`xmax = 0` });
+
+    const [review] = await this.db
+      .select(reviewColumns)
+      .from(supplierReviews)
+      .innerJoin(users, eq(users.id, supplierReviews.userId))
+      .where(eq(supplierReviews.id, saved.id));
+
+    return { review, created: saved.created };
+  }
+
+  async findReviews(supplierId: string) {
+    await this.findOne(supplierId);
+
+    return this.db
+      .select(reviewColumns)
+      .from(supplierReviews)
+      .innerJoin(users, eq(users.id, supplierReviews.userId))
+      .where(eq(supplierReviews.supplierId, supplierId))
+      .orderBy(desc(supplierReviews.updatedAt), desc(supplierReviews.id));
   }
 }

@@ -22,7 +22,10 @@ import {
   type OrgAccessMetadata,
   type OrgAccessSource,
 } from '../org-access-level';
-import { findAcceptedMembership } from '../organization-membership';
+import {
+  findAcceptedMembership,
+  findAcceptedMemberships,
+} from '../organization-membership';
 
 /**
  * Confere o nível do usuário na organização do recurso (`@OrgAccess`). Roda
@@ -48,6 +51,15 @@ export class OrganizationAccessGuard implements CanActivate {
     if (!user) throw new UnauthorizedException('Token ausente ou inválido');
     if (user.role === 'ADMIN') return true;
 
+    if (access.source.from === 'any') {
+      const memberships = await findAcceptedMemberships(this.db, user.id);
+      const allowed = memberships.some((membership) =>
+        satisfiesLevel(effectiveLevel(membership), access.level),
+      );
+      if (!allowed) throw new ForbiddenException('Acesso negado');
+      return true;
+    }
+
     const organizationId = await this.resolveOrganizationId(
       access.source,
       request,
@@ -59,12 +71,17 @@ export class OrganizationAccessGuard implements CanActivate {
       organizationId,
     );
 
-    // Evento de outra organização responde o mesmo 404 de evento inexistente,
-    // para não revelar que ele existe (CONVENTIONS.md). Membro sem o nível
-    // exigido já vê o evento, então recebe 403.
+    // Evento ou organização de fora responde o mesmo 404 de recurso inexistente,
+    // para não revelar vínculo/existência (CONVENTIONS.md). Membro sem o nível
+    // exigido já vê o recurso, então recebe 403.
     if (!membership && access.source.from === 'event') {
       const eventId = request.params[access.source.param ?? 'eventId'];
       throw new NotFoundException(`Evento ${eventId} não encontrado`);
+    }
+    if (!membership && access.source.from === 'param') {
+      throw new NotFoundException(
+        `Organização ${organizationId} não encontrada`,
+      );
     }
     if (
       !membership ||
@@ -75,7 +92,7 @@ export class OrganizationAccessGuard implements CanActivate {
   }
 
   private async resolveOrganizationId(
-    source: OrgAccessSource,
+    source: Exclude<OrgAccessSource, { from: 'any' }>,
     request: { params?: Record<string, unknown>; body?: unknown },
   ): Promise<string> {
     if (source.from === 'body') {

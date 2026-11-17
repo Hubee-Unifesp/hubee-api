@@ -33,12 +33,12 @@ Por decisão consciente, estes pontos **permanecem em português** e não devem 
 
 ## Padrão de respostas
 
-| Verbo | Sucesso | Corpo |
-| ----- | ------- | ----- |
-| `POST` (create) | `201 Created` | o recurso criado |
-| `GET` (findAll/findOne) | `200 OK` | o(s) recurso(s) |
-| `PATCH` (update) | `200 OK` | o recurso atualizado |
-| `DELETE` (remove) | `204 No Content` | **sem corpo** |
+| Verbo                   | Sucesso          | Corpo                |
+| ----------------------- | ---------------- | -------------------- |
+| `POST` (create)         | `201 Created`    | o recurso criado     |
+| `GET` (findAll/findOne) | `200 OK`         | o(s) recurso(s)      |
+| `PATCH` (update)        | `200 OK`         | o recurso atualizado |
+| `DELETE` (remove)       | `204 No Content` | **sem corpo**        |
 
 - **Consistência de payload**: uma resposta de `create`/`update` de um recurso
   deve ter o **mesmo formato** da resposta do `GET` dele (ex.: `venue` retorna o
@@ -69,6 +69,29 @@ O contrato também é aplicado em **runtime** (task **GOL-112**):
   garante que cada `*ResponseDto` expõe exatamente as propriedades documentadas
   no OpenAPI. Ao criar um DTO de resposta novo, adicione-o à lista desse teste.
 
+## Gestão de eventos e lotes
+
+Regras da GOL-210 para o organizador criar e gerenciar eventos e lotes:
+
+- O evento nasce como `draft`. Para passar a `published` (`PATCH /events/:id`),
+  ele precisa ter **ao menos um lote**; sem lote a resposta é `422`.
+- `POST /events/:id/duplicate` (`write` na organização do evento) cria uma
+  cópia em `draft` com o nome `"<nome> (cópia)"` e os mesmos lotes (batch,
+  preço e capacidade). Vendas, reservas, capa (`photoUrl`) e destaque
+  (`featured`) não são copiados: a capa fica no caminho do evento original e
+  seria apagada quando a cópia trocasse de capa.
+- Lotes de evento `cancelled` ou `finished` não podem ser criados, alterados
+  nem removidos (`422`).
+- Cada lote tem `modality` (`inteira`, `meia`, `estudante`, `vip`, `cortesia`;
+  padrão `inteira`) e uma janela de vendas opcional (`salesStartDate`,
+  `salesEndDate`). A janela do lote restringe a do evento: fora dela,
+  `POST /orders` responde `422`. O fim precisa ser depois do início (`400`).
+- No `PATCH` de evento e de lote, os campos opcionais aceitam `null` para
+  serem apagados (omitir o campo mantém o valor gravado).
+- `GET /events` traz `capacity` (soma das capacidades dos lotes) e
+  `ticketsSold` (ingressos de pedidos pagos) em cada item, para o painel do
+  organizador mostrar o progresso de vendas sem chamar cada lote.
+
 ## Compra, checkout e ingressos
 
 Regras da GOL-175 que atravessam `orders`, `payments` e `tickets`:
@@ -93,18 +116,22 @@ ou `POST /auth/register`). A regra base veio da task **GOL-114**; o modelo de
 permissões por organização (spike **GOL-109**) já vale para eventos
 (**GOL-144**) e ainda vai chegar aos demais recursos de organizador:
 
-| Recurso | Leitura (`GET`) | Escrita (`POST`/`PATCH`/`DELETE`) |
-| ------- | --------------- | --------------------------------- |
-| `events` | pública, mas só `ADMIN` e membros da organização do evento veem eventos não publicados: para os demais o filtro `?status=` é ignorado e `GET /events/:id` de evento não publicado dá `404`. O membro vê os rascunhos filtrando por `?organizerId=` da sua organização | `ADMIN` ou membro com `write` na organização (`POST`: a do `organizerId` do body; `PATCH`: a dona do evento, e quem é de fora recebe `404`). Cancelar (`DELETE` ou `PATCH` com `status: cancelled`) exige `manage` (administrador da organização). `featured` (destaque na home) só `ADMIN` |
-| `events/:eventId/ticket-types`, `organizations`, `venues` | pública (a home usa sem login) | só `ADMIN` |
-| `suppliers`, `expenses`, `tasks`, `organization-users`, `organization-events` | só `ADMIN` | só `ADMIN` |
-| `orders/:orderId/payments` | dono do pedido ou `ADMIN` | só `ADMIN` (`POST` registra pagamento à mão e `PATCH` muda o status: o body aceita `amount` e `status`, e confirmar o pagamento libera ingressos) |
-| `payments` (checkout) | não tem | `POST /payments`: qualquer usuário logado paga o **próprio** pedido pendente (pedido de outra pessoa responde `404`, pedido já pago ou cancelado `422`) |
-| `tickets` | `GET /tickets` e `GET /users/me/tickets`: só os ingressos em que o usuário é titular, inclusive para `ADMIN`. `GET /tickets/:id` e `GET /orders/:orderId/tickets`: titular, dono do pedido ou `ADMIN` | só `ADMIN` (emissão manual e mudança de status) |
-| `orders` | ver GOL-103 | `POST /orders`: qualquer usuário logado com perfil completo; `PATCH` (status): só `ADMIN`; demais, ver GOL-103 |
-| `users` | ver GOL-105 | ver GOL-105 |
+| Recurso                                                          | Leitura (`GET`)                                                                                                                                                                                                                                                       | Escrita (`POST`/`PATCH`/`DELETE`)                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `events`                                                         | pública, mas só `ADMIN` e membros da organização do evento veem eventos não publicados: para os demais o filtro `?status=` é ignorado e `GET /events/:id` de evento não publicado dá `404`. O membro vê os rascunhos filtrando por `?organizerId=` da sua organização | `ADMIN` ou membro com `write` na organização (`POST`: a do `organizerId` do body; `PATCH`: a dona do evento, e quem é de fora recebe `404`). Cancelar (`DELETE` ou `PATCH` com `status: cancelled`) exige `manage` (administrador da organização). `featured` (destaque na home) só `ADMIN` |
+| `events/:eventId/ticket-types`                                   | pública (eventos não publicados exigem `ADMIN` ou membro da organização do evento)                                                                                                                                                                                    | `ADMIN` ou membro com `write` na organização dona do evento (`POST`, `PATCH :id`, `DELETE :id`; quem não é membro recebe `404`)                                                                                                                                                             |
+| `venues`                                                         | pública (a home usa sem login)                                                                                                                                                                                                                                        | `POST`: `ADMIN` ou membro com `write` em qualquer organização aceita (`{ from: 'any' }`). `PATCH :id` e `DELETE :id`: só `ADMIN`                                                                                                                                                            |
+| `organizations`                                                  | pública (a home usa sem login)                                                                                                                                                                                                                                        | `POST`: qualquer usuário autenticado (já nasce `admin` + `full` na organização criada, GOL-197); `PATCH :id`: `ADMIN` ou membro com `manage` na organização (quem não é membro recebe `404`); `DELETE :id`: só `ADMIN`                                                                      |
+| `suppliers`                                                      | `ADMIN` ou membro ativo de qualquer organização (`@OrganizerOnly()`, GOL-202)                                                                                                                                                                                         | `ADMIN` ou membro ativo de qualquer organização (`@OrganizerOnly()`)                                                                                                                                                                                                                        |
+| `expenses`, `tasks`, `organization-users`, `organization-events` | só `ADMIN`                                                                                                                                                                                                                                                            | só `ADMIN`                                                                                                                                                                                                                                                                                  |
+| `orders/:orderId/payments`                                       | dono do pedido ou `ADMIN`                                                                                                                                                                                                                                             | só `ADMIN` (`POST` registra pagamento à mão e `PATCH` muda o status: o body aceita `amount` e `status`, e confirmar o pagamento libera ingressos)                                                                                                                                           |
+| `payments` (checkout)                                            | não tem                                                                                                                                                                                                                                                               | `POST /payments`: qualquer usuário logado paga o **próprio** pedido pendente (pedido de outra pessoa responde `404`, pedido já pago ou cancelado `422`)                                                                                                                                     |
+| `tickets`                                                        | `GET /tickets` e `GET /users/me/tickets`: só os ingressos em que o usuário é titular, inclusive para `ADMIN`. `GET /tickets/:id` e `GET /orders/:orderId/tickets`: titular, dono do pedido ou `ADMIN`                                                                 | só `ADMIN` (emissão manual e mudança de status)                                                                                                                                                                                                                                             |
+| `orders`                                                         | ver GOL-103                                                                                                                                                                                                                                                           | `POST /orders`: qualquer usuário logado com perfil completo; `PATCH` (status): só `ADMIN`; demais, ver GOL-103                                                                                                                                                                              |
+| `users`                                                          | ver GOL-105                                                                                                                                                                                                                                                           | ver GOL-105                                                                                                                                                                                                                                                                                 |
 
-Continuam públicos `POST /auth/login`, `POST /auth/register` e `GET /health`.
+Continuam públicos `POST /auth/login`, `POST /auth/register`, `GET /health` e
+`GET /health/ping`.
 Recurso de outra pessoa responde **`404`** (e não `403`), para não revelar
 quais ids existem.
 
@@ -135,8 +162,9 @@ quais ids existem.
   e o teste falha se ela não estiver protegida. Para tornar uma rota pública,
   adicione-a a `PUBLIC_ROUTES` nesse teste; para liberar a qualquer usuário
   logado, a `AUTHENTICATED_ROUTES`; para liberar a organizadores com
-  `@OrgAccess('write')`, a `ORGANIZER_WRITE_ROUTES`, e com
-  `@OrgAccess('manage')`, a `ORGANIZER_MANAGE_ROUTES`.
+  `@OrgAccess('write')`, a `ORGANIZER_WRITE_ROUTES`, com
+  `@OrgAccess('manage')`, a `ORGANIZER_MANAGE_ROUTES`, e com
+  `@OrganizerOnly()`, a `ORGANIZER_ONLY_ROUTES`.
 
 ## Documentação (OpenAPI / Swagger)
 

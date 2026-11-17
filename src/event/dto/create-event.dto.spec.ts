@@ -34,7 +34,7 @@ describe('CreateEventDto', () => {
           description: 'A tradicional festa junina da agremiação',
           ageRating: '12',
           salesStartDate: '2026-05-01T12:00:00.000Z',
-          category: 'festa',
+          category: 'festas',
           edition: '3ª edição',
           photoUrl: 'https://cdn.hubee.com.br/eventos/festa-junina.jpg',
         }),
@@ -79,6 +79,12 @@ describe('CreateEventDto', () => {
   it('recusa classificação indicativa fora da lista', async () => {
     await expect(
       validationErrorsFor(validPayload({ ageRating: '13' })),
+    ).resolves.toContain('isIn');
+  });
+
+  it('recusa categoria fora do enum oficial', async () => {
+    await expect(
+      validationErrorsFor(validPayload({ category: 'teatro' })),
     ).resolves.toContain('isIn');
   });
 

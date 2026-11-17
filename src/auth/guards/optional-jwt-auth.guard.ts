@@ -1,5 +1,7 @@
-import { ExecutionContext, Injectable } from '@nestjs/common';
+import { ExecutionContext, Injectable, Optional } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { UsersService } from '../../users/users.service';
 
 /**
  * Para rotas públicas que mostram mais para quem está logado: sem
@@ -9,6 +11,10 @@ import { JwtAuthGuard } from './jwt-auth.guard';
  */
 @Injectable()
 export class OptionalJwtAuthGuard extends JwtAuthGuard {
+  constructor(jwtService: JwtService, @Optional() usersService?: UsersService) {
+    super(jwtService, usersService);
+  }
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     if (request.headers.authorization === undefined) return true;

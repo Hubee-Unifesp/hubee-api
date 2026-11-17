@@ -5,7 +5,11 @@ import type {
   DbExecutor,
   DrizzleDatabase,
 } from '../database/database.provider';
-import { events, ticketTypes } from '../database/schema';
+import { events, orderItems, ticketTypes, tickets } from '../database/schema';
+import {
+  sumCommittedByTicketType,
+  withAvailability,
+} from '../order/order-reservation';
 
 /**
  * Toda leitura e escrita recebe o `eventId` junto do `id`: o tipo de ingresso
@@ -16,12 +20,22 @@ import { events, ticketTypes } from '../database/schema';
 export class TicketTypeRepository {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDatabase) {}
 
+  /** Lotes do evento com o saldo real (`available`) de cada um. */
   async findAll(eventId: string, executor: DbExecutor = this.db) {
-    return executor
+    const rows = await executor
       .select()
       .from(ticketTypes)
       .where(eq(ticketTypes.eventId, eventId))
       .orderBy(asc(ticketTypes.createdAt));
+    return withAvailability(executor, rows);
+  }
+
+  /** Acrescenta o saldo real (`available`) a lotes já carregados. */
+  withAvailability<T extends { id: string; quantity: number }>(
+    rows: T[],
+    executor: DbExecutor = this.db,
+  ) {
+    return withAvailability(executor, rows);
   }
 
   async findById(eventId: string, id: string, executor: DbExecutor = this.db) {
@@ -75,5 +89,40 @@ export class TicketTypeRepository {
     await executor
       .delete(ticketTypes)
       .where(and(eq(ticketTypes.id, id), eq(ticketTypes.eventId, eventId)));
+  }
+
+  async hasLinkedTicketsOrOrders(
+    id: string,
+    executor: DbExecutor = this.db,
+  ): Promise<boolean> {
+    const [ticket] = await executor
+      .select({ id: tickets.id })
+      .from(tickets)
+      .where(eq(tickets.ticketTypeId, id))
+      .limit(1);
+
+    if (ticket) {
+      return true;
+    }
+
+    const [item] = await executor
+      .select({ id: orderItems.id })
+      .from(orderItems)
+      .where(eq(orderItems.ticketTypeId, id))
+      .limit(1);
+
+    return item !== undefined;
+  }
+
+  /**
+   * Quantidade já comprometida (vendida ou reservada dentro do prazo) do lote,
+   * pela mesma conta que valida o estoque na compra.
+   */
+  async countCommitted(
+    id: string,
+    executor: DbExecutor = this.db,
+  ): Promise<number> {
+    const committed = await sumCommittedByTicketType(executor, [id]);
+    return committed.get(id) ?? 0;
   }
 }

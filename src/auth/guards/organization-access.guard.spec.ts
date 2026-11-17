@@ -50,6 +50,9 @@ class Routes {
   @OrgAccess('write', { from: 'event', param: 'id' })
   writeEvent() {}
 
+  @OrgAccess('write', { from: 'any' })
+  writeAny() {}
+
   open() {}
 }
 
@@ -355,6 +358,39 @@ describe('OrganizationAccessGuard', () => {
           }),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    describe('qualquer organização ({ from: "any" })', () => {
+      it('libera quando o usuário possui write em ao menos uma organização aceita', async () => {
+        const { guard, select } = guardWith([
+          member({ permission: 'read_only' }),
+          member({ permission: 'full' }),
+        ]);
+        await expect(
+          guard.canActivate(
+            contextFor(Routes.prototype.writeAny, { user: USER }),
+          ),
+        ).resolves.toBe(true);
+        expect(select).toHaveBeenCalledTimes(1);
+      });
+
+      it('recusa com 403 quando só possui read_only ou não possui vínculo', async () => {
+        const { guard: readGuard } = guardWith([
+          member({ permission: 'read_only' }),
+        ]);
+        await expect(
+          readGuard.canActivate(
+            contextFor(Routes.prototype.writeAny, { user: USER }),
+          ),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+
+        const { guard: emptyGuard } = guardWith([]);
+        await expect(
+          emptyGuard.canActivate(
+            contextFor(Routes.prototype.writeAny, { user: USER }),
+          ),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
     });
   });
 });

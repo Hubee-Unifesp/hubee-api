@@ -4,6 +4,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { DRIZZLE } from '../database/database.constants';
 import { events, orders, ticketTypes, tickets } from '../database/schema';
 import { EventService } from '../event/event.service';
 import { OrderService } from '../order/order.service';
@@ -73,6 +74,9 @@ function makeTicketType(overrides: Partial<TicketType> = {}): TicketType {
     batch: '1º lote',
     price: 50,
     quantity: 100,
+    modality: 'inteira',
+    salesStartDate: null,
+    salesEndDate: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -95,8 +99,19 @@ describe('TicketService', () => {
     findById: jest.Mock<TicketRepository['findById']>;
     createMany: jest.Mock<TicketRepository['createMany']>;
     updateStatus: jest.Mock<TicketRepository['updateStatus']>;
+    cancelByOrder: jest.Mock<TicketRepository['cancelByOrder']>;
   };
-  let orderService: { findById: jest.Mock<OrderService['findById']> };
+  // Executa o callback com um `tx` de mentira: o service não inspeciona o
+  // executor, só o repassa adiante (order service e repository são mockados).
+  const tx = { tx: true } as never;
+  const db = {
+    transaction: jest.fn(async (cb: (tx: never) => unknown) => cb(tx)),
+  };
+  let orderService: {
+    findById: jest.Mock<OrderService['findById']>;
+    findItems: jest.Mock<OrderService['findItems']>;
+    assertBatchesHaveStock: jest.Mock<OrderService['assertBatchesHaveStock']>;
+  };
   let eventService: { findOne: jest.Mock<EventService['findOne']> };
   let ticketTypeService: {
     findOne: jest.Mock<TicketTypeService['findOne']>;
@@ -110,8 +125,14 @@ describe('TicketService', () => {
       findById: jest.fn<TicketRepository['findById']>(),
       createMany: jest.fn<TicketRepository['createMany']>(),
       updateStatus: jest.fn<TicketRepository['updateStatus']>(),
+      cancelByOrder: jest.fn<TicketRepository['cancelByOrder']>(),
     };
-    orderService = { findById: jest.fn<OrderService['findById']>() };
+    db.transaction.mockClear();
+    orderService = {
+      findById: jest.fn<OrderService['findById']>(),
+      findItems: jest.fn<OrderService['findItems']>(),
+      assertBatchesHaveStock: jest.fn<OrderService['assertBatchesHaveStock']>(),
+    };
     eventService = { findOne: jest.fn<EventService['findOne']>() };
     ticketTypeService = {
       findOne: jest.fn<TicketTypeService['findOne']>(),
@@ -121,6 +142,7 @@ describe('TicketService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TicketService,
+        { provide: DRIZZLE, useValue: db },
         { provide: TicketRepository, useValue: ticketRepository },
         { provide: OrderService, useValue: orderService },
         { provide: EventService, useValue: eventService },
@@ -309,9 +331,14 @@ describe('TicketService', () => {
 
     beforeEach(() => {
       orderService.findById.mockResolvedValue(makeOrder());
+      orderService.findItems.mockResolvedValue([
+        { ticketTypeId: 'type-1' },
+      ] as never);
       eventService.findOne.mockResolvedValue(makeEvent());
       ticketTypeService.findOne.mockResolvedValue(makeTicketType());
       usersService.findOne.mockResolvedValue({} as never);
+      // Estoque OK por padrão (o OrderService não reclama).
+      orderService.assertBatchesHaveStock.mockResolvedValue(new Map() as never);
       ticketRepository.createMany.mockImplementation((data) =>
         Promise.resolve(data.map((row) => makeTicket(row))),
       );
@@ -415,6 +442,47 @@ describe('TicketService', () => {
 
       await expect(service.create('order-1', dto)).rejects.toBe(boom);
     });
+
+    it('confere o estoque e insere na mesma transaction', async () => {
+      await service.create('order-1', dto);
+
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      const [, stockExecutor] =
+        orderService.assertBatchesHaveStock.mock.calls[0];
+      const [, insertExecutor] = ticketRepository.createMany.mock.calls[0];
+      expect(stockExecutor).toBe(insertExecutor);
+    });
+
+    it('agrega os ingressos pedidos por lote ao conferir o estoque', async () => {
+      // dto pede 2 ingressos do type-1 -> uma única entrada com quantity 2.
+      await service.create('order-1', dto);
+
+      const [requested] = orderService.assertBatchesHaveStock.mock.calls[0];
+      expect(requested).toEqual([{ ticketTypeId: 'type-1', quantity: 2 }]);
+    });
+
+    it('lança 422 e não insere quando o lote não pertence aos itens do pedido', async () => {
+      orderService.findItems.mockResolvedValue([
+        { ticketTypeId: 'other-type' },
+      ] as never);
+
+      await expect(service.create('order-1', dto)).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      expect(orderService.assertBatchesHaveStock).not.toHaveBeenCalled();
+      expect(ticketRepository.createMany).not.toHaveBeenCalled();
+    });
+
+    it('propaga o 422 e não insere quando o lote está sem vagas', async () => {
+      orderService.assertBatchesHaveStock.mockRejectedValue(
+        new UnprocessableEntityException('O lote "1º lote" está esgotado'),
+      );
+
+      await expect(service.create('order-1', dto)).rejects.toBeInstanceOf(
+        UnprocessableEntityException,
+      );
+      expect(ticketRepository.createMany).not.toHaveBeenCalled();
+    });
   });
 
   describe('update()', () => {
@@ -466,6 +534,21 @@ describe('TicketService', () => {
       await expect(
         service.update('ticket-1', { status: 'usado' }),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+  });
+
+  describe('cancelByOrder()', () => {
+    it('cancela todos os ingressos do pedido dentro da transaction recebida', async () => {
+      const cancelled = [makeTicket({ status: 'cancelado' })];
+      ticketRepository.cancelByOrder.mockResolvedValue(cancelled);
+
+      await expect(service.cancelByOrder('order-1', tx)).resolves.toBe(
+        cancelled,
+      );
+      expect(ticketRepository.cancelByOrder).toHaveBeenCalledWith(
+        'order-1',
+        tx,
+      );
     });
   });
 });

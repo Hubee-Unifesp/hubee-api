@@ -70,6 +70,8 @@ describe('runSeed (banco real)', () => {
 
     expect(admin.role).toBe('ADMIN');
     expect(buyer.role).toBe('USER');
+    expect(buyer.cpf).toBe('52998224725');
+    expect(buyer.birthDate).toBe('1998-05-15');
     expect(admin.password).not.toBe(options.adminPassword);
     expect(await bcrypt.compare(options.adminPassword, admin.password)).toBe(
       true,

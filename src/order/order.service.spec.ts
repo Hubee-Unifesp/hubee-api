@@ -61,6 +61,9 @@ function makeTicketType(overrides: Partial<TicketType> = {}): TicketType {
     batch: '1º lote',
     price: 50,
     quantity: 10,
+    modality: 'inteira',
+    salesStartDate: null,
+    salesEndDate: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -83,13 +86,16 @@ describe('OrderService', () => {
   let service: OrderService;
   let orderRepository: {
     findAll: jest.Mock<OrderRepository['findAll']>;
+    findAllWithDetails: jest.Mock<OrderRepository['findAllWithDetails']>;
     findById: jest.Mock<OrderRepository['findById']>;
+    findByIdWithDetails: jest.Mock<OrderRepository['findByIdWithDetails']>;
     create: jest.Mock<OrderRepository['create']>;
     update: jest.Mock<OrderRepository['update']>;
     findByIdForUpdate: jest.Mock<OrderRepository['findByIdForUpdate']>;
   };
   let orderItemRepository: {
     findByOrder: jest.Mock<OrderItemRepository['findByOrder']>;
+    findEventsForShare: jest.Mock<OrderItemRepository['findEventsForShare']>;
     createMany: jest.Mock<OrderItemRepository['createMany']>;
     sumReservedByTicketType: jest.Mock<
       OrderItemRepository['sumReservedByTicketType']
@@ -124,13 +130,16 @@ describe('OrderService', () => {
     db.transaction.mockClear();
     orderRepository = {
       findAll: jest.fn<OrderRepository['findAll']>(),
+      findAllWithDetails: jest.fn<OrderRepository['findAllWithDetails']>(),
       findById: jest.fn<OrderRepository['findById']>(),
+      findByIdWithDetails: jest.fn<OrderRepository['findByIdWithDetails']>(),
       create: jest.fn<OrderRepository['create']>(),
       update: jest.fn<OrderRepository['update']>(),
       findByIdForUpdate: jest.fn<OrderRepository['findByIdForUpdate']>(),
     };
     orderItemRepository = {
       findByOrder: jest.fn<OrderItemRepository['findByOrder']>(),
+      findEventsForShare: jest.fn<OrderItemRepository['findEventsForShare']>(),
       createMany: jest.fn<OrderItemRepository['createMany']>(),
       sumReservedByTicketType:
         jest.fn<OrderItemRepository['sumReservedByTicketType']>(),
@@ -184,6 +193,43 @@ describe('OrderService', () => {
     });
   });
 
+  describe('findAllWithDetails()', () => {
+    it('repassa os filtros e retorna os pedidos formatados com detalhes', async () => {
+      const order = makeOrder();
+      const event = makeEvent();
+      const ticketType = makeTicketType();
+      const rawOrder = {
+        ...order,
+        items: [{ ...makeItem(), ticketType: { ...ticketType, event } }],
+        payment: {
+          id: 'pay-1',
+          status: 'confirmado',
+          paymentMethod: 'pix',
+          amount: 150.5,
+          paidAt: new Date(),
+        },
+      };
+      orderRepository.findAllWithDetails.mockResolvedValue([rawOrder as never]);
+
+      const result = await service.findAllWithDetails({ userId: 'user-1' });
+
+      expect(orderRepository.findAllWithDetails).toHaveBeenCalledWith({
+        userId: 'user-1',
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0].event).toEqual({
+        id: event.id,
+        name: event.name,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        photoUrl: null,
+        status: event.status,
+      });
+      expect(result[0].items[0].ticketTypeBatch).toBe(ticketType.batch);
+      expect(result[0].payment?.status).toBe('confirmado');
+    });
+  });
+
   describe('findById()', () => {
     it('retorna o pedido quando ele existe sem checagem de usuário', async () => {
       const order = makeOrder();
@@ -204,25 +250,33 @@ describe('OrderService', () => {
   describe('findOne()', () => {
     it('retorna o pedido quando ele pertence ao usuário autenticado', async () => {
       const order = makeOrder({ userId: 'user-1' });
-      const items = [{ ...makeItem(), ticketType: makeTicketType() }];
-      orderRepository.findById.mockResolvedValue(order);
-      orderItemRepository.findByOrder.mockResolvedValue(items);
-
-      await expect(service.findOne('order-1', mockAuthUser)).resolves.toEqual({
+      const event = makeEvent();
+      const ticketType = makeTicketType();
+      const rawOrder = {
         ...order,
-        items,
-      });
+        items: [{ ...makeItem(), ticketType: { ...ticketType, event } }],
+        payment: null,
+      };
+      orderRepository.findById.mockResolvedValue(order);
+      orderRepository.findByIdWithDetails.mockResolvedValue(rawOrder as never);
+
+      const result = await service.findOne('order-1', mockAuthUser);
+
+      expect(result.id).toBe('order-1');
+      expect(result.event?.id).toBe(event.id);
+      expect(result.items).toHaveLength(1);
     });
 
     it('retorna o pedido para ADMIN mesmo sendo de outro usuário', async () => {
       const order = makeOrder({ userId: 'outro-usuario' });
+      const rawOrder = { ...order, items: [], payment: null };
       orderRepository.findById.mockResolvedValue(order);
-      orderItemRepository.findByOrder.mockResolvedValue([]);
+      orderRepository.findByIdWithDetails.mockResolvedValue(rawOrder as never);
 
-      await expect(service.findOne('order-1', mockAdmin)).resolves.toEqual({
-        ...order,
-        items: [],
-      });
+      const result = await service.findOne('order-1', mockAdmin);
+
+      expect(result.id).toBe('order-1');
+      expect(result.items).toEqual([]);
     });
 
     it('lança NotFound quando o pedido não existe', async () => {
@@ -409,15 +463,52 @@ describe('OrderService', () => {
       expect(orderRepository.create).not.toHaveBeenCalled();
     });
 
-    it('permite criar pedido mesmo com perfil sem CPF ou nascimento (GOL-194)', async () => {
-      usersService.findOne.mockResolvedValue({ id: 'user-1' } as never);
-      givenLot();
+    it.each([
+      ['que ainda não abriu', { salesStartDate: new Date('2999-01-01') }],
+      ['que já fechou', { salesEndDate: new Date('2000-01-01') }],
+    ])(
+      'recusa comprar de lote com janela de vendas %s',
+      async (_label, lot) => {
+        givenLot(lot);
+
+        await expect(
+          service.create(mockAuthUser, {
+            items: [{ ticketTypeId: 'type-1', quantity: 1 }],
+          }),
+        ).rejects.toThrow('As vendas do lote "1º lote"');
+        expect(orderRepository.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it('vende lote dentro da própria janela de vendas', async () => {
+      givenLot({
+        salesStartDate: new Date('2000-01-01'),
+        salesEndDate: new Date('2999-01-01'),
+      });
 
       await expect(
         service.create(mockAuthUser, {
           items: [{ ticketTypeId: 'type-1', quantity: 1 }],
         }),
       ).resolves.toBeDefined();
+    });
+
+    it('recusa criar pedido se perfil estiver incompleto', async () => {
+      usersService.findOne.mockResolvedValue({ id: 'user-1' } as never);
+
+      await expect(
+        service.create(mockAuthUser, {
+          items: [{ ticketTypeId: 'type-1', quantity: 1 }],
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          statusCode: 403,
+          error: 'Forbidden',
+          code: 'PROFILE_INCOMPLETE',
+          missing: ['cpf', 'birthDate'],
+        },
+      });
+      expect(db.transaction).not.toHaveBeenCalled();
     });
 
     it('lança NotFound e não cria quando o comprador não existe', async () => {
@@ -436,68 +527,146 @@ describe('OrderService', () => {
 
   describe('update()', () => {
     it('recusa com 403 quando quem altera não é ADMIN', async () => {
-      orderRepository.findById.mockResolvedValue(makeOrder());
-
       await expect(
-        service.update('order-1', { totalAmount: 0 }, mockAuthUser),
+        service.update('order-1', { status: 'cancelado' }, mockAuthUser),
       ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(orderRepository.findByIdForUpdate).not.toHaveBeenCalled();
       expect(orderRepository.update).not.toHaveBeenCalled();
     });
 
-    it('atualiza o status de um pedido pendente', async () => {
-      const updated = makeOrder({ status: 'pago' });
-      orderRepository.findById.mockResolvedValue(makeOrder());
+    it('cancela um pedido pendente travando o pedido na transaction', async () => {
+      const updated = makeOrder({ status: 'cancelado' });
+      orderRepository.findByIdForUpdate.mockResolvedValue(makeOrder());
       orderRepository.update.mockResolvedValue(updated);
 
       const result = await service.update(
         'order-1',
-        { status: 'pago' },
+        { status: 'cancelado' },
         mockAdmin,
       );
 
-      expect(orderRepository.update).toHaveBeenCalledWith('order-1', {
-        status: 'pago',
-      });
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(orderRepository.findByIdForUpdate).toHaveBeenCalledWith(
+        'order-1',
+        tx,
+      );
+      expect(orderRepository.update).toHaveBeenCalledWith(
+        'order-1',
+        { status: 'cancelado' },
+        tx,
+      );
       expect(result).toEqual(updated);
     });
 
-    it('lança NotFound e não escreve quando o pedido não existe', async () => {
-      orderRepository.findById.mockResolvedValue(undefined);
+    it('recusa marcar pedido pendente como pago (só o checkout paga) com 422', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(makeOrder());
 
       await expect(
         service.update('order-1', { status: 'pago' }, mockAdmin),
+      ).rejects.toThrow(
+        new UnprocessableEntityException(
+          'Pedido só pode ser marcado como pago pelo checkout (POST /payments)',
+        ),
+      );
+      expect(orderRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('recusa cancelar pedido pago (ingressos continuariam emitidos) com 422', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(
+        makeOrder({ status: 'pago' }),
+      );
+
+      await expect(
+        service.update('order-1', { status: 'cancelado' }, mockAdmin),
+      ).rejects.toThrow(
+        new UnprocessableEntityException(
+          'Pedido pago não pode ser cancelado; registre um estorno',
+        ),
+      );
+      expect(orderRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('recusa voltar pedido pago para pendente com 422', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(
+        makeOrder({ status: 'pago' }),
+      );
+
+      await expect(
+        service.update('order-1', { status: 'pendente' }, mockAdmin),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(orderRepository.update).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['sem status', {}],
+      ['com o mesmo status', { status: 'pago' as const }],
+    ])(
+      'devolve o pedido sem escrever quando o corpo vem %s',
+      async (_label, dto) => {
+        const paid = makeOrder({ status: 'pago' });
+        orderRepository.findByIdForUpdate.mockResolvedValue(paid);
+
+        await expect(service.update('order-1', dto, mockAdmin)).resolves.toBe(
+          paid,
+        );
+        expect(orderRepository.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('lança NotFound e não escreve quando o pedido não existe', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(undefined as never);
+
+      await expect(
+        service.update('order-1', { status: 'cancelado' }, mockAdmin),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(orderRepository.update).not.toHaveBeenCalled();
     });
 
     it('recusa alteração de pedido cancelado com 422', async () => {
-      orderRepository.findById.mockResolvedValue(
+      orderRepository.findByIdForUpdate.mockResolvedValue(
         makeOrder({ status: 'cancelado' }),
       );
 
       await expect(
-        service.update('order-1', { status: 'pago' }, mockAdmin),
+        service.update('order-1', { status: 'pendente' }, mockAdmin),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
       expect(orderRepository.update).not.toHaveBeenCalled();
     });
   });
 
   describe('cancel()', () => {
-    it('cancela marcando o status em vez de apagar a linha', async () => {
-      orderRepository.findById.mockResolvedValue(makeOrder());
+    it('cancela marcando o status em vez de apagar a linha, com o pedido travado', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(makeOrder());
       orderRepository.update.mockResolvedValue(
         makeOrder({ status: 'cancelado' }),
       );
 
       await service.cancel('order-1', mockAuthUser);
 
-      expect(orderRepository.update).toHaveBeenCalledWith('order-1', {
-        status: 'cancelado',
-      });
+      expect(orderRepository.findByIdForUpdate).toHaveBeenCalledWith(
+        'order-1',
+        tx,
+      );
+      expect(orderRepository.update).toHaveBeenCalledWith(
+        'order-1',
+        { status: 'cancelado' },
+        tx,
+      );
     });
 
     it('lança NotFound quando o pedido não existe', async () => {
-      orderRepository.findById.mockResolvedValue(undefined);
+      orderRepository.findByIdForUpdate.mockResolvedValue(undefined as never);
+
+      await expect(
+        service.cancel('order-1', mockAuthUser),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(orderRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('lança NotFound quando o pedido é de outra pessoa', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(
+        makeOrder({ userId: 'outra-pessoa' }),
+      );
 
       await expect(
         service.cancel('order-1', mockAuthUser),
@@ -506,7 +675,7 @@ describe('OrderService', () => {
     });
 
     it('recusa cancelar pedido já cancelado com 422', async () => {
-      orderRepository.findById.mockResolvedValue(
+      orderRepository.findByIdForUpdate.mockResolvedValue(
         makeOrder({ status: 'cancelado' }),
       );
 
@@ -517,7 +686,9 @@ describe('OrderService', () => {
     });
 
     it('recusa cancelar pedido pago com 422', async () => {
-      orderRepository.findById.mockResolvedValue(makeOrder({ status: 'pago' }));
+      orderRepository.findByIdForUpdate.mockResolvedValue(
+        makeOrder({ status: 'pago' }),
+      );
 
       await expect(
         service.cancel('order-1', mockAuthUser),
@@ -541,7 +712,7 @@ describe('OrderService', () => {
     });
 
     it('responde NotFound para pedido inexistente', async () => {
-      orderRepository.findByIdForUpdate.mockResolvedValue(undefined);
+      orderRepository.findByIdForUpdate.mockResolvedValue(undefined as never);
 
       await expect(
         service.lockPendingForCheckout('order-1', mockAuthUser, tx as never),
@@ -572,6 +743,57 @@ describe('OrderService', () => {
     );
   });
 
+  describe('cancelIfReservationExpired()', () => {
+    const now = new Date('2026-11-07T12:00:00Z');
+    const minutesAgo = (minutes: number) =>
+      new Date(now.getTime() - minutes * 60 * 1000);
+
+    it('cancela o pedido pendente com a reserva vencida', async () => {
+      const order = makeOrder({ createdAt: minutesAgo(16) });
+
+      await expect(
+        service.cancelIfReservationExpired(order, tx as never, now),
+      ).resolves.toBe(true);
+      expect(orderRepository.update).toHaveBeenCalledWith(
+        'order-1',
+        { status: 'cancelado' },
+        tx,
+      );
+    });
+
+    it('não mexe no pedido pendente ainda dentro do prazo', async () => {
+      const order = makeOrder({ createdAt: minutesAgo(5) });
+
+      await expect(
+        service.cancelIfReservationExpired(order, tx as never, now),
+      ).resolves.toBe(false);
+      expect(orderRepository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('lockById()', () => {
+    it('trava e devolve o pedido quando existe', async () => {
+      const order = makeOrder();
+      orderRepository.findByIdForUpdate.mockResolvedValue(order);
+
+      await expect(service.lockById('order-1', tx as never)).resolves.toBe(
+        order,
+      );
+      expect(orderRepository.findByIdForUpdate).toHaveBeenCalledWith(
+        'order-1',
+        tx,
+      );
+    });
+
+    it('lança NotFound quando o pedido não existe', async () => {
+      orderRepository.findByIdForUpdate.mockResolvedValue(undefined);
+
+      await expect(
+        service.lockById('order-1', tx as never),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   describe('markAsPaid()', () => {
     it('muda o status para pago dentro da transaction recebida', async () => {
       const paid = makeOrder({ status: 'pago' });
@@ -583,6 +805,22 @@ describe('OrderService', () => {
       expect(orderRepository.update).toHaveBeenCalledWith(
         'order-1',
         { status: 'pago' },
+        tx,
+      );
+    });
+  });
+
+  describe('markAsCancelled()', () => {
+    it('muda o status para cancelado dentro da transaction recebida', async () => {
+      const cancelled = makeOrder({ status: 'cancelado' });
+      orderRepository.update.mockResolvedValue(cancelled);
+
+      await expect(
+        service.markAsCancelled('order-1', tx as never),
+      ).resolves.toBe(cancelled);
+      expect(orderRepository.update).toHaveBeenCalledWith(
+        'order-1',
+        { status: 'cancelado' },
         tx,
       );
     });

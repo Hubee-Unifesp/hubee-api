@@ -67,11 +67,27 @@ export async function runSeed(
 
     for (const seedUser of seedUsers) {
       const [existing] = await tx
-        .select({ id: users.id })
+        .select({
+          id: users.id,
+          cpf: users.cpf,
+          birthDate: users.birthDate,
+        })
         .from(users)
         .where(and(eq(users.email, seedUser.email), isNull(users.deletedAt)));
 
       if (existing) {
+        const missingCpf = !existing.cpf && seedUser.cpf;
+        const missingBirthDate = !existing.birthDate && seedUser.birthDate;
+        if (missingCpf || missingBirthDate) {
+          await tx
+            .update(users)
+            .set({
+              ...(missingCpf ? { cpf: seedUser.cpf } : {}),
+              ...(missingBirthDate ? { birthDate: seedUser.birthDate } : {}),
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, existing.id));
+        }
         userIds[seedUser.key] = existing.id;
         continue;
       }
@@ -84,6 +100,8 @@ export async function runSeed(
           password: seedUser.role === 'ADMIN' ? adminHash : userHash,
           role: seedUser.role,
           signupIntent: seedUser.signupIntent,
+          cpf: seedUser.cpf,
+          birthDate: seedUser.birthDate,
         })
         .returning({ id: users.id });
       userIds[seedUser.key] = created.id;

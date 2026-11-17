@@ -5,7 +5,7 @@ import type {
   DbExecutor,
   DrizzleDatabase,
 } from '../database/database.provider';
-import { organizations } from '../database/schema';
+import { organizations, organizationUsers } from '../database/schema';
 
 export interface FindAllOrganizationsFilters {
   name?: string;
@@ -46,6 +46,17 @@ export class OrganizationRepository {
     return organization;
   }
 
+  async addMember(
+    data: typeof organizationUsers.$inferInsert,
+    executor: DbExecutor = this.db,
+  ) {
+    const [membership] = await executor
+      .insert(organizationUsers)
+      .values(data)
+      .returning();
+    return membership;
+  }
+
   async update(
     id: string,
     data: Partial<typeof organizations.$inferInsert>,
@@ -57,6 +68,15 @@ export class OrganizationRepository {
       .where(eq(organizations.id, id))
       .returning();
     return organization;
+  }
+
+  async deleteMembers(
+    orgId: string,
+    executor: DbExecutor = this.db,
+  ): Promise<void> {
+    await executor
+      .delete(organizationUsers)
+      .where(eq(organizationUsers.orgId, orgId));
   }
 
   async delete(id: string, executor: DbExecutor = this.db): Promise<void> {

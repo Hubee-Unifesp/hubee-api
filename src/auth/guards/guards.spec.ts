@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import {
   ExecutionContext,
   ForbiddenException,
@@ -8,8 +8,10 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { OptionalJwtAuthGuard } from './optional-jwt-auth.guard';
+import { OrganizerGuard } from './organizer.guard';
 import { RolesGuard } from './roles.guard';
 import { Roles } from '../decorators/roles.decorator';
+import { UsersService } from '../../users/users.service';
 
 class RestrictedController {
   @Roles('ADMIN')
@@ -95,6 +97,59 @@ describe('JwtAuthGuard', () => {
       ),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
+
+  it('consulta o UsersService quando disponível e sincroniza role/email do banco', async () => {
+    const findActiveUser = jest.fn(async (_id: string) => ({
+      id: 'user-id',
+      email: 'atualizado@example.com',
+      role: 'ADMIN' as const,
+      status: 'ACTIVE',
+      deletedAt: null,
+    }));
+    const guardWithUsers = new JwtAuthGuard(jwt, {
+      findActiveUser,
+    } as unknown as UsersService);
+
+    const token = await jwt.signAsync({
+      sub: 'user-id',
+      email: 'antigo@example.com',
+      role: 'USER',
+    });
+    const req = {
+      headers: { authorization: `Bearer ${token}` },
+      user: undefined,
+    };
+
+    await expect(guardWithUsers.canActivate(context(req))).resolves.toBe(true);
+    expect(findActiveUser).toHaveBeenCalledWith('user-id');
+    expect(req.user).toEqual({
+      id: 'user-id',
+      email: 'atualizado@example.com',
+      role: 'ADMIN',
+    });
+  });
+
+  it('recusa com 401 quando a conta está excluída, inativa ou não existe no UsersService', async () => {
+    const findActiveUser = jest.fn(async (_id: string) => null);
+    const guardWithUsers = new JwtAuthGuard(jwt, {
+      findActiveUser,
+    } as unknown as UsersService);
+
+    const token = await jwt.signAsync({
+      sub: 'deleted-user-id',
+      email: 'deleted@example.com',
+      role: 'USER',
+    });
+
+    await expect(
+      guardWithUsers.canActivate(
+        context({ headers: { authorization: `Bearer ${token}` } }),
+      ),
+    ).rejects.toThrow(
+      new UnauthorizedException('Usuário inativo ou não encontrado'),
+    );
+    expect(findActiveUser).toHaveBeenCalledWith('deleted-user-id');
+  });
 });
 
 describe('OptionalJwtAuthGuard', () => {
@@ -132,6 +187,23 @@ describe('OptionalJwtAuthGuard', () => {
       ).rejects.toBeInstanceOf(UnauthorizedException);
     },
   );
+
+  it('recusa com 401 se o token enviado pertencer a usuário inativo ou excluído', async () => {
+    const optionalWithUsers = new OptionalJwtAuthGuard(jwt, {
+      findActiveUser: jest.fn(async () => null),
+    } as unknown as UsersService);
+    const token = await jwt.signAsync({
+      sub: 'deleted-id',
+      email: 'deleted@example.com',
+      role: 'USER',
+    });
+
+    await expect(
+      optionalWithUsers.canActivate(
+        context({ headers: { authorization: `Bearer ${token}` } }),
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
 });
 
 describe('RolesGuard e @Roles', () => {
@@ -157,7 +229,62 @@ describe('RolesGuard e @Roles', () => {
     @Roles('ADMIN')
     class AdminController {}
     const ctx = context({ user: { role: 'USER' } });
-    ctx.getClass = () => AdminController;
+    ctx.getClass = (() => AdminController) as typeof ctx.getClass;
     expect(() => rolesGuard.canActivate(ctx)).toThrow(ForbiddenException);
+  });
+});
+
+describe('OrganizerGuard', () => {
+  const makeGuard = (rows: unknown[]) =>
+    new OrganizerGuard({
+      select: () => ({
+        from: () => ({
+          innerJoin: () => ({
+            where: () => ({ orderBy: async () => rows }),
+          }),
+        }),
+      }),
+    } as never);
+
+  it('lança UnauthorizedException sem usuário no request', async () => {
+    const organizerGuard = makeGuard([]);
+    await expect(organizerGuard.canActivate(context({}))).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('permite ADMIN global sem consultar organizações', async () => {
+    const organizerGuard = makeGuard([]);
+    await expect(
+      organizerGuard.canActivate(
+        context({ user: { id: 'adm-1', email: 'a@b.com', role: 'ADMIN' } }),
+      ),
+    ).resolves.toBe(true);
+  });
+
+  it('permite USER com vínculo aceito em pelo menos uma organização', async () => {
+    const organizerGuard = makeGuard([
+      {
+        orgId: 'org-1',
+        organizationName: 'Produtora',
+        role: 'member',
+        permission: 'read_only',
+        inviteStatus: 'accepted',
+      },
+    ]);
+    await expect(
+      organizerGuard.canActivate(
+        context({ user: { id: 'usr-1', email: 'u@b.com', role: 'USER' } }),
+      ),
+    ).resolves.toBe(true);
+  });
+
+  it('lança ForbiddenException para USER sem organização ativa', async () => {
+    const organizerGuard = makeGuard([]);
+    await expect(
+      organizerGuard.canActivate(
+        context({ user: { id: 'usr-1', email: 'u@b.com', role: 'USER' } }),
+      ),
+    ).rejects.toThrow(ForbiddenException);
   });
 });

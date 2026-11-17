@@ -1,11 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { asc, eq, inArray, sql } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
   DrizzleDatabase,
 } from '../database/database.provider';
-import { orderItems, orders } from '../database/schema';
+import { events, orderItems } from '../database/schema';
+import { sumCommittedByTicketType } from './order-reservation';
 
 @Injectable()
 export class OrderItemRepository {
@@ -20,6 +21,17 @@ export class OrderItemRepository {
     });
   }
 
+  async findEventsForShare(eventIds: string[], executor: DbExecutor) {
+    const ids = [...new Set(eventIds)].sort();
+    if (ids.length === 0) return [];
+    return executor
+      .select()
+      .from(events)
+      .where(inArray(events.id, ids))
+      .orderBy(asc(events.id))
+      .for('share');
+  }
+
   async createMany(
     data: (typeof orderItems.$inferInsert)[],
     executor: DbExecutor = this.db,
@@ -27,26 +39,12 @@ export class OrderItemRepository {
     return executor.insert(orderItems).values(data).returning();
   }
 
-  /**
-   * Quantidade já reservada por lote. Pedido pendente reserva o saldo e pedido
-   * pago o consome; só o cancelado o devolve.
-   */
-  async sumReservedByTicketType(
+  /** Ver `sumCommittedByTicketType`: reservas pendentes vencidas não contam. */
+  sumReservedByTicketType(
     ticketTypeIds: string[],
     executor: DbExecutor = this.db,
+    now: Date = new Date(),
   ): Promise<Map<string, number>> {
-    const rows = await executor
-      .select({
-        ticketTypeId: orderItems.ticketTypeId,
-        reserved: sql<number>`coalesce(sum(${orderItems.quantity}), 0)::int`,
-      })
-      .from(orderItems)
-      .innerJoin(orders, eq(orders.id, orderItems.orderId))
-      .where(
-        sql`${inArray(orderItems.ticketTypeId, ticketTypeIds)} and ${orders.status} in ('pendente', 'pago')`,
-      )
-      .groupBy(orderItems.ticketTypeId);
-
-    return new Map(rows.map((row) => [row.ticketTypeId, row.reserved]));
+    return sumCommittedByTicketType(executor, ticketTypeIds, now);
   }
 }

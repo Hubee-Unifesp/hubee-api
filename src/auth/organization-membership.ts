@@ -34,6 +34,29 @@ export async function findAcceptedMembership(
   return membership;
 }
 
+/**
+ * Todos os vínculos com convite aceito do usuário, para rotas que exigem o
+ * nível em ao menos uma organização (`{ from: 'any' }`).
+ */
+export async function findAcceptedMemberships(
+  db: DbExecutor,
+  userId: string,
+): Promise<OrganizationMembership[]> {
+  return db
+    .select({
+      role: organizationUsers.role,
+      permission: organizationUsers.permission,
+      inviteStatus: organizationUsers.inviteStatus,
+    })
+    .from(organizationUsers)
+    .where(
+      and(
+        eq(organizationUsers.userId, userId),
+        eq(organizationUsers.inviteStatus, InviteStatus.ACCEPTED),
+      ),
+    );
+}
+
 export interface UserOrganization {
   orgId: string;
   organizationName: string;

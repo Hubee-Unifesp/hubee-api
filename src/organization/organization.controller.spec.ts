@@ -1,18 +1,29 @@
 import { jest } from '@jest/globals';
 import { JwtModule } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
+import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
+import { DRIZZLE } from '../database/database.constants';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OrganizationController } from './organization.controller';
 import { OrganizationService } from './organization.service';
 import { OrganizationResponseDto } from './dto/organization-response.dto';
 
+/** O `OrganizationAccessGuard` do `@OrgAccess` injeta o banco; aqui ele não roda. */
+const fakeDrizzle = { provide: DRIZZLE, useValue: {} };
+
+const user: AuthenticatedUser = {
+  id: 'user-1',
+  email: 'user@example.com',
+  role: 'USER',
+};
+
 /** Linha completa do banco, como o service a retorna. */
 const row = {
   id: 'org-1',
   name: 'Centro Acadêmico',
   description: null,
-  representativeId: null,
+  representativeId: 'user-1',
   createdAt: new Date('2026-01-01T00:00:00Z'),
   updatedAt: new Date('2026-01-01T00:00:00Z'),
 };
@@ -39,20 +50,23 @@ describe('OrganizationController', () => {
     const module: TestingModule = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [OrganizationController],
-      providers: [{ provide: OrganizationService, useValue: service }],
+      providers: [
+        { provide: OrganizationService, useValue: service },
+        fakeDrizzle,
+      ],
     }).compile();
 
     controller = module.get(OrganizationController);
   });
 
-  it('POST /organizations delega para organizationService.create()', async () => {
+  it('POST /organizations delega para organizationService.create() com o user.id autenticado', async () => {
     const dto: CreateOrganizationDto = { name: 'Centro Acadêmico' };
     const created = row as never;
     service.create.mockResolvedValue(created);
 
-    const result = await controller.create(dto);
+    const result = await controller.create(dto, user);
 
-    expect(service.create).toHaveBeenCalledWith(dto);
+    expect(service.create).toHaveBeenCalledWith(dto, 'user-1');
     expect(result).toEqual(created);
     expect(result).toBeInstanceOf(OrganizationResponseDto);
   });

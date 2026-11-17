@@ -12,24 +12,28 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import { pushSchema } from 'drizzle-kit/api';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import request from 'supertest';
 import { DRIZZLE } from '../database/database.constants';
 import * as schema from '../database/schema';
+import { EventRepository } from '../event/event.repository';
 import { EventService } from '../event/event.service';
 import { CheckoutController } from '../payment/checkout.controller';
+import { PaymentController } from '../payment/payment.controller';
 import { PaymentRepository } from '../payment/payment.repository';
 import { PaymentService } from '../payment/payment.service';
 import { TicketController } from '../ticket/ticket.controller';
 import { TicketRepository } from '../ticket/ticket.repository';
 import { TicketService } from '../ticket/ticket.service';
+import { TicketTypeController } from '../ticket-type/ticket-type.controller';
 import { TicketTypeRepository } from '../ticket-type/ticket-type.repository';
 import { TicketTypeService } from '../ticket-type/ticket-type.service';
 import { UsersService } from '../users/users.service';
 import { OrderController } from './order.controller';
 import { OrderItemRepository } from './order-item.repository';
 import { OrderRepository } from './order.repository';
+import { PENDING_ORDER_TTL_MINUTES } from './order-reservation';
 import { OrderService } from './order.service';
 
 /**
@@ -42,6 +46,7 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
   let pglite: PGlite;
   let db: ReturnType<typeof drizzle<typeof schema>>;
   let ticketRepository: TicketRepository;
+  let eventRepository: EventRepository;
   const tokens: Record<string, string> = {};
   const ids: Record<string, string> = {};
   let eventId: string;
@@ -63,6 +68,28 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
   const pay = (name: string, orderId: string, paymentMethod = 'pix') =>
     http().post('/payments').set(as(name)).send({ orderId, paymentMethod });
 
+  /** Simula a passagem do tempo: o pedido passa a ter sido criado há `minutes` minutos. */
+  const ageOrder = (orderId: string, minutes: number) =>
+    db
+      .update(schema.orders)
+      .set({ createdAt: new Date(Date.now() - minutes * 60 * 1000) })
+      .where(eq(schema.orders.id, orderId));
+
+  const availableOf = async (lotId: string) => {
+    const response = await http()
+      .get(`/events/${eventId}/ticket-types`)
+      .expect(200);
+    return response.body.find((lot: { id: string }) => lot.id === lotId)
+      ?.available as number;
+  };
+
+  /** Emissão manual de ingressos (rota ADMIN) para um pedido já pago. */
+  const issue = (name: string, orderId: string, items: object[]) =>
+    http()
+      .post(`/orders/${orderId}/tickets`)
+      .set(as(name))
+      .send({ tickets: items });
+
   beforeAll(async () => {
     pglite = new PGlite();
     db = drizzle(pglite, { schema });
@@ -71,8 +98,15 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
 
     const module = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
-      controllers: [OrderController, CheckoutController, TicketController],
+      controllers: [
+        OrderController,
+        CheckoutController,
+        PaymentController,
+        TicketController,
+        TicketTypeController,
+      ],
       providers: [
+        EventRepository,
         OrderService,
         OrderRepository,
         OrderItemRepository,
@@ -90,9 +124,22 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
               cpf: '52998224725',
               birthDate: '1990-01-01',
             }),
+            findActiveUser: async (id: string) => {
+              const [user] = await db
+                .select()
+                .from(schema.users)
+                .where(eq(schema.users.id, id));
+              return user ?? null;
+            },
           },
         },
-        { provide: EventService, useValue: { findOne: async () => ({}) } },
+        {
+          provide: EventService,
+          useValue: {
+            findOne: async () => ({}),
+            findVisible: async () => ({}),
+          },
+        },
       ],
     }).compile();
     app = module.createNestApplication();
@@ -105,6 +152,7 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
     );
     await app.init();
     ticketRepository = module.get(TicketRepository);
+    eventRepository = module.get(EventRepository);
 
     const [organization] = await db
       .insert(schema.organizations)
@@ -189,6 +237,29 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
           unitPrice: 49.9,
         }),
       ]);
+      const fetched = await http()
+        .get(`/orders/${response.body.id}`)
+        .set(as('ana'))
+        .expect(200);
+
+      expect(fetched.body).toMatchObject({
+        id: response.body.id,
+        status: 'pendente',
+        totalAmount: 149.7,
+        items: [
+          {
+            ticketTypeId: lot,
+            quantity: 3,
+            unitPrice: 49.9,
+            ticketTypeModality: 'inteira',
+          },
+        ],
+        event: {
+          id: eventId,
+          name: 'Calourada',
+          status: 'published',
+        },
+      });
     });
 
     it('recusa pedido sem token', async () => {
@@ -452,6 +523,68 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
       await pay('ana', created.body.id).expect(422);
     });
 
+    it('não paga pedido nem emite ingressos quando o evento foi cancelado (GOL-211)', async () => {
+      const lot = await newLot(5);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+
+      await db
+        .update(schema.events)
+        .set({ status: 'cancelled' })
+        .where(eq(schema.events.id, eventId));
+
+      try {
+        const response = await pay('ana', created.body.id).expect(422);
+        expect(response.body.message).toContain('foi cancelado');
+
+        const [row] = await db
+          .select()
+          .from(schema.orders)
+          .where(eq(schema.orders.id, created.body.id));
+        expect(row.status).toBe('pendente');
+        expect(
+          await db
+            .select()
+            .from(schema.payments)
+            .where(eq(schema.payments.orderId, created.body.id)),
+        ).toHaveLength(0);
+        expect(
+          await db
+            .select()
+            .from(schema.tickets)
+            .where(eq(schema.tickets.orderId, created.body.id)),
+        ).toHaveLength(0);
+      } finally {
+        await db
+          .update(schema.events)
+          .set({ status: 'published' })
+          .where(eq(schema.events.id, eventId));
+      }
+    });
+
+    it('não paga pedido quando o evento sai de venda (draft/finished) antes do checkout (GOL-211)', async () => {
+      const lot = await newLot(5);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+
+      await db
+        .update(schema.events)
+        .set({ status: 'finished' })
+        .where(eq(schema.events.id, eventId));
+
+      try {
+        const response = await pay('ana', created.body.id).expect(422);
+        expect(response.body.message).toContain('não estão abertas');
+      } finally {
+        await db
+          .update(schema.events)
+          .set({ status: 'published' })
+          .where(eq(schema.events.id, eventId));
+      }
+    });
+
     it('se a emissão falhar, o pagamento é desfeito e o pedido segue pendente', async () => {
       const lot = await newLot(5);
       const created = await order('ana', [
@@ -476,6 +609,434 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
       ).toHaveLength(0);
 
       await pay('ana', created.body.id).expect(201);
+    });
+  });
+
+  describe('expiração da reserva de pedidos pendentes (GOL-212)', () => {
+    const EXPIRED = PENDING_ORDER_TTL_MINUTES + 1;
+
+    it('pedido pendente vencido deixa de bloquear o lote para novos compradores', async () => {
+      const lot = await newLot(2);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+      await order('bruno', [{ ticketTypeId: lot, quantity: 1 }]).expect(422);
+
+      await ageOrder(created.body.id, EXPIRED);
+
+      await order('bruno', [{ ticketTypeId: lot, quantity: 2 }]).expect(201);
+    });
+
+    it('pedido pendente ainda no prazo continua reservando o saldo', async () => {
+      const lot = await newLot(2);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+
+      await ageOrder(created.body.id, PENDING_ORDER_TTL_MINUTES - 1);
+
+      await order('bruno', [{ ticketTypeId: lot, quantity: 1 }]).expect(422);
+    });
+
+    it('pedido vencido não pode ser pago: responde 422, vira cancelado e não emite ingressos', async () => {
+      const lot = await newLot(5);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+      await ageOrder(created.body.id, EXPIRED);
+
+      const response = await pay('ana', created.body.id).expect(422);
+
+      expect(response.body.message).toContain('expirou');
+      const [row] = await db
+        .select()
+        .from(schema.orders)
+        .where(eq(schema.orders.id, created.body.id));
+      expect(row.status).toBe('cancelado');
+      expect(
+        await db
+          .select()
+          .from(schema.payments)
+          .where(eq(schema.payments.orderId, created.body.id)),
+      ).toHaveLength(0);
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.orderId, created.body.id)),
+      ).toHaveLength(0);
+    });
+
+    it('vender o saldo liberado não deixa o pedido vencido roubar a vaga depois', async () => {
+      const lot = await newLot(1);
+      const stale = await order('ana', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+      await ageOrder(stale.body.id, EXPIRED);
+
+      const fresh = await order('bruno', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+      await pay('bruno', fresh.body.id).expect(201);
+
+      await pay('ana', stale.body.id).expect(422);
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.ticketTypeId, lot)),
+      ).toHaveLength(1);
+    });
+
+    it('GET /events/:id/ticket-types expõe o saldo real, descontando vendas e só reservas válidas', async () => {
+      const lot = await newLot(10);
+      expect(await availableOf(lot)).toBe(10);
+
+      const paid = await order('ana', [
+        { ticketTypeId: lot, quantity: 3 },
+      ]).expect(201);
+      await pay('ana', paid.body.id).expect(201);
+      const pending = await order('bruno', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+      expect(await availableOf(lot)).toBe(5);
+
+      await ageOrder(pending.body.id, EXPIRED);
+      expect(await availableOf(lot)).toBe(7);
+    });
+
+    it('GET /events/:id/ticket-types mostra saldo 0 quando o lote está esgotado', async () => {
+      const lot = await newLot(1);
+      await order('ana', [{ ticketTypeId: lot, quantity: 1 }]).expect(201);
+
+      expect(await availableOf(lot)).toBe(0);
+    });
+  });
+
+  describe('PATCH /orders/:id (GOL-214)', () => {
+    const patch = (name: string, orderId: string, body: object) =>
+      http().patch(`/orders/${orderId}`).set(as(name)).send(body);
+
+    const statusOf = async (orderId: string) => {
+      const [row] = await db
+        .select()
+        .from(schema.orders)
+        .where(eq(schema.orders.id, orderId));
+      return row;
+    };
+
+    it('recusa alterar totalAmount com 400 e não mexe no pedido', async () => {
+      const lot = await newLot(5, 50);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+
+      await patch('admin', created.body.id, { totalAmount: 0 }).expect(400);
+      await patch('admin', created.body.id, {
+        status: 'pendente',
+        totalAmount: 0,
+      }).expect(400);
+
+      expect(await statusOf(created.body.id)).toMatchObject({
+        status: 'pendente',
+        totalAmount: 100,
+      });
+    });
+
+    it('recusa marcar pedido pendente como pago (422): sem pagamento e sem ingressos', async () => {
+      const lot = await newLot(5);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+
+      const response = await patch('admin', created.body.id, {
+        status: 'pago',
+      }).expect(422);
+
+      expect(response.body.message).toContain('checkout');
+      expect((await statusOf(created.body.id)).status).toBe('pendente');
+      expect(
+        await db
+          .select()
+          .from(schema.payments)
+          .where(eq(schema.payments.orderId, created.body.id)),
+      ).toHaveLength(0);
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.orderId, created.body.id)),
+      ).toHaveLength(0);
+    });
+
+    it('recusa cancelar pedido pago (422): ingressos seguem válidos e a vaga não volta ao lote', async () => {
+      const lot = await newLot(2);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+      await pay('ana', created.body.id).expect(201);
+
+      await patch('admin', created.body.id, { status: 'cancelado' }).expect(
+        422,
+      );
+
+      expect((await statusOf(created.body.id)).status).toBe('pago');
+      const tickets = await db
+        .select()
+        .from(schema.tickets)
+        .where(eq(schema.tickets.orderId, created.body.id));
+      expect(tickets.map((ticket) => ticket.status)).toEqual([
+        'emitido',
+        'emitido',
+      ]);
+      await order('bruno', [{ ticketTypeId: lot, quantity: 1 }]).expect(422);
+    });
+
+    it('cancela pedido pendente e devolve a vaga ao lote', async () => {
+      const lot = await newLot(1);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+
+      const response = await patch('admin', created.body.id, {
+        status: 'cancelado',
+      }).expect(200);
+
+      expect(response.body.status).toBe('cancelado');
+      await order('bruno', [{ ticketTypeId: lot, quantity: 1 }]).expect(201);
+      await pay('ana', created.body.id).expect(422);
+    });
+
+    it('nenhum pedido cancelado fica com ingresso emitido', async () => {
+      const cancelledWithValidTickets = await db
+        .select({ id: schema.tickets.id })
+        .from(schema.tickets)
+        .innerJoin(schema.orders, eq(schema.orders.id, schema.tickets.orderId))
+        .where(
+          and(
+            eq(schema.orders.status, 'cancelado'),
+            eq(schema.tickets.status, 'emitido'),
+          ),
+        );
+
+      expect(cancelledWithValidTickets).toEqual([]);
+    });
+
+    it('PATCH continua exclusivo de ADMIN', async () => {
+      const lot = await newLot(5);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+
+      await patch('ana', created.body.id, { status: 'cancelado' }).expect(403);
+    });
+  });
+
+  describe('POST /orders/:orderId/tickets (emissão manual, GOL-216)', () => {
+    /** Cria um pedido de `quantity` ingressos de um lote e o deixa pago. */
+    async function paidOrder(lotId: string, quantity: number) {
+      const created = await order('ana', [
+        { ticketTypeId: lotId, quantity },
+      ]).expect(201);
+      await pay('ana', created.body.id).expect(201);
+      return created.body.id as string;
+    }
+
+    it('recusa emitir acima da capacidade do lote e não cria ingresso', async () => {
+      // Lote de 2: o pedido pago já ocupa as 2 vagas via checkout.
+      const lot = await newLot(2);
+      const orderId = await paidOrder(lot, 2);
+
+      const response = await issue('admin', orderId, [
+        { eventId, ticketTypeId: lot },
+      ]).expect(422);
+      expect(response.body.message).toContain('esgotado');
+
+      // Continua com os 2 ingressos do checkout, nada a mais.
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.ticketTypeId, lot)),
+      ).toHaveLength(2);
+    });
+
+    it('emite manualmente quando ainda há vaga no lote e desconta do estoque para as próximas chamadas', async () => {
+      // Lote de 3, pedido pago ocupa 2 -> sobra 1 vaga.
+      const lot = await newLot(3);
+      const orderId = await paidOrder(lot, 2);
+
+      await issue('admin', orderId, [{ eventId, ticketTypeId: lot }]).expect(
+        201,
+      );
+
+      // A 3ª vaga foi consumida pela emissão manual: nova emissão ou compra deve falhar com 422.
+      await issue('admin', orderId, [{ eventId, ticketTypeId: lot }]).expect(
+        422,
+      );
+      await order('bruno', [{ ticketTypeId: lot, quantity: 1 }]).expect(422);
+
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.ticketTypeId, lot)),
+      ).toHaveLength(3);
+    });
+
+    it('recusa a chamada inteira quando a soma dos itens excede a vaga', async () => {
+      // Lote de 3, pedido pago ocupa 2 -> sobra 1; pedir 2 de uma vez estoura.
+      const lot = await newLot(3);
+      const orderId = await paidOrder(lot, 2);
+
+      await issue('admin', orderId, [
+        { eventId, ticketTypeId: lot },
+        { eventId, ticketTypeId: lot },
+      ]).expect(422);
+
+      // Atomicidade: nenhum dos 2 foi inserido.
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.ticketTypeId, lot)),
+      ).toHaveLength(2);
+    });
+
+    it('recusa emitir lote que não pertence aos itens do pedido (422)', async () => {
+      const boughtLot = await newLot(5);
+      const otherLot = await newLot(5);
+      const orderId = await paidOrder(boughtLot, 1);
+
+      const response = await issue('admin', orderId, [
+        { eventId, ticketTypeId: otherLot },
+      ]).expect(422);
+      expect(response.body.message).toContain(
+        `não pertence aos itens do pedido ${orderId}`,
+      );
+
+      expect(
+        await db
+          .select()
+          .from(schema.tickets)
+          .where(eq(schema.tickets.ticketTypeId, otherLot)),
+      ).toHaveLength(0);
+    });
+
+    it('devolve a vaga ao lote quando um ingresso de pedido pago é cancelado', async () => {
+      // Lote de 2, pedido pago ocupa as 2 vagas.
+      const lot = await newLot(2);
+      const orderId = await paidOrder(lot, 2);
+
+      const [ticketToCancel] = await db
+        .select()
+        .from(schema.tickets)
+        .where(eq(schema.tickets.orderId, orderId));
+
+      await http()
+        .patch(`/tickets/${ticketToCancel.id}`)
+        .set(as('admin'))
+        .send({ status: 'cancelado' })
+        .expect(200);
+
+      // Com 1 ingresso cancelado, 1 vaga voltou ao lote.
+      await issue('admin', orderId, [{ eventId, ticketTypeId: lot }]).expect(
+        201,
+      );
+    });
+
+    it('emissão manual só para ADMIN', async () => {
+      const lot = await newLot(5);
+      const orderId = await paidOrder(lot, 1);
+
+      await issue('ana', orderId, [{ eventId, ticketTypeId: lot }]).expect(403);
+    });
+  });
+
+  describe('PATCH /orders/:orderId/payments (estorno, GOL-215)', () => {
+    it('propaga estorno do pagamento para o pedido e ingressos, devolvendo saldo e descontando de ticketsSold', async () => {
+      const lot = await newLot(3, 80);
+      const [summaryBeforeCheckout] =
+        await eventRepository.findUpcomingSummaries();
+      const soldBefore = summaryBeforeCheckout.ticketsSold;
+
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 2 },
+      ]).expect(201);
+      await pay('ana', created.body.id).expect(201);
+
+      expect(await availableOf(lot)).toBe(1);
+      const [summaryAfterCheckout] =
+        await eventRepository.findUpcomingSummaries();
+      expect(summaryAfterCheckout.ticketsSold).toBe(soldBefore + 2);
+
+      const refundResponse = await http()
+        .patch(`/orders/${created.body.id}/payments`)
+        .set(as('admin'))
+        .send({ status: 'estornado' })
+        .expect(200);
+
+      expect(refundResponse.body.status).toBe('estornado');
+
+      const [updatedOrder] = await db
+        .select()
+        .from(schema.orders)
+        .where(eq(schema.orders.id, created.body.id));
+      expect(updatedOrder.status).toBe('cancelado');
+
+      const orderTickets = await db
+        .select()
+        .from(schema.tickets)
+        .where(eq(schema.tickets.orderId, created.body.id));
+      expect(orderTickets).toHaveLength(2);
+      expect(orderTickets.map((ticket) => ticket.status)).toEqual([
+        'cancelado',
+        'cancelado',
+      ]);
+
+      expect(await availableOf(lot)).toBe(3);
+
+      const detail = await eventRepository.findDetailById(eventId);
+      expect(
+        detail?.ticketTypes.find((ticketType) => ticketType.id === lot)
+          ?.available,
+      ).toBe(3);
+
+      const [summaryAfterRefund] =
+        await eventRepository.findUpcomingSummaries();
+      expect(summaryAfterRefund.ticketsSold).toBe(soldBefore);
+    });
+
+    it('rejeita estorno por usuário comum (403) e impede transição inválida após estorno (400)', async () => {
+      const lot = await newLot(2, 50);
+      const created = await order('ana', [
+        { ticketTypeId: lot, quantity: 1 },
+      ]).expect(201);
+      await pay('ana', created.body.id).expect(201);
+
+      await http()
+        .patch(`/orders/${created.body.id}/payments`)
+        .set(as('ana'))
+        .send({ status: 'estornado' })
+        .expect(403);
+
+      await http()
+        .patch(`/orders/${created.body.id}/payments`)
+        .set(as('admin'))
+        .send({ status: 'estornado' })
+        .expect(200);
+
+      await http()
+        .patch(`/orders/${created.body.id}/payments`)
+        .set(as('admin'))
+        .send({ status: 'confirmado' })
+        .expect(400);
+
+      await http()
+        .patch(`/orders/${created.body.id}/payments`)
+        .set(as('admin'))
+        .send({ status: 'estornado' })
+        .expect(400);
     });
   });
 });

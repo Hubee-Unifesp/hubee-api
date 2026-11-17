@@ -102,7 +102,7 @@ describe('OrderController', () => {
   });
 
   it('PATCH /orders/:id delega para orderService.update() com utilizador', async () => {
-    const dto: UpdateOrderDto = { status: 'pago' };
+    const dto: UpdateOrderDto = { status: 'cancelado' };
     const updated = row as never;
     service.update.mockResolvedValue(updated);
 

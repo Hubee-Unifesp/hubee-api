@@ -29,6 +29,7 @@ import {
   ticketTypes,
   venues,
 } from '../database/schema';
+import { withAvailability } from '../order/order-reservation';
 
 export interface FindAllEventsFilters {
   search?: string;
@@ -58,6 +59,7 @@ const soldInBatch = sql`(
   INNER JOIN ${orders} ON ${orders.id} = ${tickets.orderId}
   WHERE ${tickets.ticketTypeId} = ${ticketTypes.id}
     AND ${orders.status} = 'pago'
+    AND ${tickets.status} <> 'cancelado'
 )`;
 
 const cheapestTicketType = (column: AnyPgColumn) => sql`(
@@ -78,6 +80,27 @@ const minPrice = sql<
 const minPriceBatch = sql<
   string | null
 >`${cheapestTicketType(ticketTypes.batch)}`;
+
+/** Soma das capacidades dos lotes do evento. */
+const capacity = sql<number>`(
+  SELECT COALESCE(SUM(${ticketTypes.quantity}), 0)::integer
+  FROM ${ticketTypes}
+  WHERE ${ticketTypes.eventId} = ${events.id}
+)`;
+
+/** Ingressos de pedidos pagos do evento. */
+const ticketsSold = sql<number>`(
+  SELECT COUNT(*)::integer
+  FROM ${tickets}
+  INNER JOIN ${orders} ON ${orders.id} = ${tickets.orderId}
+  WHERE ${tickets.eventId} = ${events.id}
+    AND ${orders.status} = 'pago'
+    AND ${tickets.status} <> 'cancelado'
+)`;
+
+/** Sufixo do nome do evento duplicado; o nome é cortado para caber em 255. */
+const COPY_SUFFIX = ' (cópia)';
+const EVENT_NAME_MAX_LENGTH = 255;
 
 @Injectable()
 export class EventRepository {
@@ -120,6 +143,8 @@ export class EventRepository {
           venueCity: addresses.city,
           minPrice,
           minPriceBatch,
+          capacity,
+          ticketsSold,
         })
         .from(events)
         .innerJoin(venues, eq(events.venueId, venues.id))
@@ -154,18 +179,8 @@ export class EventRepository {
         venueCity: addresses.city,
         minPrice,
         minPriceBatch,
-        capacity: sql<number>`(
-          SELECT COALESCE(SUM(${ticketTypes.quantity}), 0)::integer
-          FROM ${ticketTypes}
-          WHERE ${ticketTypes.eventId} = ${events.id}
-        )`,
-        ticketsSold: sql<number>`(
-          SELECT COUNT(*)::integer
-          FROM ${tickets}
-          INNER JOIN ${orders} ON ${orders.id} = ${tickets.orderId}
-          WHERE ${tickets.eventId} = ${events.id}
-            AND ${orders.status} = 'pago'
-        )`,
+        capacity,
+        ticketsSold,
       })
       .from(events)
       .innerJoin(organizations, eq(events.organizerId, organizations.id))
@@ -190,8 +205,9 @@ export class EventRepository {
     return executor.query.events.findFirst({ where: eq(events.id, id) });
   }
 
+  /** Detalhe público do evento, com o saldo real (`available`) de cada lote. */
   async findDetailById(id: string, executor: DbExecutor = this.db) {
-    return executor.query.events.findFirst({
+    const event = await executor.query.events.findFirst({
       where: eq(events.id, id),
       with: {
         venue: { with: { address: true } },
@@ -204,6 +220,85 @@ export class EventRepository {
           ],
         },
       },
+    });
+    if (!event) return undefined;
+    return {
+      ...event,
+      ticketTypes: await withAvailability(executor, event.ticketTypes),
+    };
+  }
+
+  async countTicketTypes(
+    eventId: string,
+    executor: DbExecutor = this.db,
+  ): Promise<number> {
+    const [{ total }] = await executor
+      .select({ total: count() })
+      .from(ticketTypes)
+      .where(eq(ticketTypes.eventId, eventId));
+    return total;
+  }
+
+  /**
+   * Copia o evento como rascunho, junto com os lotes (nome, preço, capacidade,
+   * modalidade e janela de vendas; vendas e reservas não vão para a cópia). A capa e o destaque
+   * ficam de fora: a capa está guardada no caminho do evento original e seria
+   * apagada quando a cópia trocasse de capa.
+   */
+  async duplicate(id: string) {
+    return this.db.transaction(async (tx) => {
+      const original = await tx.query.events.findFirst({
+        where: eq(events.id, id),
+        with: { ticketTypes: { orderBy: [asc(ticketTypes.createdAt)] } },
+      });
+      if (!original) return undefined;
+
+      const {
+        id: _id,
+        createdAt: _createdAt,
+        updatedAt: _updatedAt,
+        ticketTypes: lots,
+        ...fields
+      } = original;
+      const name =
+        fields.name.slice(0, EVENT_NAME_MAX_LENGTH - COPY_SUFFIX.length) +
+        COPY_SUFFIX;
+
+      const [copy] = await tx
+        .insert(events)
+        .values({
+          ...fields,
+          name,
+          status: 'draft',
+          featured: false,
+          photoUrl: null,
+        })
+        .returning();
+
+      if (lots.length > 0) {
+        await tx.insert(ticketTypes).values(
+          lots.map(
+            ({
+              batch,
+              price,
+              quantity,
+              modality,
+              salesStartDate,
+              salesEndDate,
+            }) => ({
+              eventId: copy.id,
+              batch,
+              price,
+              quantity,
+              modality,
+              salesStartDate,
+              salesEndDate,
+            }),
+          ),
+        );
+      }
+
+      return copy;
     });
   }
 

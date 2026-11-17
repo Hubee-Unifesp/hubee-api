@@ -1,5 +1,6 @@
 import { Expose } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+import { EVENT_CATEGORIES } from '../../database/schema';
 
 /** Contrato de resposta usado pela listagem resumida de eventos da home. */
 export class EventSummaryResponseDto {
@@ -16,7 +17,7 @@ export class EventSummaryResponseDto {
   description: string | null;
 
   @Expose()
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ enum: EVENT_CATEGORIES, nullable: true })
   category: string | null;
 
   @Expose()

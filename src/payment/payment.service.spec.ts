@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import {
+  BadRequestException,
   ConflictException,
   NotFoundException,
   UnprocessableEntityException,
@@ -47,12 +48,19 @@ describe('PaymentService', () => {
   };
   let orderService: {
     findById: jest.Mock<OrderService['findById']>;
+    lockById: jest.Mock<OrderService['lockById']>;
     lockPendingForCheckout: jest.Mock<OrderService['lockPendingForCheckout']>;
     markAsPaid: jest.Mock<OrderService['markAsPaid']>;
+    markAsCancelled: jest.Mock<OrderService['markAsCancelled']>;
     findItems: jest.Mock<OrderService['findItems']>;
+    findEventsForShare: jest.Mock<OrderService['findEventsForShare']>;
+    cancelIfReservationExpired: jest.Mock<
+      OrderService['cancelIfReservationExpired']
+    >;
   };
   let ticketService: {
     issueForPaidOrder: jest.Mock<TicketService['issueForPaidOrder']>;
+    cancelByOrder: jest.Mock<TicketService['cancelByOrder']>;
   };
   const tx = { tx: true };
   const db = {
@@ -69,12 +77,18 @@ describe('PaymentService', () => {
     };
     orderService = {
       findById: jest.fn<OrderService['findById']>(),
+      lockById: jest.fn<OrderService['lockById']>(),
       lockPendingForCheckout: jest.fn<OrderService['lockPendingForCheckout']>(),
       markAsPaid: jest.fn<OrderService['markAsPaid']>(),
+      markAsCancelled: jest.fn<OrderService['markAsCancelled']>(),
       findItems: jest.fn<OrderService['findItems']>(),
+      findEventsForShare: jest.fn<OrderService['findEventsForShare']>(),
+      cancelIfReservationExpired:
+        jest.fn<OrderService['cancelIfReservationExpired']>(),
     };
     ticketService = {
       issueForPaidOrder: jest.fn<TicketService['issueForPaidOrder']>(),
+      cancelByOrder: jest.fn<TicketService['cancelByOrder']>(),
     };
     db.transaction.mockClear();
 
@@ -91,6 +105,10 @@ describe('PaymentService', () => {
     service = module.get(PaymentService);
 
     orderService.findById.mockResolvedValue({
+      id: ORDER_ID,
+      userId: BUYER.id,
+    } as never);
+    orderService.lockById.mockResolvedValue({
       id: ORDER_ID,
       userId: BUYER.id,
     } as never);
@@ -161,8 +179,18 @@ describe('PaymentService', () => {
 
     beforeEach(() => {
       orderService.lockPendingForCheckout.mockResolvedValue(pendingOrder);
+      orderService.cancelIfReservationExpired.mockResolvedValue(false);
       orderService.markAsPaid.mockResolvedValue(paidOrder);
       orderService.findItems.mockResolvedValue(items as never);
+      orderService.findEventsForShare.mockResolvedValue([
+        {
+          id: 'event-1',
+          name: 'Calourada',
+          status: 'published',
+          salesStartDate: null,
+          endDate: new Date('2999-12-11T02:00:00Z'),
+        } as never,
+      ]);
       paymentRepository.findByOrderId.mockResolvedValue(undefined);
       paymentRepository.create.mockImplementation(async (data) =>
         makePayment({ ...data, id: 'payment-1' }),
@@ -176,6 +204,10 @@ describe('PaymentService', () => {
       expect(orderService.lockPendingForCheckout).toHaveBeenCalledWith(
         ORDER_ID,
         BUYER,
+        tx,
+      );
+      expect(orderService.findEventsForShare).toHaveBeenCalledWith(
+        ['event-1'],
         tx,
       );
       expect(paymentRepository.create).toHaveBeenCalledWith(
@@ -237,6 +269,23 @@ describe('PaymentService', () => {
       expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
     });
 
+    it('cancela o pedido com reserva vencida, responde 422 e não paga nem emite', async () => {
+      orderService.cancelIfReservationExpired.mockResolvedValue(true);
+
+      await expect(service.checkout(dto, BUYER)).rejects.toThrow(
+        new UnprocessableEntityException(
+          'A reserva deste pedido expirou. Faça um novo pedido para comprar os ingressos.',
+        ),
+      );
+      expect(orderService.cancelIfReservationExpired).toHaveBeenCalledWith(
+        pendingOrder,
+        tx,
+      );
+      expect(paymentRepository.create).not.toHaveBeenCalled();
+      expect(orderService.markAsPaid).not.toHaveBeenCalled();
+      expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
+    });
+
     it('lança 409 e não emite quando o pedido já tem pagamento registrado', async () => {
       paymentRepository.findByOrderId.mockResolvedValue(makePayment());
 
@@ -246,6 +295,78 @@ describe('PaymentService', () => {
       expect(paymentRepository.create).not.toHaveBeenCalled();
       expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
     });
+
+    it('recusa o checkout (422) e não paga nem emite quando o evento do pedido foi cancelado', async () => {
+      orderService.findEventsForShare.mockResolvedValue([
+        {
+          id: 'event-1',
+          name: 'Calourada',
+          status: 'cancelled',
+          salesStartDate: null,
+          endDate: new Date('2999-12-11T02:00:00Z'),
+        } as never,
+      ]);
+
+      await expect(service.checkout(dto, BUYER)).rejects.toThrow(
+        new UnprocessableEntityException('O evento "Calourada" foi cancelado'),
+      );
+      expect(orderService.findEventsForShare).toHaveBeenCalledWith(
+        ['event-1'],
+        tx,
+      );
+      expect(paymentRepository.create).not.toHaveBeenCalled();
+      expect(orderService.markAsPaid).not.toHaveBeenCalled();
+      expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
+    });
+
+    it('recusa o checkout (422) e não paga nem emite quando as vendas do evento foram encerradas', async () => {
+      orderService.findEventsForShare.mockResolvedValue([
+        {
+          id: 'event-1',
+          name: 'Calourada',
+          status: 'published',
+          salesStartDate: null,
+          endDate: new Date('2020-01-01T00:00:00Z'),
+        } as never,
+      ]);
+
+      await expect(service.checkout(dto, BUYER)).rejects.toThrow(
+        new UnprocessableEntityException(
+          'As vendas do evento "Calourada" não estão abertas',
+        ),
+      );
+      expect(orderService.findEventsForShare).toHaveBeenCalledWith(
+        ['event-1'],
+        tx,
+      );
+      expect(paymentRepository.create).not.toHaveBeenCalled();
+      expect(orderService.markAsPaid).not.toHaveBeenCalled();
+      expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
+    });
+
+    it.each(['draft', 'finished'] as const)(
+      'recusa o checkout (422) quando o evento está em status %s',
+      async (status) => {
+        orderService.findEventsForShare.mockResolvedValue([
+          {
+            id: 'event-1',
+            name: 'Calourada',
+            status,
+            salesStartDate: null,
+            endDate: new Date('2999-12-11T02:00:00Z'),
+          } as never,
+        ]);
+
+        await expect(service.checkout(dto, BUYER)).rejects.toThrow(
+          new UnprocessableEntityException(
+            'As vendas do evento "Calourada" não estão abertas',
+          ),
+        );
+        expect(paymentRepository.create).not.toHaveBeenCalled();
+        expect(orderService.markAsPaid).not.toHaveBeenCalled();
+        expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
+      },
+    );
 
     it('propaga a falha da emissão para a transaction desfazer o pagamento', async () => {
       ticketService.issueForPaidOrder.mockRejectedValue(new Error('db fora'));
@@ -303,7 +424,7 @@ describe('PaymentService', () => {
   });
 
   describe('update()', () => {
-    it('atualiza o status do payment existente', async () => {
+    it('atualiza o status do payment existente com lock no pedido dentro da transaction', async () => {
       paymentRepository.findByOrderId.mockResolvedValue(makePayment());
       const updated = makePayment({ status: 'confirmado' });
       paymentRepository.update.mockResolvedValue(updated);
@@ -312,10 +433,28 @@ describe('PaymentService', () => {
         status: 'confirmado',
       });
 
-      expect(paymentRepository.update).toHaveBeenCalledWith('payment-1', {
-        status: 'confirmado',
-      });
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(orderService.lockById).toHaveBeenCalledWith(ORDER_ID, tx);
+      expect(paymentRepository.findByOrderId).toHaveBeenCalledWith(
+        ORDER_ID,
+        tx,
+      );
+      expect(paymentRepository.update).toHaveBeenCalledWith(
+        'payment-1',
+        { status: 'confirmado' },
+        tx,
+      );
       expect(result).toEqual(updated);
+    });
+
+    it('lança NotFound quando o pedido não existe', async () => {
+      orderService.lockById.mockRejectedValue(new NotFoundException());
+
+      await expect(
+        service.update(ORDER_ID, { status: 'confirmado' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(paymentRepository.findByOrderId).not.toHaveBeenCalled();
+      expect(paymentRepository.update).not.toHaveBeenCalled();
     });
 
     it('lança NotFound quando o payment não existe', async () => {
@@ -325,6 +464,74 @@ describe('PaymentService', () => {
         service.update(ORDER_ID, { status: 'confirmado' }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(paymentRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('propaga estorno em transaction para o pedido e todos os ingressos', async () => {
+      paymentRepository.findByOrderId.mockResolvedValue(
+        makePayment({ status: 'confirmado' }),
+      );
+      const refunded = makePayment({ status: 'estornado' });
+      paymentRepository.update.mockResolvedValue(refunded);
+      orderService.markAsCancelled.mockResolvedValue({
+        id: ORDER_ID,
+        status: 'cancelado',
+      } as never);
+      ticketService.cancelByOrder.mockResolvedValue([]);
+
+      const result = await service.update(ORDER_ID, { status: 'estornado' });
+
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(orderService.lockById).toHaveBeenCalledWith(ORDER_ID, tx);
+      expect(paymentRepository.findByOrderId).toHaveBeenCalledWith(
+        ORDER_ID,
+        tx,
+      );
+      expect(paymentRepository.update).toHaveBeenCalledWith(
+        'payment-1',
+        { status: 'estornado' },
+        tx,
+      );
+      expect(orderService.markAsCancelled).toHaveBeenCalledWith(ORDER_ID, tx);
+      expect(ticketService.cancelByOrder).toHaveBeenCalledWith(ORDER_ID, tx);
+      expect(result).toEqual(refunded);
+    });
+
+    it.each(['pendente', 'estornado'] as const)(
+      'rejeita transição inválida (%s -> estornado) dentro da transaction sem alterar registros',
+      async (currentStatus) => {
+        paymentRepository.findByOrderId.mockResolvedValue(
+          makePayment({ status: currentStatus }),
+        );
+
+        await expect(
+          service.update(ORDER_ID, { status: 'estornado' }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(db.transaction).toHaveBeenCalledTimes(1);
+        expect(orderService.lockById).toHaveBeenCalledWith(ORDER_ID, tx);
+        expect(paymentRepository.findByOrderId).toHaveBeenCalledWith(
+          ORDER_ID,
+          tx,
+        );
+        expect(paymentRepository.update).not.toHaveBeenCalled();
+        expect(orderService.markAsCancelled).not.toHaveBeenCalled();
+        expect(ticketService.cancelByOrder).not.toHaveBeenCalled();
+      },
+    );
+
+    it('propaga falha no cancelamento do pedido para a transaction fazer rollback', async () => {
+      paymentRepository.findByOrderId.mockResolvedValue(
+        makePayment({ status: 'confirmado' }),
+      );
+      paymentRepository.update.mockResolvedValue(
+        makePayment({ status: 'estornado' }),
+      );
+      orderService.markAsCancelled.mockRejectedValue(new Error('db fora'));
+
+      await expect(
+        service.update(ORDER_ID, { status: 'estornado' }),
+      ).rejects.toThrow('db fora');
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(ticketService.cancelByOrder).not.toHaveBeenCalled();
     });
   });
 });

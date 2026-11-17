@@ -1,13 +1,40 @@
-CREATE TYPE "public"."order_status" AS ENUM('pendente', 'pago', 'cancelado');--> statement-breakpoint
-CREATE TYPE "public"."event_age_rating" AS ENUM('L', '10', '12', '14', '16', '18');--> statement-breakpoint
-CREATE TYPE "public"."event_status" AS ENUM('draft', 'published', 'finished', 'cancelled');--> statement-breakpoint
-CREATE TYPE "public"."task_status" AS ENUM('pending', 'in_progress', 'done');--> statement-breakpoint
-CREATE TYPE "public"."ticket_status" AS ENUM('emitido', 'usado', 'cancelado');--> statement-breakpoint
-CREATE TYPE "public"."organization_event_role" AS ENUM('main', 'co_organizer', 'supporter');--> statement-breakpoint
-CREATE TYPE "public"."despesa_payment_status" AS ENUM('pendente', 'pago', 'atrasado', 'cancelado');--> statement-breakpoint
-CREATE TYPE "public"."payment_method" AS ENUM('cartao_credito', 'cartao_debito', 'pix', 'boleto', 'transferencia');--> statement-breakpoint
-CREATE TYPE "public"."payment_status" AS ENUM('pendente', 'confirmado', 'recusado', 'estornado');--> statement-breakpoint
-CREATE TABLE "users" (
+DO $$ BEGIN
+ CREATE TYPE "public"."order_status" AS ENUM('pendente', 'pago', 'cancelado');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."event_age_rating" AS ENUM('L', '10', '12', '14', '16', '18');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."event_status" AS ENUM('draft', 'published', 'finished', 'cancelled');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."task_status" AS ENUM('pending', 'in_progress', 'done');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."ticket_status" AS ENUM('emitido', 'usado', 'cancelado');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."organization_event_role" AS ENUM('main', 'co_organizer', 'supporter');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."despesa_payment_status" AS ENUM('pendente', 'pago', 'atrasado', 'cancelado');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."payment_method" AS ENUM('cartao_credito', 'cartao_debito', 'pix', 'boleto', 'transferencia');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."payment_status" AS ENUM('pendente', 'confirmado', 'recusado', 'estornado');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "users" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"first_name" varchar(100) NOT NULL,
 	"last_name" varchar(100) NOT NULL,
@@ -23,7 +50,7 @@ CREATE TABLE "users" (
 	"deleted_at" timestamp
 );
 --> statement-breakpoint
-CREATE TABLE "orders" (
+CREATE TABLE IF NOT EXISTS "orders" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"status" "order_status" DEFAULT 'pendente' NOT NULL,
@@ -33,7 +60,7 @@ CREATE TABLE "orders" (
 	CONSTRAINT "orders_total_amount_non_negative" CHECK ("orders"."total_amount" >= 0)
 );
 --> statement-breakpoint
-CREATE TABLE "events" (
+CREATE TABLE IF NOT EXISTS "events" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" varchar(255) NOT NULL,
 	"description" text,
@@ -54,7 +81,7 @@ CREATE TABLE "events" (
 	CONSTRAINT "events_sales_start_before_event" CHECK ("events"."sales_start_date" <= "events"."start_date")
 );
 --> statement-breakpoint
-CREATE TABLE "tasks" (
+CREATE TABLE IF NOT EXISTS "tasks" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"event_id" uuid NOT NULL,
 	"responsible_user_id" uuid NOT NULL,
@@ -66,7 +93,7 @@ CREATE TABLE "tasks" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "ticket_types" (
+CREATE TABLE IF NOT EXISTS "ticket_types" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"event_id" uuid NOT NULL,
 	"batch" varchar(100) NOT NULL,
@@ -76,7 +103,7 @@ CREATE TABLE "ticket_types" (
 	CONSTRAINT "ticket_types_price_positive" CHECK ("ticket_types"."price" > 0)
 );
 --> statement-breakpoint
-CREATE TABLE "tickets" (
+CREATE TABLE IF NOT EXISTS "tickets" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"qr_code" varchar(64) NOT NULL,
 	"order_id" uuid NOT NULL,
@@ -89,7 +116,7 @@ CREATE TABLE "tickets" (
 	CONSTRAINT "tickets_qr_code_unique" UNIQUE("qr_code")
 );
 --> statement-breakpoint
-CREATE TABLE "addresses" (
+CREATE TABLE IF NOT EXISTS "addresses" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"zip_code" varchar(9) NOT NULL,
 	"street" varchar(255) NOT NULL,
@@ -103,7 +130,7 @@ CREATE TABLE "addresses" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "venues" (
+CREATE TABLE IF NOT EXISTS "venues" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"address_id" uuid NOT NULL,
 	"name" varchar(255) NOT NULL,
@@ -114,7 +141,7 @@ CREATE TABLE "venues" (
 	CONSTRAINT "venues_max_capacity_positive" CHECK ("venues"."max_capacity" > 0)
 );
 --> statement-breakpoint
-CREATE TABLE "organization_users" (
+CREATE TABLE IF NOT EXISTS "organization_users" (
 	"organization_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
 	"role" varchar(20) NOT NULL,
@@ -125,7 +152,7 @@ CREATE TABLE "organization_users" (
 	CONSTRAINT "organization_users_organization_id_user_id_pk" PRIMARY KEY("organization_id","user_id")
 );
 --> statement-breakpoint
-CREATE TABLE "organization_events" (
+CREATE TABLE IF NOT EXISTS "organization_events" (
 	"organization_id" uuid NOT NULL,
 	"event_id" uuid NOT NULL,
 	"role" "organization_event_role" NOT NULL,
@@ -134,7 +161,7 @@ CREATE TABLE "organization_events" (
 	CONSTRAINT "organization_events_organization_id_event_id_pk" PRIMARY KEY("organization_id","event_id")
 );
 --> statement-breakpoint
-CREATE TABLE "suppliers" (
+CREATE TABLE IF NOT EXISTS "suppliers" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"company_name" varchar(255) NOT NULL,
 	"cnpj_cpf" varchar(20) NOT NULL,
@@ -146,7 +173,7 @@ CREATE TABLE "suppliers" (
 	"deleted_at" timestamp
 );
 --> statement-breakpoint
-CREATE TABLE "organizations" (
+CREATE TABLE IF NOT EXISTS "organizations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" varchar(255) NOT NULL,
 	"description" text,
@@ -155,7 +182,7 @@ CREATE TABLE "organizations" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "expenses" (
+CREATE TABLE IF NOT EXISTS "expenses" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"event_id" uuid NOT NULL,
 	"fornecedor_id" uuid NOT NULL,
@@ -169,7 +196,7 @@ CREATE TABLE "expenses" (
 	CONSTRAINT "expenses_amount_non_negative" CHECK ("expenses"."amount" >= 0)
 );
 --> statement-breakpoint
-CREATE TABLE "pagamentos" (
+CREATE TABLE IF NOT EXISTS "pagamentos" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"order_id" uuid NOT NULL,
 	"payment_method" "payment_method" NOT NULL,
@@ -182,35 +209,92 @@ CREATE TABLE "pagamentos" (
 	CONSTRAINT "pagamentos_amount_non_negative" CHECK ("pagamentos"."amount" >= 0)
 );
 --> statement-breakpoint
-ALTER TABLE "orders" ADD CONSTRAINT "orders_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "events" ADD CONSTRAINT "events_organizer_id_organizations_id_fk" FOREIGN KEY ("organizer_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "events" ADD CONSTRAINT "events_venue_id_venues_id_fk" FOREIGN KEY ("venue_id") REFERENCES "public"."venues"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "tasks" ADD CONSTRAINT "tasks_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "tasks" ADD CONSTRAINT "tasks_responsible_user_id_users_id_fk" FOREIGN KEY ("responsible_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "ticket_types" ADD CONSTRAINT "ticket_types_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "tickets" ADD CONSTRAINT "tickets_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "tickets" ADD CONSTRAINT "tickets_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "tickets" ADD CONSTRAINT "tickets_ticket_type_id_ticket_types_id_fk" FOREIGN KEY ("ticket_type_id") REFERENCES "public"."ticket_types"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "tickets" ADD CONSTRAINT "tickets_holder_user_id_users_id_fk" FOREIGN KEY ("holder_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "venues" ADD CONSTRAINT "venues_address_id_addresses_id_fk" FOREIGN KEY ("address_id") REFERENCES "public"."addresses"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "organization_users" ADD CONSTRAINT "organization_users_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "organization_users" ADD CONSTRAINT "organization_users_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "organization_events" ADD CONSTRAINT "organization_events_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "organization_events" ADD CONSTRAINT "organization_events_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "organizations" ADD CONSTRAINT "organizations_representative_id_users_id_fk" FOREIGN KEY ("representative_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "expenses" ADD CONSTRAINT "expenses_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "expenses" ADD CONSTRAINT "expenses_fornecedor_id_suppliers_id_fk" FOREIGN KEY ("fornecedor_id") REFERENCES "public"."suppliers"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "pagamentos" ADD CONSTRAINT "pagamentos_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "users_email_unique" ON "users" USING btree ("email") WHERE "users"."deleted_at" is null;--> statement-breakpoint
-CREATE UNIQUE INDEX "users_cpf_unique" ON "users" USING btree ("cpf") WHERE "users"."deleted_at" is null;--> statement-breakpoint
-CREATE INDEX "tasks_event_id_idx" ON "tasks" USING btree ("event_id");--> statement-breakpoint
-CREATE INDEX "tasks_responsible_user_id_idx" ON "tasks" USING btree ("responsible_user_id");--> statement-breakpoint
-CREATE INDEX "ticket_types_event_id_idx" ON "ticket_types" USING btree ("event_id");--> statement-breakpoint
-CREATE INDEX "tickets_order_id_idx" ON "tickets" USING btree ("order_id");--> statement-breakpoint
-CREATE INDEX "tickets_event_id_idx" ON "tickets" USING btree ("event_id");--> statement-breakpoint
-CREATE INDEX "tickets_ticket_type_id_idx" ON "tickets" USING btree ("ticket_type_id");--> statement-breakpoint
-CREATE INDEX "tickets_holder_user_id_idx" ON "tickets" USING btree ("holder_user_id");--> statement-breakpoint
-CREATE INDEX "organization_events_event_id_idx" ON "organization_events" USING btree ("event_id");--> statement-breakpoint
-CREATE INDEX "organization_events_organization_id_idx" ON "organization_events" USING btree ("organization_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "suppliers_cnpj_cpf_unique" ON "suppliers" USING btree ("cnpj_cpf") WHERE "suppliers"."deleted_at" is null;--> statement-breakpoint
-CREATE UNIQUE INDEX "suppliers_email_unique" ON "suppliers" USING btree ("email") WHERE "suppliers"."deleted_at" is null;
+DO $$ BEGIN
+ ALTER TABLE "orders" ADD CONSTRAINT "orders_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "events" ADD CONSTRAINT "events_organizer_id_organizations_id_fk" FOREIGN KEY ("organizer_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "events" ADD CONSTRAINT "events_venue_id_venues_id_fk" FOREIGN KEY ("venue_id") REFERENCES "public"."venues"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "tasks" ADD CONSTRAINT "tasks_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "tasks" ADD CONSTRAINT "tasks_responsible_user_id_users_id_fk" FOREIGN KEY ("responsible_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "ticket_types" ADD CONSTRAINT "ticket_types_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "tickets" ADD CONSTRAINT "tickets_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "tickets" ADD CONSTRAINT "tickets_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "tickets" ADD CONSTRAINT "tickets_ticket_type_id_ticket_types_id_fk" FOREIGN KEY ("ticket_type_id") REFERENCES "public"."ticket_types"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "tickets" ADD CONSTRAINT "tickets_holder_user_id_users_id_fk" FOREIGN KEY ("holder_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "venues" ADD CONSTRAINT "venues_address_id_addresses_id_fk" FOREIGN KEY ("address_id") REFERENCES "public"."addresses"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "organization_users" ADD CONSTRAINT "organization_users_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "organization_users" ADD CONSTRAINT "organization_users_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "organization_events" ADD CONSTRAINT "organization_events_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "organization_events" ADD CONSTRAINT "organization_events_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "organizations" ADD CONSTRAINT "organizations_representative_id_users_id_fk" FOREIGN KEY ("representative_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "expenses" ADD CONSTRAINT "expenses_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "expenses" ADD CONSTRAINT "expenses_fornecedor_id_suppliers_id_fk" FOREIGN KEY ("fornecedor_id") REFERENCES "public"."suppliers"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "pagamentos" ADD CONSTRAINT "pagamentos_order_id_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."orders"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "users_email_unique" ON "users" USING btree ("email") WHERE "users"."deleted_at" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "users_cpf_unique" ON "users" USING btree ("cpf") WHERE "users"."deleted_at" is null;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tasks_event_id_idx" ON "tasks" USING btree ("event_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tasks_responsible_user_id_idx" ON "tasks" USING btree ("responsible_user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "ticket_types_event_id_idx" ON "ticket_types" USING btree ("event_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tickets_order_id_idx" ON "tickets" USING btree ("order_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tickets_event_id_idx" ON "tickets" USING btree ("event_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tickets_ticket_type_id_idx" ON "tickets" USING btree ("ticket_type_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tickets_holder_user_id_idx" ON "tickets" USING btree ("holder_user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "organization_events_event_id_idx" ON "organization_events" USING btree ("event_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "organization_events_organization_id_idx" ON "organization_events" USING btree ("organization_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "suppliers_cnpj_cpf_unique" ON "suppliers" USING btree ("cnpj_cpf") WHERE "suppliers"."deleted_at" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "suppliers_email_unique" ON "suppliers" USING btree ("email") WHERE "suppliers"."deleted_at" is null;

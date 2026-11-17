@@ -12,14 +12,16 @@ export const ORG_ACCESS_KEY = 'orgAccess';
 /** De onde o guard tira a organização que está sendo acessada. */
 export type OrgAccessSource =
   /** Param da rota que já é o id da organização (padrão: `orgId`). */
-  | { from: 'org'; param?: string }
+  | { from: 'org' | 'param'; param?: string }
   /**
    * Param da rota que é o id do evento (padrão: `eventId`); usa
    * `events.organizer_id`. Quem não é membro da organização recebe 404.
    */
   | { from: 'event'; param?: string }
   /** Campo do body com o id da organização (padrão: `organizerId`). */
-  | { from: 'body'; field?: string };
+  | { from: 'body'; field?: string }
+  /** Qualquer organização em que o usuário tenha vínculo aceito (ex.: recursos compartilhados como `venues`). */
+  | { from: 'any' };
 
 export interface OrgAccessMetadata {
   level: OrgAccessLevel;

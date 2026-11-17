@@ -102,6 +102,15 @@ saudável, a resposta é:
 
 Se o banco estiver inacessível, responde `503` com o motivo da falha.
 
+Para saber só se a API está no ar, sem depender do banco (liveness), use:
+
+```bash
+curl http://localhost:3000/health/ping
+```
+
+A resposta é sempre `{ "status": "ok" }`. Use `/health/ping` como liveness e
+`/health` como readiness.
+
 ## Banco de dados
 
 O acesso a dados usa [Drizzle ORM](https://orm.drizzle.team) sobre o driver

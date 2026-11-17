@@ -13,6 +13,9 @@ import { UsersService } from './users.service';
 import { DRIZZLE } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { OrderService } from '../order/order.service';
+import { TicketController } from '../ticket/ticket.controller';
+import { TicketService } from '../ticket/ticket.service';
+import { PNG_SIGNATURE } from '../common/validation/image-upload';
 
 const VALID_CPF = '52998224725';
 const OTHER_VALID_CPF = '11144477735';
@@ -56,12 +59,16 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
           signOptions: { expiresIn: '1d' },
         }),
       ],
-      controllers: [AuthController, UsersController],
+      controllers: [AuthController, UsersController, TicketController],
       providers: [
         AuthService,
         UsersService,
         { provide: DRIZZLE, useValue: db },
-        { provide: OrderService, useValue: { findAll: () => [] } },
+        {
+          provide: OrderService,
+          useValue: { findAll: () => [], findAllWithDetails: () => [] },
+        },
+        { provide: TicketService, useValue: { findAllByHolder: () => [] } },
       ],
     }).compile();
     app = module.createNestApplication();
@@ -319,7 +326,10 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
   describe('PATCH /users/me/avatar', () => {
     it('salva a foto de perfil como Data URI e retorna no perfil do usuário', async () => {
       const { token } = await register('avatar@example.com');
-      const imageBuffer = Buffer.from('fake-png-content');
+      const imageBuffer = Buffer.concat([
+        PNG_SIGNATURE,
+        Buffer.from('fake-png-content'),
+      ]);
       const expectedDataUri = `data:image/png;base64,${imageBuffer.toString('base64')}`;
 
       const response = await http()
@@ -389,7 +399,7 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
       await http()
         .patch('/users/me/password')
         .set('Authorization', `Bearer ${token}`)
-        .send({ currentPassword: 'errada', newPassword: 'nova123' })
+        .send({ currentPassword: 'errada', newPassword: 'nova1234' })
         .expect(401);
       await http()
         .post('/auth/login')
@@ -397,12 +407,13 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
         .expect(200);
     });
 
-    it('troca a senha: só a nova funciona no login seguinte', async () => {
+    it('troca a senha (inclusive com até 72 caracteres): só a nova funciona no login seguinte', async () => {
       const { token } = await register('troca@example.com');
+      const longPassword = 'n'.repeat(72);
       await http()
         .patch('/users/me/password')
         .set('Authorization', `Bearer ${token}`)
-        .send({ currentPassword: 'secret123', newPassword: 'nova123' })
+        .send({ currentPassword: 'secret123', newPassword: longPassword })
         .expect(204);
       await http()
         .post('/auth/login')
@@ -410,17 +421,18 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
         .expect(401);
       await http()
         .post('/auth/login')
-        .send({ email: 'troca@example.com', password: 'nova123' })
+        .send({ email: 'troca@example.com', password: longPassword })
         .expect(200);
     });
 
     it.each([
       { currentPassword: 'secret123' },
-      { currentPassword: 'secret123', newPassword: 'curta' },
-      { newPassword: 'nova123' },
+      { currentPassword: 'secret123', newPassword: 'curta12' },
+      { currentPassword: 'secret123', newPassword: 'x'.repeat(73) },
+      { newPassword: 'nova1234' },
     ])('recusa payload inválido %j', async (body) => {
       const { token } = await register(
-        `senha-payload-${Object.keys(body).length}-${body.newPassword ?? 'x'}@example.com`,
+        `senha-payload-${Object.keys(body).length}-${body.newPassword?.length ?? 'x'}@example.com`,
       );
       await http()
         .patch('/users/me/password')
@@ -450,6 +462,57 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
       expect(row.deleted_at).not.toBeNull();
       expect(row.status).toBe('INACTIVE');
     });
+
+    it('invalida o token JWT após DELETE /users/me em GET /users/me/orders, GET /users/me/tickets, GET /users/me e GET /auth/me', async () => {
+      const { token } = await register('token-revogado@example.com');
+
+      await http()
+        .get('/users/me/orders')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      await http()
+        .get('/users/me/tickets')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      await http()
+        .delete('/users/me')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(204);
+
+      for (const path of [
+        '/users/me/orders',
+        '/users/me/tickets',
+        '/users/me',
+        '/auth/me',
+      ]) {
+        await http()
+          .get(path)
+          .set('Authorization', `Bearer ${token}`)
+          .expect(401);
+      }
+    });
+
+    it.each(['INACTIVE', 'BLOCKED'])(
+      'rejeita o token JWT com 401 quando a conta passa para status %s',
+      async (status) => {
+        const { id, token } = await register(
+          `status-${status.toLowerCase()}@example.com`,
+        );
+
+        await pg.query('UPDATE users SET status = $1 WHERE id = $2', [
+          status,
+          id,
+        ]);
+
+        for (const path of ['/users/me/orders', '/users/me/tickets']) {
+          await http()
+            .get(path)
+            .set('Authorization', `Bearer ${token}`)
+            .expect(401);
+        }
+      },
+    );
 
     it('exclui a conta e libera e-mail e CPF para novo cadastro', async () => {
       const email = 'libera@example.com';
@@ -536,6 +599,22 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
       expect(Object.keys(detail.body).sort()).toEqual(userResponseKeys);
+    });
+
+    it('sincroniza a role a partir do banco mesmo com token emitido antes da alteração', async () => {
+      const { id, token } = await register('role-sync@example.com');
+
+      await http()
+        .get('/users')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+
+      await pg.query("UPDATE users SET role = 'ADMIN' WHERE id = $1", [id]);
+
+      await http()
+        .get('/users')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
     });
 
     it('rotas /me não são capturadas por /:id', async () => {

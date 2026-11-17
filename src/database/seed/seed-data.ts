@@ -1,4 +1,4 @@
-import type { EventAgeRating, EventStatus } from '../schema';
+import type { EventAgeRating, EventCategory, EventStatus } from '../schema';
 import {
   InviteStatus,
   OrganizationPermission,
@@ -21,6 +21,8 @@ export interface SeedUser {
   email: string;
   role: 'USER' | 'ADMIN';
   signupIntent: 'BUY' | 'ORGANIZE' | null;
+  cpf?: string;
+  birthDate?: string;
 }
 
 export const seedUsers: SeedUser[] = [
@@ -58,6 +60,8 @@ export const seedUsers: SeedUser[] = [
     email: 'comprador@hubee.com.br',
     role: 'USER',
     signupIntent: 'BUY',
+    cpf: '52998224725',
+    birthDate: '1998-05-15',
   },
 ];
 
@@ -157,7 +161,7 @@ export interface SeedEvent {
   name: string;
   description: string;
   venue: string;
-  category: string;
+  category: EventCategory;
   edition: string | null;
   ageRating: EventAgeRating;
   status: EventStatus;
@@ -175,7 +179,7 @@ export const seedEvents: SeedEvent[] = [
     description:
       'Dois dias de shows com artistas nacionais em três palcos simultâneos.',
     venue: 'Espaço Hubee Arena',
-    category: 'Música',
+    category: 'shows',
     edition: '1ª edição',
     ageRating: '16',
     status: 'published',
@@ -195,7 +199,7 @@ export const seedEvents: SeedEvent[] = [
     name: 'Stand-up Hubee: Noite de Comédia',
     description: 'Uma noite com os melhores comediantes da nova geração.',
     venue: 'Teatro Hubee',
-    category: 'Comédia',
+    category: 'shows',
     edition: null,
     ageRating: '14',
     status: 'published',
@@ -214,7 +218,7 @@ export const seedEvents: SeedEvent[] = [
     description:
       'Conferência sobre tecnologia, produto e inovação com palestras e workshops.',
     venue: 'Centro de Convenções Hubee',
-    category: 'Tecnologia',
+    category: 'palestras',
     edition: '2027',
     ageRating: 'L',
     status: 'published',
@@ -233,7 +237,7 @@ export const seedEvents: SeedEvent[] = [
     name: 'Feira Gastronômica Hubee',
     description: 'Food trucks, chefs convidados e oficinas de culinária.',
     venue: 'Espaço Hubee Arena',
-    category: 'Gastronomia',
+    category: 'outros',
     edition: null,
     ageRating: 'L',
     status: 'draft',

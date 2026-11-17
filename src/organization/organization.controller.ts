@@ -24,20 +24,29 @@ import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OrganizationService } from './organization.service';
 import { toResponse } from '../common/serialization/to-response';
 import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import { Authenticated } from '../auth/decorators/authenticated.decorator';
+import { OrgAccess } from '../auth/decorators/org-access.decorator';
+import {
+  CurrentUser,
+  type AuthenticatedUser,
+} from '../auth/decorators/current-user.decorator';
 
 @ApiTags('organizations')
 @Controller('organizations')
 export class OrganizationController {
   constructor(private readonly organizationService: OrganizationService) {}
 
-  @AdminOnly()
+  @Authenticated()
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrganizationResponseDto })
-  async create(@Body() dto: CreateOrganizationDto) {
+  async create(
+    @Body() dto: CreateOrganizationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return toResponse(
       OrganizationResponseDto,
-      await this.organizationService.create(dto),
+      await this.organizationService.create(dto, user.id),
     );
   }
 
@@ -59,7 +68,7 @@ export class OrganizationController {
     );
   }
 
-  @AdminOnly()
+  @OrgAccess('manage', { from: 'param', param: 'id' })
   @Patch(':id')
   @ApiOkResponse({ type: OrganizationResponseDto })
   async update(

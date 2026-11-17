@@ -4,12 +4,16 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 import { canAccess } from '../auth/ownership';
 import { DRIZZLE } from '../database/database.constants';
-import type { DrizzleDatabase } from '../database/database.provider';
-import { OrderService } from '../order/order.service';
+import type {
+  DbExecutor,
+  DrizzleDatabase,
+} from '../database/database.provider';
+import { OrderService, isOnSale } from '../order/order.service';
 import { TicketService } from '../ticket/ticket.service';
 import { CheckoutDto } from './dto/checkout.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -46,14 +50,21 @@ export class PaymentService {
    * na mesma transaction: se algo falhar, o pedido continua pendente e nenhum
    * ingresso é emitido. O pedido fica travado, então dois checkouts ao mesmo
    * tempo não emitem os ingressos duas vezes.
+   *
+   * Pedido com a reserva vencida é cancelado (e a transaction confirma esse
+   * cancelamento) antes de responder 422: o saldo dele já voltou ao lote.
    */
-  checkout(dto: CheckoutDto, user: AuthenticatedUser) {
-    return this.db.transaction(async (tx) => {
+  async checkout(dto: CheckoutDto, user: AuthenticatedUser) {
+    const confirmed = await this.db.transaction(async (tx) => {
       const order = await this.orderService.lockPendingForCheckout(
         dto.orderId,
         user,
         tx,
       );
+
+      if (await this.orderService.cancelIfReservationExpired(order, tx)) {
+        return null;
+      }
 
       const existing = await this.paymentRepository.findByOrderId(order.id, tx);
       if (existing) {
@@ -61,6 +72,9 @@ export class PaymentService {
           `Pedido ${order.id} já possui um pagamento registrado`,
         );
       }
+
+      const items = await this.orderService.findItems(order.id, tx);
+      await this.ensureEventsOnSale(items, tx);
 
       const payment = await this.paymentRepository.create(
         {
@@ -74,11 +88,17 @@ export class PaymentService {
       );
 
       const paidOrder = await this.orderService.markAsPaid(order.id, tx);
-      const items = await this.orderService.findItems(order.id, tx);
       await this.ticketService.issueForPaidOrder(paidOrder, items, tx);
 
       return payment;
     });
+
+    if (!confirmed) {
+      throw new UnprocessableEntityException(
+        'A reserva deste pedido expirou. Faça um novo pedido para comprar os ingressos.',
+      );
+    }
+    return confirmed;
   }
 
   async create(
@@ -102,31 +122,86 @@ export class PaymentService {
 
   /** Só ADMIN chega aqui (confirmação/estorno), então não checa dono. */
   async update(orderId: string, dto: UpdatePaymentDto) {
-    await this.findOrder(orderId);
-    const payment = await this.findByOrder(orderId);
+    return this.db.transaction(async (tx) => {
+      // Adquire lock no pedido para evitar duas requisições simultâneas
+      // lendo o mesmo payment.status antes do commit (GOL-215).
+      await this.lockOrderById(orderId, tx);
+      const payment = await this.findByOrder(orderId, tx);
 
-    // Validação de transição de status
-    if (dto.status && dto.status !== payment.status) {
-      const allowedTransitions = VALID_STATUS_TRANSITIONS[payment.status] ?? [];
+      // Validação de transição de status dentro da transaction
+      if (dto.status) {
+        const allowedTransitions =
+          VALID_STATUS_TRANSITIONS[payment.status] ?? [];
 
-      if (!allowedTransitions.includes(dto.status)) {
-        throw new BadRequestException(
-          `Transição de status inválida: não é permitido alterar de '${payment.status}' para '${dto.status}'.`,
+        if (!allowedTransitions.includes(dto.status)) {
+          throw new BadRequestException(
+            `Transição de status inválida: não é permitido alterar de '${payment.status}' para '${dto.status}'.`,
+          );
+        }
+      }
+
+      const updatedPayment = await this.paymentRepository.update(
+        payment.id,
+        dto,
+        tx,
+      );
+
+      if (dto.status === 'estornado') {
+        await this.orderService.markAsCancelled(orderId, tx);
+        await this.ticketService.cancelByOrder(orderId, tx);
+      }
+
+      return updatedPayment;
+    });
+  }
+
+  private async ensureEventsOnSale(
+    items: Awaited<ReturnType<OrderService['findItems']>>,
+    executor: DbExecutor,
+  ) {
+    const eventIds = [
+      ...new Set(
+        items
+          .map((item) => item.ticketType?.eventId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (eventIds.length === 0) return;
+
+    const lockedEvents = await this.orderService.findEventsForShare(
+      eventIds,
+      executor,
+    );
+    const now = new Date();
+    for (const event of lockedEvents) {
+      if (event.status === 'cancelled') {
+        throw new UnprocessableEntityException(
+          `O evento "${event.name}" foi cancelado`,
+        );
+      }
+      if (!isOnSale(event, now)) {
+        throw new UnprocessableEntityException(
+          `As vendas do evento "${event.name}" não estão abertas`,
         );
       }
     }
-
-    return this.paymentRepository.update(payment.id, dto);
   }
 
-  private async findByOrder(orderId: string) {
-    const payment = await this.paymentRepository.findByOrderId(orderId);
+  private async findByOrder(orderId: string, executor?: DbExecutor) {
+    const payment = await this.paymentRepository.findByOrderId(
+      orderId,
+      executor,
+    );
     if (!payment) {
       throw new NotFoundException(
         `Pagamento do pedido ${orderId} não encontrado`,
       );
     }
     return payment;
+  }
+
+  private lockOrderById(orderId: string, executor: DbExecutor) {
+    return this.orderService.lockById(orderId, executor);
   }
 
   /**

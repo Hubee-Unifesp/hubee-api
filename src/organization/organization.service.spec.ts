@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { DRIZZLE } from '../database/database.constants';
 import { organizations } from '../database/schema';
 import { UsersService } from '../users/users.service';
 import { OrganizationRepository } from './organization.repository';
@@ -13,7 +14,7 @@ function makeOrganization(overrides: Partial<Organization> = {}): Organization {
     id: 'org-1',
     name: 'Centro Acadêmico',
     description: 'Organização estudantil',
-    representativeId: null,
+    representativeId: 'user-1',
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -22,11 +23,19 @@ function makeOrganization(overrides: Partial<Organization> = {}): Organization {
 
 describe('OrganizationService', () => {
   let service: OrganizationService;
+  const tx = { tx: true };
+  const db = {
+    transaction: jest.fn(async (callback: (tx: unknown) => unknown) =>
+      callback(tx),
+    ),
+  };
   let organizationRepository: {
     findAll: jest.Mock<OrganizationRepository['findAll']>;
     findById: jest.Mock<OrganizationRepository['findById']>;
     create: jest.Mock<OrganizationRepository['create']>;
+    addMember: jest.Mock<OrganizationRepository['addMember']>;
     update: jest.Mock<OrganizationRepository['update']>;
+    deleteMembers: jest.Mock<OrganizationRepository['deleteMembers']>;
     delete: jest.Mock<OrganizationRepository['delete']>;
   };
   let usersService: {
@@ -34,11 +43,14 @@ describe('OrganizationService', () => {
   };
 
   beforeEach(async () => {
+    db.transaction.mockClear();
     organizationRepository = {
       findAll: jest.fn<OrganizationRepository['findAll']>(),
       findById: jest.fn<OrganizationRepository['findById']>(),
       create: jest.fn<OrganizationRepository['create']>(),
+      addMember: jest.fn<OrganizationRepository['addMember']>(),
       update: jest.fn<OrganizationRepository['update']>(),
+      deleteMembers: jest.fn<OrganizationRepository['deleteMembers']>(),
       delete: jest.fn<OrganizationRepository['delete']>(),
     };
     usersService = {
@@ -48,6 +60,10 @@ describe('OrganizationService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrganizationService,
+        {
+          provide: DRIZZLE,
+          useValue: db,
+        },
         {
           provide: OrganizationRepository,
           useValue: organizationRepository,
@@ -94,67 +110,96 @@ describe('OrganizationService', () => {
   });
 
   describe('create()', () => {
-    it('delega a criação para o repositório', async () => {
-      const created = makeOrganization();
-      organizationRepository.create.mockResolvedValue(created);
-
-      const result = await service.create({
-        name: 'Centro Acadêmico',
-        description: 'Organização estudantil',
-      });
-
-      expect(organizationRepository.create).toHaveBeenCalledWith({
-        name: 'Centro Acadêmico',
-        description: 'Organização estudantil',
-      });
-      expect(result).toEqual(created);
-    });
-
-    it('não consulta usuários quando não há representante', async () => {
-      organizationRepository.create.mockResolvedValue(makeOrganization());
-
-      await service.create({ name: 'Centro Acadêmico' });
-
-      expect(usersService.findOne).not.toHaveBeenCalled();
-    });
-
-    it('valida o representante antes de criar', async () => {
+    it('cria a organização e o vínculo de admin em uma transação', async () => {
       const created = makeOrganization({ representativeId: 'user-1' });
       usersService.findOne.mockResolvedValue({ id: 'user-1' });
       organizationRepository.create.mockResolvedValue(created);
+      organizationRepository.addMember.mockResolvedValue({} as never);
 
-      const result = await service.create({
-        name: 'Centro Acadêmico',
-        representativeId: 'user-1',
-      });
+      const result = await service.create(
+        {
+          name: 'Centro Acadêmico',
+          description: 'Organização estudantil',
+        },
+        'user-1',
+      );
 
       expect(usersService.findOne).toHaveBeenCalledWith('user-1');
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(organizationRepository.create).toHaveBeenCalledWith(
+        {
+          name: 'Centro Acadêmico',
+          description: 'Organização estudantil',
+          representativeId: 'user-1',
+        },
+        tx,
+      );
+      expect(organizationRepository.addMember).toHaveBeenCalledWith(
+        {
+          orgId: 'org-1',
+          userId: 'user-1',
+          role: 'admin',
+          permission: 'full',
+          inviteStatus: 'accepted',
+        },
+        tx,
+      );
       expect(result).toEqual(created);
     });
 
-    it('lança NotFound e não cria quando o representante não existe', async () => {
+    it('garante que representativeId receba o user.id do criador mesmo se enviado outro valor no DTO', async () => {
+      const created = makeOrganization({ representativeId: 'user-1' });
+      usersService.findOne.mockResolvedValue({ id: 'user-1' });
+      organizationRepository.create.mockResolvedValue(created);
+      organizationRepository.addMember.mockResolvedValue({} as never);
+
+      await service.create(
+        {
+          name: 'Centro Acadêmico',
+          representativeId: 'outro-user',
+        },
+        'user-1',
+      );
+
+      expect(organizationRepository.create).toHaveBeenCalledWith(
+        {
+          name: 'Centro Acadêmico',
+          representativeId: 'user-1',
+        },
+        tx,
+      );
+    });
+
+    it('lança NotFound e não abre transação quando o usuário criador não existe', async () => {
       usersService.findOne.mockRejectedValue(
         new NotFoundException('Usuário não encontrado.'),
       );
 
       await expect(
-        service.create({
-          name: 'Centro Acadêmico',
-          representativeId: 'user-1',
-        }),
+        service.create(
+          {
+            name: 'Centro Acadêmico',
+          },
+          'user-1',
+        ),
       ).rejects.toBeInstanceOf(NotFoundException);
+      expect(db.transaction).not.toHaveBeenCalled();
       expect(organizationRepository.create).not.toHaveBeenCalled();
+      expect(organizationRepository.addMember).not.toHaveBeenCalled();
     });
 
     it('propaga erros inesperados da consulta de usuários', async () => {
       usersService.findOne.mockRejectedValue(new Error('conexão perdida'));
 
       await expect(
-        service.create({
-          name: 'Centro Acadêmico',
-          representativeId: 'user-1',
-        }),
+        service.create(
+          {
+            name: 'Centro Acadêmico',
+          },
+          'user-1',
+        ),
       ).rejects.toThrow('conexão perdida');
+      expect(db.transaction).not.toHaveBeenCalled();
       expect(organizationRepository.create).not.toHaveBeenCalled();
     });
   });
@@ -197,13 +242,22 @@ describe('OrganizationService', () => {
   });
 
   describe('remove()', () => {
-    it('remove quando a organização existe', async () => {
+    it('remove os vínculos e a organização na mesma transação quando ela existe', async () => {
       organizationRepository.findById.mockResolvedValue(makeOrganization());
+      organizationRepository.deleteMembers.mockResolvedValue(undefined);
       organizationRepository.delete.mockResolvedValue(undefined);
 
       await service.remove('org-1');
 
-      expect(organizationRepository.delete).toHaveBeenCalledWith('org-1');
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(organizationRepository.deleteMembers).toHaveBeenCalledWith(
+        'org-1',
+        tx,
+      );
+      expect(organizationRepository.delete).toHaveBeenCalledWith('org-1', tx);
+      expect(
+        organizationRepository.deleteMembers.mock.invocationCallOrder[0],
+      ).toBeLessThan(organizationRepository.delete.mock.invocationCallOrder[0]);
     });
 
     it('lança NotFound e não apaga quando a organização não existe', async () => {
@@ -212,7 +266,9 @@ describe('OrganizationService', () => {
       await expect(service.remove('org-1')).rejects.toBeInstanceOf(
         NotFoundException,
       );
+      expect(organizationRepository.deleteMembers).not.toHaveBeenCalled();
       expect(organizationRepository.delete).not.toHaveBeenCalled();
+      expect(db.transaction).not.toHaveBeenCalled();
     });
   });
 });
