@@ -64,7 +64,10 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
         AuthService,
         UsersService,
         { provide: DRIZZLE, useValue: db },
-        { provide: OrderService, useValue: { findAll: () => [] } },
+        {
+          provide: OrderService,
+          useValue: { findAll: () => [], findAllWithDetails: () => [] },
+        },
         { provide: TicketService, useValue: { findAllByHolder: () => [] } },
       ],
     }).compile();

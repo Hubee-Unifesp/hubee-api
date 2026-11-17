@@ -237,6 +237,29 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
           unitPrice: 49.9,
         }),
       ]);
+      const fetched = await http()
+        .get(`/orders/${response.body.id}`)
+        .set(as('ana'))
+        .expect(200);
+
+      expect(fetched.body).toMatchObject({
+        id: response.body.id,
+        status: 'pendente',
+        totalAmount: 149.7,
+        items: [
+          {
+            ticketTypeId: lot,
+            quantity: 3,
+            unitPrice: 49.9,
+            ticketTypeModality: 'inteira',
+          },
+        ],
+        event: {
+          id: eventId,
+          name: 'Calourada',
+          status: 'published',
+        },
+      });
     });
 
     it('recusa pedido sem token', async () => {
