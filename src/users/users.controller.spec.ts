@@ -51,7 +51,7 @@ describe('UsersController', () => {
   };
 
   const mockOrderService = {
-    findAll: jest.fn(),
+    findAllWithDetails: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -109,14 +109,14 @@ describe('UsersController', () => {
       createdAt: new Date('2026-01-01T00:00:00Z'),
       updatedAt: new Date('2026-01-01T00:00:00Z'),
     };
-    mockOrderService.findAll.mockResolvedValue([order] as never);
+    mockOrderService.findAllWithDetails.mockResolvedValue([order] as never);
 
     const result = await controller.getMyOrders(user, {
       userId: 'outro-usuario',
       status: 'pendente',
     });
 
-    expect(mockOrderService.findAll).toHaveBeenCalledWith({
+    expect(mockOrderService.findAllWithDetails).toHaveBeenCalledWith({
       userId: 'user-id',
       status: 'pendente',
     });

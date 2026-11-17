@@ -9,6 +9,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { orders } from './order.schema';
+import { payments } from './payment.schema';
 import { ticketTypes } from './ticket-type.schema';
 
 /**
@@ -46,8 +47,12 @@ export const orderItems = pgTable(
   ],
 );
 
-export const ordersRelations = relations(orders, ({ many }) => ({
+export const ordersRelations = relations(orders, ({ many, one }) => ({
   items: many(orderItems),
+  payment: one(payments, {
+    fields: [orders.id],
+    references: [payments.orderId],
+  }),
 }));
 
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({

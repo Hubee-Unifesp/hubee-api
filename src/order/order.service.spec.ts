@@ -86,7 +86,9 @@ describe('OrderService', () => {
   let service: OrderService;
   let orderRepository: {
     findAll: jest.Mock<OrderRepository['findAll']>;
+    findAllWithDetails: jest.Mock<OrderRepository['findAllWithDetails']>;
     findById: jest.Mock<OrderRepository['findById']>;
+    findByIdWithDetails: jest.Mock<OrderRepository['findByIdWithDetails']>;
     create: jest.Mock<OrderRepository['create']>;
     update: jest.Mock<OrderRepository['update']>;
     findByIdForUpdate: jest.Mock<OrderRepository['findByIdForUpdate']>;
@@ -128,7 +130,9 @@ describe('OrderService', () => {
     db.transaction.mockClear();
     orderRepository = {
       findAll: jest.fn<OrderRepository['findAll']>(),
+      findAllWithDetails: jest.fn<OrderRepository['findAllWithDetails']>(),
       findById: jest.fn<OrderRepository['findById']>(),
+      findByIdWithDetails: jest.fn<OrderRepository['findByIdWithDetails']>(),
       create: jest.fn<OrderRepository['create']>(),
       update: jest.fn<OrderRepository['update']>(),
       findByIdForUpdate: jest.fn<OrderRepository['findByIdForUpdate']>(),
@@ -189,6 +193,43 @@ describe('OrderService', () => {
     });
   });
 
+  describe('findAllWithDetails()', () => {
+    it('repassa os filtros e retorna os pedidos formatados com detalhes', async () => {
+      const order = makeOrder();
+      const event = makeEvent();
+      const ticketType = makeTicketType();
+      const rawOrder = {
+        ...order,
+        items: [{ ...makeItem(), ticketType: { ...ticketType, event } }],
+        payment: {
+          id: 'pay-1',
+          status: 'confirmado',
+          paymentMethod: 'pix',
+          amount: 150.5,
+          paidAt: new Date(),
+        },
+      };
+      orderRepository.findAllWithDetails.mockResolvedValue([rawOrder as never]);
+
+      const result = await service.findAllWithDetails({ userId: 'user-1' });
+
+      expect(orderRepository.findAllWithDetails).toHaveBeenCalledWith({
+        userId: 'user-1',
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0].event).toEqual({
+        id: event.id,
+        name: event.name,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        photoUrl: null,
+        status: event.status,
+      });
+      expect(result[0].items[0].ticketTypeBatch).toBe(ticketType.batch);
+      expect(result[0].payment?.status).toBe('confirmado');
+    });
+  });
+
   describe('findById()', () => {
     it('retorna o pedido quando ele existe sem checagem de usuário', async () => {
       const order = makeOrder();
@@ -209,25 +250,33 @@ describe('OrderService', () => {
   describe('findOne()', () => {
     it('retorna o pedido quando ele pertence ao usuário autenticado', async () => {
       const order = makeOrder({ userId: 'user-1' });
-      const items = [{ ...makeItem(), ticketType: makeTicketType() }];
-      orderRepository.findById.mockResolvedValue(order);
-      orderItemRepository.findByOrder.mockResolvedValue(items);
-
-      await expect(service.findOne('order-1', mockAuthUser)).resolves.toEqual({
+      const event = makeEvent();
+      const ticketType = makeTicketType();
+      const rawOrder = {
         ...order,
-        items,
-      });
+        items: [{ ...makeItem(), ticketType: { ...ticketType, event } }],
+        payment: null,
+      };
+      orderRepository.findById.mockResolvedValue(order);
+      orderRepository.findByIdWithDetails.mockResolvedValue(rawOrder as never);
+
+      const result = await service.findOne('order-1', mockAuthUser);
+
+      expect(result.id).toBe('order-1');
+      expect(result.event?.id).toBe(event.id);
+      expect(result.items).toHaveLength(1);
     });
 
     it('retorna o pedido para ADMIN mesmo sendo de outro usuário', async () => {
       const order = makeOrder({ userId: 'outro-usuario' });
+      const rawOrder = { ...order, items: [], payment: null };
       orderRepository.findById.mockResolvedValue(order);
-      orderItemRepository.findByOrder.mockResolvedValue([]);
+      orderRepository.findByIdWithDetails.mockResolvedValue(rawOrder as never);
 
-      await expect(service.findOne('order-1', mockAdmin)).resolves.toEqual({
-        ...order,
-        items: [],
-      });
+      const result = await service.findOne('order-1', mockAdmin);
+
+      expect(result.id).toBe('order-1');
+      expect(result.items).toEqual([]);
     });
 
     it('lança NotFound quando o pedido não existe', async () => {
