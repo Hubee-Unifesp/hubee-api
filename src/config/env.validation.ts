@@ -8,7 +8,13 @@ export interface EnvironmentVariables {
   DB_SSL: boolean;
   JWT_SECRET: string;
   BLOB_READ_WRITE_TOKEN?: string;
+  ANTHROPIC_API_KEY?: string;
+  ANTHROPIC_MODEL: string;
+  AI_TIMEOUT_MS: number;
 }
+
+const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5';
+const DEFAULT_AI_TIMEOUT_MS = 30000;
 
 function requireString(
   config: Record<string, unknown>,
@@ -76,6 +82,28 @@ function optionalString(
     : undefined;
 }
 
+function optionalPositiveInteger(
+  config: Record<string, unknown>,
+  key: keyof EnvironmentVariables,
+  fallback: number,
+): number {
+  const value = config[key];
+
+  if (value === undefined || value === '') {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(
+      `Variável de ambiente "${key}" deve ser um número inteiro positivo.`,
+    );
+  }
+
+  return parsed;
+}
+
 /**
  * Valida as variáveis de ambiente no boot da aplicação. Falhar aqui é
  * proposital: é melhor a API não subir do que subir sem saber falar com o banco.
@@ -93,5 +121,13 @@ export function validateEnv(
     DB_SSL: optionalBoolean(config, 'DB_SSL', false),
     JWT_SECRET: requireString(config, 'JWT_SECRET'),
     BLOB_READ_WRITE_TOKEN: optionalString(config, 'BLOB_READ_WRITE_TOKEN'),
+    ANTHROPIC_API_KEY: optionalString(config, 'ANTHROPIC_API_KEY'),
+    ANTHROPIC_MODEL:
+      optionalString(config, 'ANTHROPIC_MODEL') ?? DEFAULT_ANTHROPIC_MODEL,
+    AI_TIMEOUT_MS: optionalPositiveInteger(
+      config,
+      'AI_TIMEOUT_MS',
+      DEFAULT_AI_TIMEOUT_MS,
+    ),
   };
 }
