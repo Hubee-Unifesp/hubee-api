@@ -123,6 +123,97 @@ describe('EventAiDraftService', () => {
     });
   });
 
+  it.each(['São Paulo', 'S.P.', 'SPX'])(
+    'anula a UF %s que não é uma sigla de 2 letras',
+    async (state) => {
+      const draft = await generateWith(
+        draftWith({
+          venueSuggestion: {
+            name: 'Allianz Parque',
+            address: null,
+            city: 'São Paulo',
+            state,
+          },
+        }),
+      );
+
+      expect(draft.venueSuggestion).toEqual({
+        name: 'Allianz Parque',
+        address: null,
+        city: 'São Paulo',
+        state: null,
+      });
+    },
+  );
+
+  it('arredonda o preço para 2 casas decimais', async () => {
+    const draft = await generateWith(
+      draftWith({
+        suggestedTicketTypes: [
+          {
+            batch: 'Inteira',
+            price: 25.25,
+            quantity: null,
+            modality: 'inteira',
+          },
+          { batch: 'Meia', price: 12.625, quantity: null, modality: 'meia' },
+          { batch: 'VIP', price: 33.333333, quantity: null, modality: 'vip' },
+        ],
+      }),
+    );
+
+    expect(
+      draft.suggestedTicketTypes.map((ticketType) => ticketType.price),
+    ).toEqual([25.25, 12.63, 33.33]);
+  });
+
+  it('anula preço e quantidade negativos em vez de descartar o rascunho', async () => {
+    const draft = await generateWith(
+      draftWith({
+        suggestedTicketTypes: [
+          { batch: 'Pista', price: -10, quantity: -5, modality: null },
+        ],
+      }),
+    );
+
+    expect(draft.suggestedTicketTypes).toEqual([
+      { batch: 'Pista', price: null, quantity: null, modality: null },
+    ]);
+  });
+
+  it('corta textos longos no limite de cada campo', async () => {
+    const draft = await generateWith(
+      draftWith({
+        name: 'N'.repeat(300),
+        edition: 'E'.repeat(150),
+        venueSuggestion: {
+          name: 'L'.repeat(300),
+          address: 'A'.repeat(300),
+          city: 'C'.repeat(150),
+          state: 'SP',
+        },
+        suggestedTicketTypes: [
+          { batch: 'B'.repeat(150), price: 10, quantity: null, modality: null },
+        ],
+      }),
+    );
+
+    expect(draft.name).toHaveLength(255);
+    expect(draft.edition).toHaveLength(100);
+    expect(draft.venueSuggestion?.name).toHaveLength(255);
+    expect(draft.venueSuggestion?.address).toHaveLength(255);
+    expect(draft.venueSuggestion?.city).toHaveLength(100);
+    expect(draft.suggestedTicketTypes[0].batch).toHaveLength(100);
+    expect(draft.missingFields).toEqual([]);
+  });
+
+  it('não parte emojis ao cortar textos longos', async () => {
+    const draft = await generateWith(draftWith({ name: '🎉'.repeat(300) }));
+
+    expect(Array.from(draft.name ?? '')).toHaveLength(255);
+    expect(draft.name).toBe('🎉'.repeat(255));
+  });
+
   it('descarta datas com término anterior ao início', async () => {
     const draft = await generateWith(
       draftWith({
@@ -152,11 +243,17 @@ describe('EventAiDraftService', () => {
       draftWith({ missingFields: ['venueId'] }),
     ],
     [
-      'um lote com preço negativo',
+      'um lote com preço em texto',
       draftWith({
         suggestedTicketTypes: [
-          { batch: 'Pista', price: -10, quantity: null, modality: null },
+          { batch: 'Pista', price: 'R$ 10', quantity: null, modality: null },
         ],
+      }),
+    ],
+    [
+      'uma UF que não é texto',
+      draftWith({
+        venueSuggestion: { name: null, address: null, city: null, state: 35 },
       }),
     ],
     [

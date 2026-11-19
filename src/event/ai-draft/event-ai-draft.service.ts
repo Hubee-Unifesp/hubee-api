@@ -42,12 +42,12 @@ export class EventAiDraftService {
   }
 
   private async parse(raw: unknown): Promise<EventAiDraftResponseDto> {
-    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    if (!isPlainObject(raw)) {
       this.logger.error('Rascunho da IA não é um objeto JSON');
       throw new ServiceUnavailableException(INVALID_DRAFT_MESSAGE);
     }
 
-    const draft = plainToInstance(EventAiDraftResponseDto, raw);
+    const draft = plainToInstance(EventAiDraftResponseDto, repair(raw));
     const errors = await validate(draft, {
       whitelist: true,
       forbidNonWhitelisted: true,
@@ -101,6 +101,69 @@ export class EventAiDraftService {
   }
 }
 
+type PlainObject = Record<string, unknown>;
+
+function isPlainObject(value: unknown): value is PlainObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function repair(raw: PlainObject): PlainObject {
+  const repaired: PlainObject = {
+    ...raw,
+    name: clip(raw.name, 255),
+    edition: clip(raw.edition, 100),
+  };
+
+  const venue = raw.venueSuggestion;
+  if (isPlainObject(venue)) {
+    repaired.venueSuggestion = {
+      ...venue,
+      name: clip(venue.name, 255),
+      address: clip(venue.address, 255),
+      city: clip(venue.city, 100),
+      state: stateCode(venue.state),
+    };
+  }
+
+  const ticketTypes = raw.suggestedTicketTypes;
+  if (Array.isArray(ticketTypes)) {
+    repaired.suggestedTicketTypes = ticketTypes.map((ticketType: unknown) =>
+      isPlainObject(ticketType)
+        ? {
+            ...ticketType,
+            batch: clip(ticketType.batch, 100),
+            price: price(ticketType.price),
+            quantity: quantity(ticketType.quantity),
+          }
+        : ticketType,
+    );
+  }
+
+  return repaired;
+}
+
+function clip(value: unknown, maxLength: number): unknown {
+  if (typeof value !== 'string') return value;
+  return Array.from(value.trim()).slice(0, maxLength).join('').trim();
+}
+
+function stateCode(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return /^[A-Za-z]{2}$/.test(trimmed) ? trimmed.toUpperCase() : null;
+}
+
+function price(value: unknown): unknown {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return value;
+  if (value < 0) return null;
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function quantity(value: unknown): unknown {
+  if (typeof value !== 'number' || !Number.isInteger(value)) return value;
+  return value < 0 ? null : value;
+}
+
 function normalizeVenue(
   venue: EventAiDraftResponseDto['venueSuggestion'] | undefined,
 ): EventAiDraftResponseDto['venueSuggestion'] {
@@ -110,7 +173,7 @@ function normalizeVenue(
     name: text(venue.name),
     address: text(venue.address),
     city: text(venue.city),
-    state: text(venue.state)?.toUpperCase() ?? null,
+    state: text(venue.state),
   };
 
   return Object.values(normalized).every((value) => value === null)
