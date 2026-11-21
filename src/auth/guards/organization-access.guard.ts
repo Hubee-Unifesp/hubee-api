@@ -78,7 +78,10 @@ export class OrganizationAccessGuard implements CanActivate {
       const eventId = request.params[access.source.param ?? 'eventId'];
       throw new NotFoundException(`Evento ${eventId} não encontrado`);
     }
-    if (!membership && access.source.from === 'param') {
+    if (
+      !membership &&
+      (access.source.from === 'org' || access.source.from === 'param')
+    ) {
       throw new NotFoundException(
         `Organização ${organizationId} não encontrada`,
       );

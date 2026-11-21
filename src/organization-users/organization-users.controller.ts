@@ -1,10 +1,13 @@
 import {
   ApiCreatedResponse,
   ApiNoContentResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { OrganizationUserResponseDto } from './dto/organization-user-response.dto';
+import { RespondOrganizationInviteDto } from './dto/respond-organization-invite.dto';
+import { UserInviteResponseDto } from './dto/user-invite-response.dto';
 import {
   Body,
   Controller,
@@ -21,17 +24,22 @@ import { OrganizationUsersService } from './organization-users.service';
 import { CreateOrganizationUserDto } from './dto/create-organization-user.dto';
 import { UpdateOrganizationUserDto } from './dto/update-organization-user.dto';
 import { toResponse } from '../common/serialization/to-response';
-import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import { Authenticated } from '../auth/decorators/authenticated.decorator';
+import {
+  CurrentUser,
+  type AuthenticatedUser,
+} from '../auth/decorators/current-user.decorator';
+import { OrgAccess } from '../auth/decorators/org-access.decorator';
 
 @ApiTags('organization-users')
-@AdminOnly()
-@Controller('organizations/:orgId/users')
+@Controller()
 export class OrganizationUsersController {
   constructor(
     private readonly organizationUsersService: OrganizationUsersService,
   ) {}
 
-  @Post()
+  @OrgAccess('manage', { from: 'org', param: 'orgId' })
+  @Post('organizations/:orgId/users')
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: OrganizationUserResponseDto })
   async create(
@@ -44,7 +52,8 @@ export class OrganizationUsersController {
     );
   }
 
-  @Get()
+  @OrgAccess('manage', { from: 'org', param: 'orgId' })
+  @Get('organizations/:orgId/users')
   @ApiOkResponse({ type: OrganizationUserResponseDto, isArray: true })
   async findAll(@Param('orgId', ParseUUIDPipe) orgId: string) {
     return toResponse(
@@ -53,7 +62,35 @@ export class OrganizationUsersController {
     );
   }
 
-  @Patch(':userId')
+  @Authenticated()
+  @Get('users/me/invites')
+  @ApiOkResponse({ type: UserInviteResponseDto, isArray: true })
+  async findMyInvites(@CurrentUser() user: AuthenticatedUser) {
+    return toResponse(
+      UserInviteResponseDto,
+      await this.organizationUsersService.findPendingInvitesByUser(user.id),
+    );
+  }
+
+  @Authenticated()
+  @Patch('organizations/:orgId/users/me')
+  @ApiOkResponse({ type: OrganizationUserResponseDto })
+  @ApiNotFoundResponse({
+    description: 'Convite pendente não encontrado nesta organização.',
+  })
+  async respondToInvite(
+    @Param('orgId', ParseUUIDPipe) orgId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RespondOrganizationInviteDto,
+  ) {
+    return toResponse(
+      OrganizationUserResponseDto,
+      await this.organizationUsersService.respondToInvite(orgId, user.id, dto),
+    );
+  }
+
+  @OrgAccess('manage', { from: 'org', param: 'orgId' })
+  @Patch('organizations/:orgId/users/:userId')
   @ApiOkResponse({ type: OrganizationUserResponseDto })
   async update(
     @Param('orgId', ParseUUIDPipe) orgId: string,
@@ -66,7 +103,8 @@ export class OrganizationUsersController {
     );
   }
 
-  @Delete(':userId')
+  @OrgAccess('manage', { from: 'org', param: 'orgId' })
+  @Delete('organizations/:orgId/users/:userId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
   async remove(
