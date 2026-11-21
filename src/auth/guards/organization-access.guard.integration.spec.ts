@@ -127,18 +127,24 @@ describe('OrganizationAccessGuard (banco em memória)', () => {
     await expect(canWrite('full')).resolves.toBe(true);
   });
 
-  it.each(['readOnly', 'pending', 'rejected', 'stranger'])(
-    '@OrgAccess("write") recusa %s com 403',
+  it('@OrgAccess("write") recusa readOnly com 403', async () => {
+    await expect(canWrite('readOnly')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it.each(['pending', 'rejected', 'stranger'])(
+    '@OrgAccess("write") responde 404 para %s (sem vínculo aceito)',
     async (userName) => {
       await expect(canWrite(userName)).rejects.toBeInstanceOf(
-        ForbiddenException,
+        NotFoundException,
       );
     },
   );
 
   it('o vínculo de uma organização não vale em outra', async () => {
     await expect(canWrite('full', otherOrganizationId)).rejects.toBeInstanceOf(
-      ForbiddenException,
+      NotFoundException,
     );
   });
 

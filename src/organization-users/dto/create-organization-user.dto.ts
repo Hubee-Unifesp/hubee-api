@@ -1,4 +1,6 @@
-import { IsEnum, IsOptional, IsUUID } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsEnum, IsNotEmpty } from 'class-validator';
+import { NormalizeEmail } from '../../common/validation/normalize-email';
 
 /**
  * Nomenclatura oficial da API: inglês, alinhado com as colunas do schema
@@ -25,20 +27,24 @@ export enum InviteStatus {
 }
 
 export class CreateOrganizationUserDto {
-  @IsUUID()
-  userId: string;
+  @ApiProperty({
+    format: 'email',
+    example: 'membro@exemplo.com',
+    description: 'E-mail do usuário ativo a ser convidado para a organização',
+  })
+  @NormalizeEmail()
+  @IsNotEmpty({ message: 'O e-mail é obrigatório.' })
+  @IsEmail({}, { message: 'E-mail inválido.' })
+  email: string;
 
+  @ApiProperty({ enum: OrganizationRole, example: OrganizationRole.MEMBER })
   @IsEnum(OrganizationRole)
   role: OrganizationRole;
 
+  @ApiProperty({
+    enum: OrganizationPermission,
+    example: OrganizationPermission.FULL,
+  })
   @IsEnum(OrganizationPermission)
   permission: OrganizationPermission;
-
-  /**
-   * Opcional: o schema já aplica o default 'pending'.
-   * Só informe se o vínculo for criado já aceito (ex.: dono da organização).
-   */
-  @IsOptional()
-  @IsEnum(InviteStatus)
-  inviteStatus?: InviteStatus;
 }

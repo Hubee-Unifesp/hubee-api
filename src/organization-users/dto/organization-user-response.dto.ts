@@ -12,6 +12,14 @@ export class OrganizationUserResponseDto {
   userId: string;
 
   @Expose()
+  @ApiProperty({ description: 'Nome completo do usuário' })
+  userName: string;
+
+  @Expose()
+  @ApiProperty({ format: 'email', description: 'E-mail do usuário' })
+  userEmail: string;
+
+  @Expose()
   @ApiProperty()
   role: string;
 

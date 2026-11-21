@@ -18,6 +18,7 @@ import { ExpenseResponseDto } from '../../expenses/dto/expense-response.dto';
 import { OrderResponseDto } from '../../order/dto/order-response.dto';
 import { OrganizationEventResponseDto } from '../../organization-event/dto/organization-event-response.dto';
 import { OrganizationUserResponseDto } from '../../organization-users/dto/organization-user-response.dto';
+import { UserInviteResponseDto } from '../../organization-users/dto/user-invite-response.dto';
 import { OrganizationResponseDto } from '../../organization/dto/organization-response.dto';
 import { PaymentResponseDto } from '../../payment/dto/payment-response.dto';
 import { SupplierResponseDto } from '../../suppliers/dto/supplier-response.dto';
@@ -60,6 +61,7 @@ const RESPONSE_DTOS: ClassConstructor<unknown>[] = [
   OrderResponseDto,
   OrganizationEventResponseDto,
   OrganizationUserResponseDto,
+  UserInviteResponseDto,
   OrganizationResponseDto,
   PaymentResponseDto,
   SupplierResponseDto,
@@ -170,6 +172,62 @@ describe('toResponse(EventPageResponseDto)', () => {
     expect(JSON.parse(JSON.stringify(result))).toStrictEqual({
       data: [],
       meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+    });
+  });
+});
+
+describe('toResponse(OrganizationUserResponseDto e UserInviteResponseDto)', () => {
+  it('expõe userName e userEmail em OrganizationUserResponseDto sem campos extras', () => {
+    const result = toResponse(OrganizationUserResponseDto, {
+      orgId: 'org-1',
+      userId: 'user-1',
+      userName: 'Maria Silva',
+      userEmail: 'maria@example.com',
+      role: 'member',
+      permission: 'full',
+      inviteStatus: 'pending',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+      password: 'secret',
+    });
+
+    expect(result).toBeInstanceOf(OrganizationUserResponseDto);
+    expect(JSON.parse(JSON.stringify(result))).toStrictEqual({
+      orgId: 'org-1',
+      userId: 'user-1',
+      userName: 'Maria Silva',
+      userEmail: 'maria@example.com',
+      role: 'member',
+      permission: 'full',
+      inviteStatus: 'pending',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('expõe organizationName no UserInviteResponseDto sem campos extras', () => {
+    const result = toResponse(UserInviteResponseDto, {
+      orgId: 'org-1',
+      organizationName: 'Atlética Unifesp',
+      userId: 'user-1',
+      role: 'member',
+      permission: 'read_only',
+      inviteStatus: 'pending',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+      internalField: 'ignorado',
+    });
+
+    expect(result).toBeInstanceOf(UserInviteResponseDto);
+    expect(JSON.parse(JSON.stringify(result))).toStrictEqual({
+      orgId: 'org-1',
+      organizationName: 'Atlética Unifesp',
+      userId: 'user-1',
+      role: 'member',
+      permission: 'read_only',
+      inviteStatus: 'pending',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
     });
   });
 });

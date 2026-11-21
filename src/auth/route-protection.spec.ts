@@ -81,6 +81,8 @@ const PUBLIC_ROUTES = [
  */
 const AUTHENTICATED_ROUTES = [
   'POST /organizations',
+  'GET /users/me/invites',
+  'PATCH /organizations/:orgId/users/me',
   'POST /orders',
   'POST /payments',
   'GET /orders/:orderId/payments',
@@ -114,6 +116,10 @@ const ORGANIZER_WRITE_ROUTES = [
 const ORGANIZER_MANAGE_ROUTES = [
   'DELETE /events/:id',
   'PATCH /organizations/:id',
+  'POST /organizations/:orgId/users',
+  'GET /organizations/:orgId/users',
+  'PATCH /organizations/:orgId/users/:userId',
+  'DELETE /organizations/:orgId/users/:userId',
 ];
 
 const ORGANIZER_ROUTES = [
@@ -122,11 +128,11 @@ const ORGANIZER_ROUTES = [
 ];
 
 /**
- * Rotas com `@OrgAccess(..., { from: 'event' | 'param' })` resolvem a
- * organização a partir do recurso da URL (`:id` ou `:eventId`) e respondem 404
- * (e não 403) para quem não é membro da organização dona, evitando revelar
- * vínculo/existência. Rotas sem parâmetro de recurso (`POST /events` com
- * `{ from: 'body' }` e `POST /venues` com `{ from: 'any' }`) respondem 403.
+ * Rotas com `@OrgAccess(..., { from: 'event' | 'org' | 'param' })` resolvem a
+ * organização a partir do recurso da URL (`:id`, `:orgId` ou `:eventId`) e
+ * respondem 404 (e não 403) para quem não é membro da organização dona, evitando
+ * revelar vínculo/existência. Rotas sem parâmetro de recurso (`POST /events`
+ * com `{ from: 'body' }` e `POST /venues` com `{ from: 'any' }`) respondem 403.
  */
 const isResourceScoped = (route: { template: string }) =>
   route.template.includes(':');
