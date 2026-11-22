@@ -134,8 +134,8 @@ export class NotificationsService {
         } =>
           Boolean(
             lot &&
-              typeof lot.quantity === 'number' &&
-              typeof lot.batch === 'string',
+            typeof lot.quantity === 'number' &&
+            typeof lot.batch === 'string',
           ),
       );
 

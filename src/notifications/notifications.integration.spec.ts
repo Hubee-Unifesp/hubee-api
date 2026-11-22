@@ -349,10 +349,7 @@ describe('Notificações in-app e gatilhos (GOL-268, PGlite)', () => {
     ).toContain('event_cancelled');
 
     // Estorna o pedido pago
-    const ordersRes = await http()
-      .get('/orders')
-      .set(as('admin'))
-      .expect(200);
+    const ordersRes = await http().get('/orders').set(as('admin')).expect(200);
     const paidOrderId = ordersRes.body[0].id as string;
 
     await http()

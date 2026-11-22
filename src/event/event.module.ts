@@ -10,7 +10,13 @@ import { EventRepository } from './event.repository';
 import { EventService } from './event.service';
 
 @Module({
-  imports: [AiModule, OrganizationModule, StorageModule, VenueModule, NotificationsModule],
+  imports: [
+    AiModule,
+    OrganizationModule,
+    StorageModule,
+    VenueModule,
+    NotificationsModule,
+  ],
   controllers: [EventController],
   providers: [EventAiDraftService, EventRepository, EventService],
   exports: [EventService],
