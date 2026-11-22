@@ -10,6 +10,8 @@ import { DRIZZLE } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { EventRepository } from '../event/event.repository';
 import { EventService } from '../event/event.service';
+import { NotificationsRepository } from '../notifications/notifications.repository';
+import { NotificationsService } from '../notifications/notifications.service';
 import { OrganizationService } from '../organization/organization.service';
 import { StorageService } from '../storage/storage.service';
 import { VenueService } from '../venue/venue.service';
@@ -55,6 +57,8 @@ describe('Lotes de ingressos por organizadores (banco em memória)', () => {
         TicketTypeRepository,
         EventService,
         EventRepository,
+        NotificationsRepository,
+        NotificationsService,
         { provide: DRIZZLE, useValue: db },
         {
           provide: OrganizationService,

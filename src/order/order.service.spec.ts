@@ -7,6 +7,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { DRIZZLE } from '../database/database.constants';
 import { events, orderItems, orders, ticketTypes } from '../database/schema';
+import { NotificationsService } from '../notifications/notifications.service';
 import { TicketTypeService } from '../ticket-type/ticket-type.service';
 import { UsersService } from '../users/users.service';
 import { OrderItemRepository } from './order-item.repository';
@@ -107,6 +108,11 @@ describe('OrderService', () => {
   let ticketTypeService: {
     lockForPurchase: jest.Mock<TicketTypeService['lockForPurchase']>;
   };
+  let notificationsService: {
+    notifyOrderCancelled: jest.Mock<
+      NotificationsService['notifyOrderCancelled']
+    >;
+  };
   const tx = { tx: true };
   const db = {
     transaction: jest.fn(async (callback: (tx: unknown) => unknown) =>
@@ -150,6 +156,10 @@ describe('OrderService', () => {
     usersService = {
       findOne: jest.fn<UsersService['findOne']>(),
     };
+    notificationsService = {
+      notifyOrderCancelled:
+        jest.fn<NotificationsService['notifyOrderCancelled']>(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -159,6 +169,7 @@ describe('OrderService', () => {
         { provide: OrderItemRepository, useValue: orderItemRepository },
         { provide: UsersService, useValue: usersService },
         { provide: TicketTypeService, useValue: ticketTypeService },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
 
@@ -555,6 +566,10 @@ describe('OrderService', () => {
         { status: 'cancelado' },
         tx,
       );
+      expect(notificationsService.notifyOrderCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'order-1', userId: 'user-1' }),
+        tx,
+      );
       expect(result).toEqual(updated);
     });
 
@@ -650,6 +665,10 @@ describe('OrderService', () => {
       expect(orderRepository.update).toHaveBeenCalledWith(
         'order-1',
         { status: 'cancelado' },
+        tx,
+      );
+      expect(notificationsService.notifyOrderCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'order-1', userId: 'user-1' }),
         tx,
       );
     });
@@ -757,6 +776,10 @@ describe('OrderService', () => {
       expect(orderRepository.update).toHaveBeenCalledWith(
         'order-1',
         { status: 'cancelado' },
+        tx,
+      );
+      expect(notificationsService.notifyOrderCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'order-1', userId: 'user-1' }),
         tx,
       );
     });

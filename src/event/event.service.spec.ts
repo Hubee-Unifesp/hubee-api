@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { events } from '../database/schema';
+import { NotificationsService } from '../notifications/notifications.service';
 import { OrganizationService } from '../organization/organization.service';
 import { StorageService } from '../storage/storage.service';
 import { VenueService } from '../venue/venue.service';
@@ -152,6 +153,11 @@ describe('EventService', () => {
     upload: jest.Mock<StorageService['upload']>;
     delete: jest.Mock<StorageService['delete']>;
   };
+  let notificationsService: {
+    notifyEventCancelled: jest.Mock<
+      NotificationsService['notifyEventCancelled']
+    >;
+  };
 
   beforeEach(async () => {
     eventRepository = {
@@ -178,6 +184,10 @@ describe('EventService', () => {
       upload: jest.fn<StorageService['upload']>(),
       delete: jest.fn<StorageService['delete']>(),
     };
+    notificationsService = {
+      notifyEventCancelled:
+        jest.fn<NotificationsService['notifyEventCancelled']>(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -186,6 +196,7 @@ describe('EventService', () => {
         { provide: OrganizationService, useValue: organizationService },
         { provide: VenueService, useValue: venueService },
         { provide: StorageService, useValue: storageService },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
 
@@ -620,6 +631,9 @@ describe('EventService', () => {
       expect(eventRepository.update).toHaveBeenCalledWith('event-1', {
         status: 'cancelled',
       });
+      expect(notificationsService.notifyEventCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'event-1', status: 'cancelled' }),
+      );
     });
 
     it('ADMIN cancela pelo status sem consultar vínculo', async () => {
@@ -901,6 +915,9 @@ describe('EventService', () => {
       expect(eventRepository.update).toHaveBeenCalledWith('event-1', {
         status: 'cancelled',
       });
+      expect(notificationsService.notifyEventCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'event-1', status: 'cancelled' }),
+      );
     });
 
     it('lança 404 quando o evento não existe', async () => {
