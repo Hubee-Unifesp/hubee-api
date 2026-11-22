@@ -27,6 +27,8 @@ const ENV: Partial<EnvironmentVariables> = {
   ANTHROPIC_API_KEY: 'sk-ant-test',
   ANTHROPIC_MODEL: 'claude-opus-5-5',
   AI_TIMEOUT_MS: 30000,
+  AI_MAX_TOKENS: 16000,
+  AI_EFFORT: 'medium',
 };
 
 function makeService(env: Partial<EnvironmentVariables> = ENV) {
@@ -94,17 +96,79 @@ describe('AnthropicAiService', () => {
       ],
       messages: [{ role: 'user', content: REQUEST.prompt }],
       output_config: {
+        effort: 'medium',
         format: { type: 'json_schema', schema: REQUEST.schema },
       },
     });
   });
 
-  it('respeita maxTokens informado', async () => {
+  it('respeita maxTokens informado abaixo do teto', async () => {
     create.mockResolvedValue(makeMessage('{"name":"x"}'));
 
     await makeService().generateStructured({ ...REQUEST, maxTokens: 2000 });
 
     expect(create.mock.calls[0][0].max_tokens).toBe(2000);
+  });
+
+  it('limita maxTokens ao teto de AI_MAX_TOKENS', async () => {
+    create.mockResolvedValue(makeMessage('{"name":"x"}'));
+
+    await makeService({ ...ENV, AI_MAX_TOKENS: 4000 }).generateStructured({
+      ...REQUEST,
+      maxTokens: 32000,
+    });
+
+    expect(create.mock.calls[0][0].max_tokens).toBe(4000);
+  });
+
+  it('usa AI_MAX_TOKENS quando o pedido não informa maxTokens', async () => {
+    create.mockResolvedValue(makeMessage('{"name":"x"}'));
+
+    await makeService({ ...ENV, AI_MAX_TOKENS: 8000 }).generateStructured(
+      REQUEST,
+    );
+
+    expect(create.mock.calls[0][0].max_tokens).toBe(8000);
+  });
+
+  it('envia o effort de AI_EFFORT', async () => {
+    create.mockResolvedValue(makeMessage('{"name":"x"}'));
+
+    await makeService({ ...ENV, AI_EFFORT: 'low' }).generateStructured(REQUEST);
+
+    expect(create.mock.calls[0][0].output_config?.effort).toBe('low');
+  });
+
+  it('registra o consumo de tokens sem o texto do prompt', async () => {
+    const log = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation(() => undefined);
+    log.mockClear();
+    create.mockResolvedValue({
+      ...makeMessage('{"name":"x"}'),
+      usage: {
+        input_tokens: 1200,
+        output_tokens: 340,
+        cache_creation_input_tokens: 900,
+        cache_read_input_tokens: 0,
+      },
+    } as Anthropic.Message);
+
+    await makeService().generateStructured({
+      ...REQUEST,
+      feature: 'event-ai-draft',
+    });
+
+    expect(log).toHaveBeenCalledTimes(1);
+    const [message] = log.mock.calls[0] as [string];
+    expect(message).toContain('feature=event-ai-draft');
+    expect(message).toContain('effort=medium');
+    expect(message).toContain('input_tokens=1200');
+    expect(message).toContain('output_tokens=340');
+    expect(message).toContain('cache_creation_tokens=900');
+    expect(message).toContain('cache_read_tokens=0');
+    expect(message).not.toContain(REQUEST.prompt);
+    expect(message).not.toContain(REQUEST.system);
   });
 
   it('reaproveita o mesmo cliente entre chamadas', async () => {

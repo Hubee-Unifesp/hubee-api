@@ -10,8 +10,11 @@ import {
 import { INestApplication, RequestMethod, Type } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { createAiRateLimitStoreProvider } from '../ai/guards/ai-throttler.guard';
+import { EventAiDraftController } from '../event/ai-draft/event-ai-draft.controller';
 import { EventController } from '../event/event.controller';
 import { EventService } from '../event/event.service';
 import { ExpensesController } from '../expenses/expenses.controller';
@@ -38,6 +41,7 @@ import { events } from '../database/schema';
  */
 const CONTROLLERS: Type[] = [
   EventController,
+  EventAiDraftController,
   TicketTypeController,
   OrganizationController,
   VenueController,
@@ -144,7 +148,7 @@ const isResourceScoped = (route: { template: string }) =>
 
 /**
  * ADMIN ou membro aceito de qualquer organização (`@OrganizerOnly`, GOL-202):
- * catálogo compartilhado de fornecedores.
+ * catálogo compartilhado de fornecedores e rascunho de evento com IA (GOL-263).
  */
 const ORGANIZER_ONLY_ROUTES = [
   'POST /suppliers',
@@ -154,6 +158,7 @@ const ORGANIZER_ONLY_ROUTES = [
   'DELETE /suppliers/:id',
   'POST /suppliers/:id/reviews',
   'GET /suppliers/:id/reviews',
+  'POST /events/ai-draft',
 ];
 
 /** Rotas de pedido que ganham proteção com checagem de dono na GOL-103. */
@@ -292,6 +297,16 @@ describe('Proteção de rotas (GOL-114)', () => {
       providers: [
         ...CONTROLLERS.map(mockServiceOf),
         { provide: DRIZZLE, useValue: fakeDrizzle },
+        createAiRateLimitStoreProvider(),
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) =>
+              ({ AI_RATE_LIMIT_MAX: 1000, AI_RATE_LIMIT_WINDOW_MS: 60_000 })[
+                key
+              ],
+          },
+        },
       ],
     }).compile();
     app = module.createNestApplication();
