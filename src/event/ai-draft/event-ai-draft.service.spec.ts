@@ -28,7 +28,7 @@ function makeService() {
 
 async function generateWith(response: unknown, description = 'Show de rock') {
   generateStructured.mockResolvedValue(response);
-  return makeService().generate(description, FIXTURE_NOW);
+  return makeService().generate({ prompt: description }, FIXTURE_NOW);
 }
 
 describe('EventAiDraftService', () => {
@@ -292,7 +292,7 @@ describe('EventAiDraftService', () => {
     generateStructured.mockRejectedValue(new UnprocessableEntityException());
 
     await expect(
-      makeService().generate('Show de rock', FIXTURE_NOW),
+      makeService().generate({ prompt: 'Show de rock' }, FIXTURE_NOW),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 });
