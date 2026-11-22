@@ -6,6 +6,11 @@ import { LoginResponseDto } from '../../auth/dto/login-response.dto';
 import { RegisterResponseDto } from '../../auth/dto/register-response.dto';
 import { EventResponseDto } from '../../event/dto/event-response.dto';
 import {
+  EventAiDraftResponseDto,
+  SuggestedTicketTypeDto,
+  VenueSuggestionDto,
+} from '../../event/dto/event-ai-draft-response.dto';
+import {
   EventDetailOrganizationDto,
   EventDetailResponseDto,
   EventDetailVenueDto,
@@ -56,6 +61,9 @@ const RESPONSE_DTOS: ClassConstructor<unknown>[] = [
   EventSummaryResponseDto,
   EventListItemResponseDto,
   EventPageResponseDto,
+  EventAiDraftResponseDto,
+  VenueSuggestionDto,
+  SuggestedTicketTypeDto,
   PaginationMetaDto,
   ExpenseResponseDto,
   OrderResponseDto,
@@ -307,6 +315,62 @@ describe('toResponse(EventDetailResponseDto)', () => {
           quantity: 100,
         },
       ],
+    });
+  });
+});
+
+describe('toResponse(EventAiDraftResponseDto)', () => {
+  it('mapeia o rascunho com local e lotes, sem campos extras', () => {
+    const result = toResponse(EventAiDraftResponseDto, {
+      name: 'Festa Junina',
+      description: null,
+      category: 'festas',
+      ageRating: null,
+      edition: null,
+      startDate: '2026-11-28T20:00:00-03:00',
+      endDate: null,
+      venueSuggestion: {
+        name: 'Ginásio',
+        address: null,
+        city: 'São José dos Campos',
+        state: 'SP',
+        venueId: 'interno',
+      },
+      suggestedTicketTypes: [
+        {
+          batch: '1º lote',
+          price: 30,
+          quantity: null,
+          modality: 'inteira',
+          eventId: 'interno',
+        },
+      ],
+      missingFields: ['description', 'ageRating', 'edition', 'endDate'],
+      organizerId: 'interno',
+    });
+
+    expect(result.venueSuggestion).toBeInstanceOf(VenueSuggestionDto);
+    expect(result.suggestedTicketTypes[0]).toBeInstanceOf(
+      SuggestedTicketTypeDto,
+    );
+    expect(JSON.parse(JSON.stringify(result))).toEqual({
+      name: 'Festa Junina',
+      description: null,
+      category: 'festas',
+      ageRating: null,
+      edition: null,
+      startDate: '2026-11-28T20:00:00-03:00',
+      endDate: null,
+      venueSuggestion: {
+        name: 'Ginásio',
+        address: null,
+        city: 'São José dos Campos',
+        state: 'SP',
+      },
+      suggestedTicketTypes: [
+        { batch: '1º lote', price: 30, quantity: null, modality: 'inteira' },
+      ],
+      missingFields: ['description', 'ageRating', 'edition', 'endDate'],
     });
   });
 });

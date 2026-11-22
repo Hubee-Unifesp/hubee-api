@@ -12,6 +12,7 @@ import {
   EventAiDraftResponseDto,
   type EventAiDraftField,
 } from '../dto/event-ai-draft-response.dto';
+import type { GenerateEventDraftDto } from '../dto/generate-event-draft.dto';
 import {
   buildEventAiDraftUserPrompt,
   EVENT_AI_DRAFT_SYSTEM_PROMPT,
@@ -28,12 +29,12 @@ export class EventAiDraftService {
   constructor(private readonly ai: AiService) {}
 
   async generate(
-    description: string,
+    { prompt }: GenerateEventDraftDto,
     now: Date = new Date(),
   ): Promise<EventAiDraftResponseDto> {
     const raw = await this.ai.generateStructured({
       system: EVENT_AI_DRAFT_SYSTEM_PROMPT,
-      prompt: buildEventAiDraftUserPrompt(description, now),
+      prompt: buildEventAiDraftUserPrompt(prompt, now),
       schema: EVENT_AI_DRAFT_SCHEMA,
       feature: 'event-ai-draft',
     });
