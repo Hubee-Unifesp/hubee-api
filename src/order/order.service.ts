@@ -13,6 +13,7 @@ import type {
   DrizzleDatabase,
 } from '../database/database.provider';
 import { TicketTypeService } from '../ticket-type/ticket-type.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
@@ -42,6 +43,7 @@ export class OrderService {
     private readonly orderItemRepository: OrderItemRepository,
     private readonly usersService: UsersService,
     private readonly ticketTypeService: TicketTypeService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   findAll(filters: FindAllOrdersFilters) {
@@ -126,7 +128,15 @@ export class OrderService {
       }
 
       assertManualTransition(order.status, target);
-      return this.orderRepository.update(id, { status: target }, tx);
+      const updated = await this.orderRepository.update(
+        id,
+        { status: target },
+        tx,
+      );
+      if (target === 'cancelado') {
+        await this.notificationsService.notifyOrderCancelled(order, tx);
+      }
+      return updated;
     });
   }
 
@@ -149,6 +159,7 @@ export class OrderService {
       }
 
       await this.orderRepository.update(id, { status: 'cancelado' }, tx);
+      await this.notificationsService.notifyOrderCancelled(order, tx);
     });
   }
 
@@ -179,7 +190,7 @@ export class OrderService {
    * de vez) e não pode mais ser pago. Devolve `true` quando cancelou.
    */
   async cancelIfReservationExpired(
-    order: { id: string; status: string; createdAt: Date },
+    order: { id: string; userId: string; status: string; createdAt: Date },
     executor: DbExecutor,
     now: Date = new Date(),
   ): Promise<boolean> {
@@ -189,6 +200,7 @@ export class OrderService {
       { status: 'cancelado' },
       executor,
     );
+    await this.notificationsService.notifyOrderCancelled(order, executor);
     return true;
   }
 
