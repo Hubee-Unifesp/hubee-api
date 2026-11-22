@@ -21,3 +21,4 @@ export * from './supplier-review.schema';
 export * from './organization.schema';
 export * from './expense.schema';
 export * from './payment.schema';
+export * from './notification.schema';

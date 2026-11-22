@@ -186,4 +186,38 @@ describe('Migrations Drizzle (Postgres em memória)', () => {
       /supplier_reviews_supplier_id_user_id_unique/,
     );
   });
+
+  it('cria notifications com cascade ao remover usuário e valida notification_type', async () => {
+    const db = database();
+    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+
+    const {
+      rows: [user],
+    } = await pg.query<{ id: string }>(`
+      INSERT INTO "users" ("full_name", "email", "password")
+      VALUES ('Carlos', 'carlos@hubee.com', 'hash') RETURNING "id"
+    `);
+
+    await pg.query(
+      'INSERT INTO "notifications" ("user_id", "type", "title", "message", "href") VALUES ($1, $2, $3, $4, $5)',
+      [
+        user.id,
+        'payment_confirmed',
+        'Pagamento confirmado',
+        'Ingressos emitidos',
+        '/conta/ingressos',
+      ],
+    );
+
+    await expect(
+      pg.query(
+        'INSERT INTO "notifications" ("user_id", "type", "title", "message") VALUES ($1, $2, $3, $4)',
+        [user.id, 'tipo_invalido', 'Título', 'Mensagem'],
+      ),
+    ).rejects.toThrow(/notification_type/);
+
+    await pg.query('DELETE FROM "users" WHERE "id" = $1', [user.id]);
+    const { rows } = await pg.query('SELECT * FROM "notifications"');
+    expect(rows).toHaveLength(0);
+  });
 });
