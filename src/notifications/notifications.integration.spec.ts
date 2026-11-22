@@ -204,7 +204,6 @@ describe('Notificações in-app e gatilhos (GOL-268, PGlite)', () => {
       .returning();
     eventId = event.id;
 
-    // Lote com apenas 2 ingressos para testar esgotamento no checkout
     const [ticketType] = await db
       .insert(schema.ticketTypes)
       .values({
@@ -231,27 +230,46 @@ describe('Notificações in-app e gatilhos (GOL-268, PGlite)', () => {
       .expect(401);
   });
 
-  it('checkout gera payment_confirmed para o comprador e new_sale + batch_sold_out para o organizador', async () => {
-    const orderRes = await http()
+  it('não dispara batch_sold_out enquanto houver apenas reserva pendente e dispara só quando todas as vagas forem pagas', async () => {
+    const orderA = await http()
       .post('/orders')
       .set(as('buyer'))
-      .send({ items: [{ ticketTypeId, quantity: 2 }] })
+      .send({ items: [{ ticketTypeId, quantity: 1 }] })
+      .expect(201);
+
+    const orderB = await http()
+      .post('/orders')
+      .set(as('buyer'))
+      .send({ items: [{ ticketTypeId, quantity: 1 }] })
       .expect(201);
 
     await http()
       .post('/payments')
       .set(as('buyer'))
-      .send({ orderId: orderRes.body.id, paymentMethod: 'pix' })
+      .send({ orderId: orderB.body.id, paymentMethod: 'pix' })
       .expect(201);
 
-    // Comprador recebe payment_confirmed
+    const orgAfterFirstPay = await http()
+      .get('/notifications')
+      .set(as('organizer'))
+      .expect(200);
+
+    expect(
+      orgAfterFirstPay.body.data.map((n: { type: string }) => n.type),
+    ).toEqual(['new_sale']);
+
+    await http()
+      .post('/payments')
+      .set(as('buyer'))
+      .send({ orderId: orderA.body.id, paymentMethod: 'pix' })
+      .expect(201);
+
     const buyerNotifs = await http()
       .get('/notifications')
       .set(as('buyer'))
       .expect(200);
 
-    expect(buyerNotifs.body.unreadCount).toBe(1);
-    expect(buyerNotifs.body.data).toHaveLength(1);
+    expect(buyerNotifs.body.unreadCount).toBe(2);
     expect(buyerNotifs.body.data[0]).toMatchObject({
       userId: userIds.buyer,
       type: 'payment_confirmed',
@@ -260,18 +278,26 @@ describe('Notificações in-app e gatilhos (GOL-268, PGlite)', () => {
       readAt: null,
     });
 
-    // Organizador aceito recebe new_sale e batch_sold_out
     const orgNotifs = await http()
       .get('/notifications')
       .set(as('organizer'))
       .expect(200);
 
-    expect(orgNotifs.body.unreadCount).toBe(2);
-    expect(orgNotifs.body.data.map((n: { type: string }) => n.type)).toEqual(
-      expect.arrayContaining(['new_sale', 'batch_sold_out']),
-    );
+    expect(orgNotifs.body.unreadCount).toBe(3);
+    expect(
+      orgNotifs.body.data.filter(
+        (n: { type: string }) => n.type === 'batch_sold_out',
+      ),
+    ).toHaveLength(1);
 
-    // Membro com convite pendente não recebe notificações da organização
+    const pagedOrgNotifs = await http()
+      .get('/notifications?limit=1&offset=0')
+      .set(as('organizer'))
+      .expect(200);
+
+    expect(pagedOrgNotifs.body.data).toHaveLength(1);
+    expect(pagedOrgNotifs.body.unreadCount).toBe(3);
+
     const pendingNotifs = await http()
       .get('/notifications')
       .set(as('pendingMember'))
@@ -315,16 +341,18 @@ describe('Notificações in-app e gatilhos (GOL-268, PGlite)', () => {
       .set(as('organizer'))
       .expect(200);
 
-    expect(unreadOnlyRes.body.unreadCount).toBe(1);
-    expect(unreadOnlyRes.body.data).toHaveLength(1);
-    expect(unreadOnlyRes.body.data[0].id).not.toBe(firstId);
+    expect(unreadOnlyRes.body.unreadCount).toBe(2);
+    expect(unreadOnlyRes.body.data).toHaveLength(2);
+    expect(
+      unreadOnlyRes.body.data.map((n: { id: string }) => n.id),
+    ).not.toContain(firstId);
 
     const readAllRes = await http()
       .patch('/notifications/read-all')
       .set(as('organizer'))
       .expect(200);
 
-    expect(readAllRes.body).toEqual({ updatedCount: 1 });
+    expect(readAllRes.body).toEqual({ updatedCount: 2 });
 
     const afterReadAll = await http()
       .get('/notifications?unreadOnly=true')
@@ -336,7 +364,6 @@ describe('Notificações in-app e gatilhos (GOL-268, PGlite)', () => {
   });
 
   it('cancelamento de evento gera event_cancelled e estorno gera order_refunded para o comprador', async () => {
-    // Cancela o evento antes do estorno (enquanto o ingresso ainda está ativo)
     await http().delete(`/events/${eventId}`).set(as('organizer')).expect(204);
 
     const afterEventCancel = await http()
@@ -348,7 +375,6 @@ describe('Notificações in-app e gatilhos (GOL-268, PGlite)', () => {
       afterEventCancel.body.data.map((n: { type: string }) => n.type),
     ).toContain('event_cancelled');
 
-    // Estorna o pedido pago
     const ordersRes = await http().get('/orders').set(as('admin')).expect(200);
     const paidOrderId = ordersRes.body[0].id as string;
 
@@ -369,8 +395,6 @@ describe('Notificações in-app e gatilhos (GOL-268, PGlite)', () => {
   });
 
   it('cancelamento manual de pedido pendente gera order_cancelled para o comprador', async () => {
-    // Reabre um lote extra ou usa outro pedido antes do evento ser cancelado?
-    // Como o evento atual foi cancelado no teste anterior, criamos um novo pedido se reativarmos ou testamos via service
     await pglite.query(
       `UPDATE "events" SET "status" = 'published' WHERE "id" = $1`,
       [eventId],

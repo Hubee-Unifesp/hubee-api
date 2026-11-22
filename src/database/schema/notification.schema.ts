@@ -9,7 +9,6 @@ import {
 } from 'drizzle-orm/pg-core';
 import { users } from './user';
 
-/** Tipos de notificação in-app gerados pelos fluxos de compra e eventos. */
 export const notificationType = pgEnum('notification_type', [
   'payment_confirmed',
   'order_cancelled',

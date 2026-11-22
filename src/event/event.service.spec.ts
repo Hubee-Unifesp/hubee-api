@@ -142,6 +142,7 @@ describe('EventService', () => {
     findMembership: jest.Mock<EventRepository['findMembership']>;
     countTicketTypes: jest.Mock<EventRepository['countTicketTypes']>;
     duplicate: jest.Mock<EventRepository['duplicate']>;
+    transaction: jest.Mock<EventRepository['transaction']>;
   };
   let organizationService: {
     findOne: jest.Mock<OrganizationService['findOne']>;
@@ -158,6 +159,7 @@ describe('EventService', () => {
       NotificationsService['notifyEventCancelled']
     >;
   };
+  const tx = { tx: true };
 
   beforeEach(async () => {
     eventRepository = {
@@ -173,6 +175,9 @@ describe('EventService', () => {
         .mockResolvedValue(undefined),
       countTicketTypes: jest.fn<EventRepository['countTicketTypes']>(),
       duplicate: jest.fn<EventRepository['duplicate']>(),
+      transaction: jest
+        .fn<EventRepository['transaction']>()
+        .mockImplementation(async (callback) => callback(tx as never)),
     };
     organizationService = {
       findOne: jest.fn<OrganizationService['findOne']>(),
@@ -628,11 +633,14 @@ describe('EventService', () => {
 
       await service.update('event-1', { status: 'cancelled' }, USER);
 
-      expect(eventRepository.update).toHaveBeenCalledWith('event-1', {
-        status: 'cancelled',
-      });
+      expect(eventRepository.update).toHaveBeenCalledWith(
+        'event-1',
+        { status: 'cancelled' },
+        tx,
+      );
       expect(notificationsService.notifyEventCancelled).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'event-1', status: 'cancelled' }),
+        tx,
       );
     });
 
@@ -912,11 +920,14 @@ describe('EventService', () => {
 
       await service.cancel('event-1');
 
-      expect(eventRepository.update).toHaveBeenCalledWith('event-1', {
-        status: 'cancelled',
-      });
+      expect(eventRepository.update).toHaveBeenCalledWith(
+        'event-1',
+        { status: 'cancelled' },
+        tx,
+      );
       expect(notificationsService.notifyEventCancelled).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'event-1', status: 'cancelled' }),
+        tx,
       );
     });
 

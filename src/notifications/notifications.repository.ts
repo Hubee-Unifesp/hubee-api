@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
@@ -8,13 +8,17 @@ import type {
 import {
   events,
   notifications,
+  orderItems,
   orders,
   organizationUsers,
   tickets,
 } from '../database/schema';
+import { DEFAULT_NOTIFICATIONS_LIMIT } from './dto/query-notifications.dto';
 
 export interface FindUserNotificationsOptions {
   unreadOnly?: boolean;
+  limit?: number;
+  offset?: number;
 }
 
 @Injectable()
@@ -23,7 +27,11 @@ export class NotificationsRepository {
 
   async findAllByUser(
     userId: string,
-    { unreadOnly = false }: FindUserNotificationsOptions = {},
+    {
+      unreadOnly = false,
+      limit = DEFAULT_NOTIFICATIONS_LIMIT,
+      offset = 0,
+    }: FindUserNotificationsOptions = {},
     executor: DbExecutor = this.db,
   ) {
     const where = unreadOnly
@@ -34,7 +42,9 @@ export class NotificationsRepository {
       .select()
       .from(notifications)
       .where(where)
-      .orderBy(desc(notifications.createdAt), desc(notifications.id));
+      .orderBy(desc(notifications.createdAt), desc(notifications.id))
+      .limit(limit)
+      .offset(offset);
   }
 
   async countUnreadByUser(
@@ -115,7 +125,6 @@ export class NotificationsRepository {
     return executor.insert(notifications).values(data).returning();
   }
 
-  /** Retorna os `userId`s com vínculo aceito nas organizações informadas. */
   async findAcceptedOrganizationMembers(
     organizationIds: string[],
     executor: DbExecutor = this.db,
@@ -147,7 +156,6 @@ export class NotificationsRepository {
     return byOrg;
   }
 
-  /** Busca eventos pelos IDs informados. */
   async findEventsByIds(eventIds: string[], executor: DbExecutor = this.db) {
     const uniqueIds = [...new Set(eventIds)];
     if (uniqueIds.length === 0) return [];
@@ -161,11 +169,63 @@ export class NotificationsRepository {
       .where(inArray(events.id, uniqueIds));
   }
 
-  /**
-   * Busca usuários distintos que possuem ingressos ativos (não cancelados) ou
-   * pedidos pagos vinculados a um evento, para notificá-los caso o evento seja
-   * cancelado.
-   */
+  async sumSoldByTicketType(
+    ticketTypeIds: string[],
+    executor: DbExecutor = this.db,
+  ): Promise<Map<string, number>> {
+    const uniqueIds = [...new Set(ticketTypeIds)];
+    if (uniqueIds.length === 0) return new Map();
+
+    const itemRows = await executor
+      .select({
+        ticketTypeId: orderItems.ticketTypeId,
+        paid: sql<number>`coalesce(sum(${orderItems.quantity}), 0)::int`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orders.id, orderItems.orderId))
+      .where(
+        and(
+          inArray(orderItems.ticketTypeId, uniqueIds),
+          eq(orders.status, 'pago'),
+        ),
+      )
+      .groupBy(orderItems.ticketTypeId);
+
+    const ticketRows = await executor
+      .select({
+        ticketTypeId: tickets.ticketTypeId,
+        issued: sql<number>`count(*) filter (where ${tickets.status} <> 'cancelado')::int`,
+        cancelled: sql<number>`count(*) filter (where ${tickets.status} = 'cancelado')::int`,
+      })
+      .from(tickets)
+      .where(inArray(tickets.ticketTypeId, uniqueIds))
+      .groupBy(tickets.ticketTypeId);
+
+    const statsByType = new Map(
+      ticketRows.map((row) => [
+        row.ticketTypeId,
+        { issued: row.issued, cancelled: row.cancelled },
+      ]),
+    );
+    const result = new Map<string, number>();
+
+    for (const row of itemRows) {
+      const stats = statsByType.get(row.ticketTypeId) ?? {
+        issued: 0,
+        cancelled: 0,
+      };
+      const paidActive = Math.max(0, row.paid - stats.cancelled);
+      result.set(row.ticketTypeId, Math.max(paidActive, stats.issued));
+      statsByType.delete(row.ticketTypeId);
+    }
+
+    for (const [ticketTypeId, stats] of statsByType) {
+      result.set(ticketTypeId, stats.issued);
+    }
+
+    return result;
+  }
+
   async findAffectedUsersByEvent(
     eventId: string,
     executor: DbExecutor = this.db,

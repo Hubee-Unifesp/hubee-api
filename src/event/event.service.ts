@@ -169,11 +169,15 @@ export class EventService {
       await this.ensureVenueExists(dto.venueId);
     }
 
-    const updated = await this.eventRepository.update(id, dto);
     if (dto.status === 'cancelled') {
-      await this.notificationsService.notifyEventCancelled(updated);
+      return this.eventRepository.transaction(async (tx) => {
+        const updated = await this.eventRepository.update(id, dto, tx);
+        await this.notificationsService.notifyEventCancelled(updated, tx);
+        return updated;
+      });
     }
-    return updated;
+
+    return this.eventRepository.update(id, dto);
   }
 
   async updatePhoto(id: string, file?: ImageUploadFile) {
@@ -221,10 +225,14 @@ export class EventService {
       throw new UnprocessableEntityException('Evento já está cancelado');
     }
 
-    const updated = await this.eventRepository.update(id, {
-      status: 'cancelled',
+    await this.eventRepository.transaction(async (tx) => {
+      const updated = await this.eventRepository.update(
+        id,
+        { status: 'cancelled' },
+        tx,
+      );
+      await this.notificationsService.notifyEventCancelled(updated, tx);
     });
-    await this.notificationsService.notifyEventCancelled(updated);
   }
 
   /** Membro com convite aceito (qualquer nível) da organização. */

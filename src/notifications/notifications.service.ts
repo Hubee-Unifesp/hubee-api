@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { DbExecutor } from '../database/database.provider';
-import { sumCommittedByTicketType } from '../order/order-reservation';
-import { QueryNotificationsDto } from './dto/query-notifications.dto';
+import {
+  DEFAULT_NOTIFICATIONS_LIMIT,
+  QueryNotificationsDto,
+} from './dto/query-notifications.dto';
 import { NotificationsRepository } from './notifications.repository';
 
 export interface PaidOrderNotificationItem {
@@ -25,6 +27,8 @@ export class NotificationsService {
     const [data, unreadCount] = await Promise.all([
       this.notificationsRepository.findAllByUser(userId, {
         unreadOnly: query.unreadOnly,
+        limit: query.limit ?? DEFAULT_NOTIFICATIONS_LIMIT,
+        offset: query.offset ?? 0,
       }),
       this.notificationsRepository.countUnreadByUser(userId),
     ]);
@@ -49,12 +53,6 @@ export class NotificationsService {
     return { updatedCount };
   }
 
-  /**
-   * Dispara notificações quando um pagamento é confirmado no checkout:
-   * 1. Para o comprador (`payment_confirmed`)
-   * 2. Para os membros da organização do evento (`new_sale`)
-   * 3. Se algum lote comprado esgotou (`batch_sold_out`), notifica a organização
-   */
   async notifyPaymentConfirmed(
     order: { id: string; userId: string },
     items: PaidOrderNotificationItem[],
@@ -94,15 +92,39 @@ export class NotificationsService {
         executor,
       );
 
-    // Soma ingressos vendidos por evento neste pedido
     const ticketsByEvent = new Map<string, number>();
+    const boughtByLot = new Map<string, number>();
+    const lotById = new Map<
+      string,
+      { eventId: string; batch: string; quantity: number }
+    >();
+
     for (const item of items) {
       const eventId = item.ticketType?.eventId;
-      if (!eventId) continue;
-      ticketsByEvent.set(
-        eventId,
-        (ticketsByEvent.get(eventId) ?? 0) + item.quantity,
+      if (eventId) {
+        ticketsByEvent.set(
+          eventId,
+          (ticketsByEvent.get(eventId) ?? 0) + item.quantity,
+        );
+      }
+
+      boughtByLot.set(
+        item.ticketTypeId,
+        (boughtByLot.get(item.ticketTypeId) ?? 0) + item.quantity,
       );
+
+      const lot = item.ticketType;
+      if (
+        lot &&
+        typeof lot.quantity === 'number' &&
+        typeof lot.batch === 'string'
+      ) {
+        lotById.set(item.ticketTypeId, {
+          eventId: lot.eventId,
+          batch: lot.batch,
+          quantity: lot.quantity,
+        });
+      }
     }
 
     for (const [eventId, totalSold] of ticketsByEvent) {
@@ -120,47 +142,18 @@ export class NotificationsService {
       }
     }
 
-    // Verifica se algum lote comprado esgotou após a confirmação
-    const lotsWithCapacity = items
-      .map((item) => item.ticketType)
-      .filter(
-        (
-          lot,
-        ): lot is {
-          id?: string;
-          eventId: string;
-          batch: string;
-          quantity: number;
-        } =>
-          Boolean(
-            lot &&
-            typeof lot.quantity === 'number' &&
-            typeof lot.batch === 'string',
-          ),
+    if (lotById.size > 0) {
+      const soldByLot = await this.notificationsRepository.sumSoldByTicketType(
+        [...lotById.keys()],
+        executor,
       );
 
-    if (lotsWithCapacity.length > 0 && executor) {
-      const ticketTypeIds = [
-        ...new Set(items.map((item) => item.ticketTypeId)),
-      ];
-      const committed = await sumCommittedByTicketType(executor, ticketTypeIds);
-      const notifiedLots = new Set<string>();
+      for (const [ticketTypeId, lot] of lotById) {
+        const sold = soldByLot.get(ticketTypeId) ?? 0;
+        const boughtNow = boughtByLot.get(ticketTypeId) ?? 0;
+        const soldBefore = sold - boughtNow;
 
-      for (const item of items) {
-        if (notifiedLots.has(item.ticketTypeId)) continue;
-        notifiedLots.add(item.ticketTypeId);
-
-        const lot = item.ticketType;
-        if (
-          !lot ||
-          typeof lot.quantity !== 'number' ||
-          typeof lot.batch !== 'string'
-        ) {
-          continue;
-        }
-
-        const used = committed.get(item.ticketTypeId) ?? 0;
-        if (lot.quantity - used <= 0) {
+        if (lot.quantity - soldBefore > 0 && lot.quantity - sold <= 0) {
           const event = eventsById.get(lot.eventId);
           if (!event) continue;
           const memberIds = membersByOrg.get(event.organizerId) ?? [];
@@ -180,7 +173,6 @@ export class NotificationsService {
     await this.notificationsRepository.createMany(toCreate, executor);
   }
 
-  /** Dispara notificação para o comprador quando um pedido é cancelado. */
   async notifyOrderCancelled(
     order: { id: string; userId: string },
     executor?: DbExecutor,
@@ -197,7 +189,6 @@ export class NotificationsService {
     );
   }
 
-  /** Dispara notificação para o comprador quando um pagamento é estornado. */
   async notifyOrderRefunded(
     order: { id: string; userId: string },
     executor?: DbExecutor,
@@ -215,10 +206,6 @@ export class NotificationsService {
     );
   }
 
-  /**
-   * Dispara notificação para todos os compradores/titulares com ingressos ativos
-   * quando um evento é cancelado.
-   */
   async notifyEventCancelled(
     event: { id: string; name: string },
     executor?: DbExecutor,

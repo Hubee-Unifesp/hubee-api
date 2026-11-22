@@ -34,6 +34,9 @@ describe('NotificationsService', () => {
       NotificationsRepository['findAcceptedOrganizationMembers']
     >;
     findEventsByIds: jest.Mock<NotificationsRepository['findEventsByIds']>;
+    sumSoldByTicketType: jest.Mock<
+      NotificationsRepository['sumSoldByTicketType']
+    >;
     findAffectedUsersByEvent: jest.Mock<
       NotificationsRepository['findAffectedUsersByEvent']
     >;
@@ -51,6 +54,8 @@ describe('NotificationsService', () => {
       findAcceptedOrganizationMembers:
         jest.fn<NotificationsRepository['findAcceptedOrganizationMembers']>(),
       findEventsByIds: jest.fn<NotificationsRepository['findEventsByIds']>(),
+      sumSoldByTicketType:
+        jest.fn<NotificationsRepository['sumSoldByTicketType']>(),
       findAffectedUsersByEvent:
         jest.fn<NotificationsRepository['findAffectedUsersByEvent']>(),
     };
@@ -66,7 +71,7 @@ describe('NotificationsService', () => {
   });
 
   describe('findAllForUser()', () => {
-    it('retorna a lista de notificações e o unreadCount do usuário', async () => {
+    it('retorna a lista de notificações e o unreadCount do usuário com limit e offset padrão', async () => {
       const items = [makeNotification()];
       repository.findAllByUser.mockResolvedValue(items);
       repository.countUnreadByUser.mockResolvedValue(1);
@@ -77,6 +82,8 @@ describe('NotificationsService', () => {
 
       expect(repository.findAllByUser).toHaveBeenCalledWith('user-1', {
         unreadOnly: true,
+        limit: 20,
+        offset: 0,
       });
       expect(repository.countUnreadByUser).toHaveBeenCalledWith('user-1');
       expect(result).toEqual({ data: items, unreadCount: 1 });
