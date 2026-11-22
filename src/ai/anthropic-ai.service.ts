@@ -9,7 +9,6 @@ import { ConfigService } from '@nestjs/config';
 import type { EnvironmentVariables } from '../config/env.validation';
 import { AiService, type AiStructuredRequest } from './ai.service';
 
-const DEFAULT_MAX_TOKENS = 16000;
 const UNAVAILABLE_MESSAGE =
   'A geração com IA não está disponível no momento. Tente novamente em instantes.';
 const REFUSAL_MESSAGE =
@@ -30,28 +29,35 @@ export class AnthropicAiService extends AiService {
     system,
     prompt,
     schema,
-    maxTokens = DEFAULT_MAX_TOKENS,
+    maxTokens,
+    feature = 'unknown',
   }: AiStructuredRequest): Promise<unknown> {
     const client = this.getClient();
     const model = this.config.get('ANTHROPIC_MODEL', { infer: true });
+    const maxTokensCap = this.config.get('AI_MAX_TOKENS', { infer: true });
+    const effort = this.config.get('AI_EFFORT', { infer: true });
 
     let response: Anthropic.Message;
     try {
       response = await client.messages.create({
         model,
-        max_tokens: maxTokens,
+        max_tokens: Math.min(maxTokens ?? maxTokensCap, maxTokensCap),
         system: [
           { type: 'text', text: system, cache_control: { type: 'ephemeral' } },
         ],
         messages: [{ role: 'user', content: prompt }],
-        output_config: { format: { type: 'json_schema', schema } },
+        output_config: {
+          effort,
+          format: { type: 'json_schema', schema },
+        },
       });
     } catch (error) {
       throw this.toHttpError(error);
     }
 
+    const { usage } = response;
     this.logger.log(
-      `model=${response.model} stop_reason=${response.stop_reason} input_tokens=${response.usage.input_tokens} output_tokens=${response.usage.output_tokens} cache_read_tokens=${response.usage.cache_read_input_tokens ?? 0}`,
+      `feature=${feature} model=${response.model} effort=${effort} stop_reason=${response.stop_reason} input_tokens=${usage.input_tokens} output_tokens=${usage.output_tokens} cache_creation_tokens=${usage.cache_creation_input_tokens ?? 0} cache_read_tokens=${usage.cache_read_input_tokens ?? 0}`,
     );
 
     if (response.stop_reason === 'refusal') {

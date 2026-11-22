@@ -35,6 +35,7 @@ export class EventAiDraftService {
       system: EVENT_AI_DRAFT_SYSTEM_PROMPT,
       prompt: buildEventAiDraftUserPrompt(description, now),
       schema: EVENT_AI_DRAFT_SCHEMA,
+      feature: 'event-ai-draft',
     });
 
     const draft = await this.parse(raw);

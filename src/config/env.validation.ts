@@ -11,10 +11,22 @@ export interface EnvironmentVariables {
   ANTHROPIC_API_KEY?: string;
   ANTHROPIC_MODEL: string;
   AI_TIMEOUT_MS: number;
+  AI_MAX_TOKENS: number;
+  AI_EFFORT: AiEffort;
+  AI_RATE_LIMIT_MAX: number;
+  AI_RATE_LIMIT_WINDOW_MS: number;
 }
+
+export const AI_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+
+export type AiEffort = (typeof AI_EFFORTS)[number];
 
 const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5';
 const DEFAULT_AI_TIMEOUT_MS = 30000;
+const DEFAULT_AI_MAX_TOKENS = 16000;
+const DEFAULT_AI_EFFORT: AiEffort = 'medium';
+const DEFAULT_AI_RATE_LIMIT_MAX = 5;
+const DEFAULT_AI_RATE_LIMIT_WINDOW_MS = 60000;
 
 function requireString(
   config: Record<string, unknown>,
@@ -104,6 +116,26 @@ function optionalPositiveInteger(
   return parsed;
 }
 
+function optionalAiEffort(
+  config: Record<string, unknown>,
+  key: keyof EnvironmentVariables,
+  fallback: AiEffort,
+): AiEffort {
+  const value = optionalString(config, key);
+
+  if (value === undefined) {
+    return fallback;
+  }
+
+  if (!(AI_EFFORTS as readonly string[]).includes(value)) {
+    throw new Error(
+      `Variável de ambiente "${key}" deve ser um destes valores: ${AI_EFFORTS.join(', ')}.`,
+    );
+  }
+
+  return value as AiEffort;
+}
+
 /**
  * Valida as variáveis de ambiente no boot da aplicação. Falhar aqui é
  * proposital: é melhor a API não subir do que subir sem saber falar com o banco.
@@ -128,6 +160,22 @@ export function validateEnv(
       config,
       'AI_TIMEOUT_MS',
       DEFAULT_AI_TIMEOUT_MS,
+    ),
+    AI_MAX_TOKENS: optionalPositiveInteger(
+      config,
+      'AI_MAX_TOKENS',
+      DEFAULT_AI_MAX_TOKENS,
+    ),
+    AI_EFFORT: optionalAiEffort(config, 'AI_EFFORT', DEFAULT_AI_EFFORT),
+    AI_RATE_LIMIT_MAX: optionalPositiveInteger(
+      config,
+      'AI_RATE_LIMIT_MAX',
+      DEFAULT_AI_RATE_LIMIT_MAX,
+    ),
+    AI_RATE_LIMIT_WINDOW_MS: optionalPositiveInteger(
+      config,
+      'AI_RATE_LIMIT_WINDOW_MS',
+      DEFAULT_AI_RATE_LIMIT_WINDOW_MS,
     ),
   };
 }
