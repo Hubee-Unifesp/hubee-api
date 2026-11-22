@@ -16,6 +16,7 @@ import { EventController } from '../event/event.controller';
 import { EventService } from '../event/event.service';
 import { ExpensesController } from '../expenses/expenses.controller';
 import { HealthController } from '../health/health.controller';
+import { NotificationsController } from '../notifications/notifications.controller';
 import { OrganizationEventController } from '../organization-event/organization-event.controller';
 import { OrganizationUsersController } from '../organization-users/organization-users.controller';
 import { OrderController } from '../order/order.controller';
@@ -50,6 +51,7 @@ const CONTROLLERS: Type[] = [
   OrganizationUsersController,
   OrganizationEventController,
   HealthController,
+  NotificationsController,
 ];
 
 /**
@@ -90,6 +92,9 @@ const AUTHENTICATED_ROUTES = [
   'GET /tickets',
   'GET /users/me/tickets',
   'GET /tickets/:id',
+  'GET /notifications',
+  'PATCH /notifications/read-all',
+  'PATCH /notifications/:id/read',
 ];
 
 /**
