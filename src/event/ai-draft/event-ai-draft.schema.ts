@@ -44,6 +44,16 @@ const suggestedTicketTypeSchema: JsonSchema = {
   additionalProperties: false,
 };
 
+const questionSchema: JsonSchema = {
+  type: 'object',
+  properties: {
+    field: { type: 'string', enum: [...EVENT_AI_DRAFT_FIELDS] },
+    question: { type: 'string' },
+  },
+  required: ['field', 'question'],
+  additionalProperties: false,
+};
+
 export const EVENT_AI_DRAFT_SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
@@ -61,7 +71,8 @@ export const EVENT_AI_DRAFT_SCHEMA: JsonSchema = {
       type: 'array',
       items: { type: 'string', enum: [...EVENT_AI_DRAFT_FIELDS] },
     },
+    questions: { type: 'array', items: questionSchema },
   },
-  required: [...EVENT_AI_DRAFT_FIELDS, 'missingFields'],
+  required: [...EVENT_AI_DRAFT_FIELDS, 'missingFields', 'questions'],
   additionalProperties: false,
 };

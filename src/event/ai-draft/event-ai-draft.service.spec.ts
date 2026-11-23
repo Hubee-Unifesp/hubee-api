@@ -27,9 +27,16 @@ function makeService() {
   } as unknown as AiService);
 }
 
-async function generateWith(response: unknown, description = 'Show de rock') {
+async function generateWith(
+  response: unknown,
+  description = 'Show de rock',
+  previous?: EventAiDraftResponseDto,
+) {
   generateStructured.mockResolvedValue(response);
-  return makeService().generate({ prompt: description }, FIXTURE_NOW);
+  return makeService().generate(
+    { prompt: description, draft: previous },
+    FIXTURE_NOW,
+  );
 }
 
 describe('EventAiDraftService', () => {
@@ -53,7 +60,7 @@ describe('EventAiDraftService', () => {
     const draft = await generateWith(COMPLETE_DRAFT.response);
 
     expect(draft).toBeInstanceOf(EventAiDraftResponseDto);
-    expect({ ...draft }).toEqual(COMPLETE_DRAFT.response);
+    expect({ ...draft }).toEqual({ ...COMPLETE_DRAFT.response, done: true });
   });
 
   it('mantém nulos os campos não inferidos e os lista em missingFields', async () => {
@@ -77,7 +84,10 @@ describe('EventAiDraftService', () => {
   it('aceita o rascunho vazio de um texto que não descreve um evento', async () => {
     const draft = await generateWith(NOT_AN_EVENT_DRAFT.response);
 
-    expect({ ...draft }).toEqual(NOT_AN_EVENT_DRAFT.response);
+    expect({ ...draft }).toEqual({
+      ...NOT_AN_EVENT_DRAFT.response,
+      done: true,
+    });
   });
 
   it('recalcula missingFields a partir dos campos vazios', async () => {
@@ -232,7 +242,10 @@ describe('EventAiDraftService', () => {
   it('mantém a data sem horário e a lista em missingFields', async () => {
     const draft = await generateWith(DATE_WITHOUT_TIME_DRAFT.response);
 
-    expect({ ...draft }).toEqual(DATE_WITHOUT_TIME_DRAFT.response);
+    expect({ ...draft }).toEqual({
+      ...DATE_WITHOUT_TIME_DRAFT.response,
+      done: false,
+    });
   });
 
   it('aceita término no mesmo dia quando só a data é conhecida', async () => {
@@ -279,6 +292,108 @@ describe('EventAiDraftService', () => {
     );
 
     expect(draft.salesStartDate).toBe('2026-11-21');
+  });
+
+  it('devolve as perguntas e done falso enquanto houver o que perguntar', async () => {
+    const draft = await generateWith(PARTIAL_DRAFT.response);
+
+    expect(draft.questions).toEqual(
+      (PARTIAL_DRAFT.response as { questions: unknown }).questions,
+    );
+    expect(draft.done).toBe(false);
+  });
+
+  it('remove perguntas em branco e repetidas para o mesmo campo', async () => {
+    const draft = await generateWith(
+      draftWith({
+        questions: [
+          { field: 'startDate', question: '  Que horas começa?  ' },
+          { field: 'startDate', question: 'E o dia?' },
+          { field: 'venueSuggestion', question: '   ' },
+        ],
+      }),
+    );
+
+    expect(draft.questions).toEqual([
+      { field: 'startDate', question: 'Que horas começa?' },
+    ]);
+  });
+
+  it('limita a lista a 3 perguntas e corta perguntas longas', async () => {
+    const draft = await generateWith(
+      draftWith({
+        questions: [
+          { field: 'startDate', question: 'a'.repeat(400) },
+          { field: 'endDate', question: 'Término?' },
+          { field: 'venueSuggestion', question: 'Local?' },
+          { field: 'ageRating', question: 'Classificação?' },
+        ],
+      }),
+    );
+
+    expect(draft.questions.map(({ field }) => field)).toEqual([
+      'startDate',
+      'endDate',
+      'venueSuggestion',
+    ]);
+    expect(draft.questions[0].question).toHaveLength(300);
+  });
+
+  it('envia o rascunho atual e a resposta na rodada seguinte', async () => {
+    const previous = {
+      ...(DATE_WITHOUT_TIME_DRAFT.response as EventAiDraftResponseDto),
+      done: false,
+    };
+
+    await generateWith(DATE_WITHOUT_TIME_DRAFT.response, 'às 20h', previous);
+
+    const { prompt } = generateStructured.mock.calls[0][0];
+    expect(prompt).toContain('<rascunho_atual>');
+    expect(prompt).toContain('"startDate": "2027-01-30"');
+    expect(prompt).toContain('Que horas começa a festa?');
+    expect(prompt).not.toContain('"done"');
+    expect(prompt).not.toContain('"missingFields"');
+    expect(prompt).toContain(
+      '<descricao_do_organizador>\nàs 20h\n</descricao_do_organizador>',
+    );
+  });
+
+  it('mantém os valores do rascunho atual que a IA devolveu nulos', async () => {
+    const previous = {
+      ...(DATE_WITHOUT_TIME_DRAFT.response as EventAiDraftResponseDto),
+      done: false,
+    };
+
+    const draft = await generateWith(
+      {
+        ...(NOT_AN_EVENT_DRAFT.response as Record<string, unknown>),
+        startDate: '2027-01-30T20:00:00-03:00',
+        questions: [{ field: 'endDate', question: 'Que horas termina?' }],
+      },
+      'às 20h',
+      previous,
+    );
+
+    expect(draft.name).toBe('Aniversário de 30 anos da Cibelle');
+    expect(draft.ageRating).toBe('18');
+    expect(draft.startDate).toBe('2027-01-30T20:00:00-03:00');
+    expect(draft.salesStartDate).toBe('2026-11-30');
+    expect(draft.suggestedTicketTypes).toHaveLength(3);
+    expect(draft.missingFields).toEqual([
+      'edition',
+      'endDate',
+      'salesStartDate',
+      'venueSuggestion',
+    ]);
+    expect(draft.questions).toEqual([
+      { field: 'endDate', question: 'Que horas termina?' },
+    ]);
+  });
+
+  it('marca done quando a IA não tem mais perguntas', async () => {
+    const draft = await generateWith(draftWith({ questions: [] }));
+
+    expect(draft.done).toBe(true);
   });
 
   it.each([
@@ -332,6 +447,12 @@ describe('EventAiDraftService', () => {
       }),
     ],
     ['lotes que não são lista', draftWith({ suggestedTicketTypes: null })],
+    ['perguntas que não são lista', draftWith({ questions: null })],
+    [
+      'uma pergunta para um campo desconhecido',
+      draftWith({ questions: [{ field: 'coverImage', question: 'Foto?' }] }),
+    ],
+    ['sem a lista de perguntas', draftWith({ questions: undefined })],
   ])('responde 503 quando a IA devolve %s', async (_case, response) => {
     await expect(generateWith(response)).rejects.toBeInstanceOf(
       ServiceUnavailableException,

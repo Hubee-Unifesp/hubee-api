@@ -361,6 +361,10 @@ describe('toResponse(EventAiDraftResponseDto)', () => {
         'endDate',
         'salesStartDate',
       ],
+      questions: [
+        { field: 'description', question: 'Qual a programação?', extra: 'x' },
+      ],
+      done: false,
       organizerId: 'interno',
     });
 
@@ -393,6 +397,8 @@ describe('toResponse(EventAiDraftResponseDto)', () => {
         'endDate',
         'salesStartDate',
       ],
+      questions: [{ field: 'description', question: 'Qual a programação?' }],
+      done: false,
     });
   });
 });

@@ -29,6 +29,7 @@ export const COMPLETE_DRAFT: EventAiDraftFixture = {
       { batch: '1º lote', price: 15, quantity: 200, modality: 'meia' },
     ],
     missingFields: [],
+    questions: [],
   },
 };
 
@@ -56,6 +57,10 @@ export const PARTIAL_DRAFT: EventAiDraftFixture = {
       'endDate',
       'salesStartDate',
       'venueSuggestion',
+    ],
+    questions: [
+      { field: 'startDate', question: 'Que dia e horário é a palestra?' },
+      { field: 'venueSuggestion', question: 'Onde vai ser a palestra?' },
     ],
   },
 };
@@ -85,6 +90,7 @@ export const NOT_AN_EVENT_DRAFT: EventAiDraftFixture = {
       'venueSuggestion',
       'suggestedTicketTypes',
     ],
+    questions: [],
   },
 };
 
@@ -112,6 +118,11 @@ export const DATE_WITHOUT_TIME_DRAFT: EventAiDraftFixture = {
       'endDate',
       'salesStartDate',
       'venueSuggestion',
+    ],
+    questions: [
+      { field: 'startDate', question: 'Que horas começa a festa?' },
+      { field: 'endDate', question: 'Que horas a festa termina?' },
+      { field: 'venueSuggestion', question: 'Onde vai ser a festa?' },
     ],
   },
 };
