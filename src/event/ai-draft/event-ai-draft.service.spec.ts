@@ -8,6 +8,7 @@ import type { AiService, AiStructuredRequest } from '../../ai/ai.service';
 import { EventAiDraftResponseDto } from '../dto/event-ai-draft-response.dto';
 import {
   COMPLETE_DRAFT,
+  DATE_WITHOUT_TIME_DRAFT,
   draftWith,
   FIXTURE_NOW,
   NOT_AN_EVENT_DRAFT,
@@ -68,6 +69,7 @@ describe('EventAiDraftService', () => {
       'edition',
       'startDate',
       'endDate',
+      'salesStartDate',
       'venueSuggestion',
     ]);
   });
@@ -227,6 +229,58 @@ describe('EventAiDraftService', () => {
     expect(draft.missingFields).toEqual(['startDate', 'endDate']);
   });
 
+  it('mantém a data sem horário e a lista em missingFields', async () => {
+    const draft = await generateWith(DATE_WITHOUT_TIME_DRAFT.response);
+
+    expect({ ...draft }).toEqual(DATE_WITHOUT_TIME_DRAFT.response);
+  });
+
+  it('aceita término no mesmo dia quando só a data é conhecida', async () => {
+    const draft = await generateWith(
+      draftWith({ startDate: '2026-11-21', endDate: '2026-11-21' }),
+    );
+
+    expect(draft.startDate).toBe('2026-11-21');
+    expect(draft.endDate).toBe('2026-11-21');
+    expect(draft.missingFields).toEqual(['startDate', 'endDate']);
+  });
+
+  it('descarta término em dia anterior ao início quando só a data é conhecida', async () => {
+    const draft = await generateWith(
+      draftWith({
+        startDate: '2026-11-21T20:00:00-03:00',
+        endDate: '2026-11-20',
+      }),
+    );
+
+    expect(draft.startDate).toBeNull();
+    expect(draft.endDate).toBeNull();
+  });
+
+  it('descarta o início das vendas depois do início do evento', async () => {
+    const draft = await generateWith(
+      draftWith({
+        startDate: '2026-11-21T20:00:00-03:00',
+        salesStartDate: '2026-11-22',
+      }),
+    );
+
+    expect(draft.startDate).toBe('2026-11-21T20:00:00-03:00');
+    expect(draft.salesStartDate).toBeNull();
+    expect(draft.missingFields).toEqual(['salesStartDate']);
+  });
+
+  it('aceita vendas no mesmo dia do evento quando o horário das vendas não é conhecido', async () => {
+    const draft = await generateWith(
+      draftWith({
+        startDate: '2026-11-21T20:00:00-03:00',
+        salesStartDate: '2026-11-21',
+      }),
+    );
+
+    expect(draft.salesStartDate).toBe('2026-11-21');
+  });
+
   it.each([
     ['uma lista', []],
     ['um texto', 'rascunho'],
@@ -237,6 +291,11 @@ describe('EventAiDraftService', () => {
     ],
     ['uma classificação inválida', draftWith({ ageRating: '21' })],
     ['uma data fora do ISO 8601', draftWith({ startDate: '21/11/2026 20h' })],
+    [
+      'uma data com horário e sem fuso',
+      draftWith({ startDate: '2026-11-21T20:00:00' }),
+    ],
+    ['um dia inexistente', draftWith({ salesStartDate: '2026-02-30' })],
     ['um campo extra', draftWith({ organizerId: 'abc' })],
     [
       'um campo desconhecido em missingFields',

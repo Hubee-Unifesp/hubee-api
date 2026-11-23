@@ -16,6 +16,7 @@ import type { GenerateEventDraftDto } from '../dto/generate-event-draft.dto';
 import {
   buildEventAiDraftUserPrompt,
   EVENT_AI_DRAFT_SYSTEM_PROMPT,
+  EVENT_AI_DRAFT_TIME_ZONE,
 } from './event-ai-draft.prompt';
 import { EVENT_AI_DRAFT_SCHEMA } from './event-ai-draft.schema';
 
@@ -75,6 +76,7 @@ export class EventAiDraftService {
       edition: text(draft.edition),
       startDate: draft.startDate ?? null,
       endDate: draft.endDate ?? null,
+      salesStartDate: draft.salesStartDate ?? null,
       venueSuggestion: normalizeVenue(draft.venueSuggestion),
       suggestedTicketTypes: draft.suggestedTicketTypes.map((ticketType) => ({
         batch: ticketType.batch.trim(),
@@ -85,14 +87,21 @@ export class EventAiDraftService {
       missingFields: [],
     };
 
-    if (
-      normalized.startDate &&
-      normalized.endDate &&
-      Date.parse(normalized.endDate) <= Date.parse(normalized.startDate)
-    ) {
+    const { startDate, endDate, salesStartDate } = normalized;
+
+    if (startDate && endDate && !endsAfterStart(startDate, endDate)) {
       this.logger.warn('Rascunho da IA com endDate anterior a startDate');
       normalized.startDate = null;
       normalized.endDate = null;
+    }
+
+    if (
+      salesStartDate &&
+      normalized.startDate &&
+      compareDates(salesStartDate, normalized.startDate) > 0
+    ) {
+      this.logger.warn('Rascunho da IA com salesStartDate depois de startDate');
+      normalized.salesStartDate = null;
     }
 
     normalized.missingFields = EVENT_AI_DRAFT_FIELDS.filter((field) =>
@@ -183,6 +192,40 @@ function normalizeVenue(
     : normalized;
 }
 
+const DATE_FIELDS = new Set<EventAiDraftField>([
+  'startDate',
+  'endDate',
+  'salesStartDate',
+]);
+
+const localDayFormat = new Intl.DateTimeFormat('en-CA', {
+  timeZone: EVENT_AI_DRAFT_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+function isDateOnly(value: string): boolean {
+  return !value.includes('T');
+}
+
+function localDay(value: string): string {
+  return isDateOnly(value) ? value : localDayFormat.format(new Date(value));
+}
+
+function compareDates(a: string, b: string): number {
+  if (isDateOnly(a) || isDateOnly(b)) {
+    return localDay(a).localeCompare(localDay(b));
+  }
+  return Date.parse(a) - Date.parse(b);
+}
+
+function endsAfterStart(start: string, end: string): boolean {
+  const diff = compareDates(end, start);
+  if (isDateOnly(start) || isDateOnly(end)) return diff >= 0;
+  return diff > 0;
+}
+
 function isMissing(
   draft: EventAiDraftResponseDto,
   field: EventAiDraftField,
@@ -190,7 +233,11 @@ function isMissing(
   if (field === 'suggestedTicketTypes') {
     return draft.suggestedTicketTypes.length === 0;
   }
-  return draft[field] === null;
+  const value = draft[field];
+  if (value === null) return true;
+  return (
+    DATE_FIELDS.has(field) && typeof value === 'string' && isDateOnly(value)
+  );
 }
 
 function text(value: string | null | undefined): string | null {

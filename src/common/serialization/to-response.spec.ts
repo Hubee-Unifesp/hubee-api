@@ -337,6 +337,7 @@ describe('toResponse(EventAiDraftResponseDto)', () => {
       edition: null,
       startDate: '2026-11-28T20:00:00-03:00',
       endDate: null,
+      salesStartDate: '2026-11-20',
       venueSuggestion: {
         name: 'Ginásio',
         address: null,
@@ -353,7 +354,13 @@ describe('toResponse(EventAiDraftResponseDto)', () => {
           eventId: 'interno',
         },
       ],
-      missingFields: ['description', 'ageRating', 'edition', 'endDate'],
+      missingFields: [
+        'description',
+        'ageRating',
+        'edition',
+        'endDate',
+        'salesStartDate',
+      ],
       organizerId: 'interno',
     });
 
@@ -369,6 +376,7 @@ describe('toResponse(EventAiDraftResponseDto)', () => {
       edition: null,
       startDate: '2026-11-28T20:00:00-03:00',
       endDate: null,
+      salesStartDate: '2026-11-20',
       venueSuggestion: {
         name: 'Ginásio',
         address: null,
@@ -378,7 +386,13 @@ describe('toResponse(EventAiDraftResponseDto)', () => {
       suggestedTicketTypes: [
         { batch: '1º lote', price: 30, quantity: null, modality: 'inteira' },
       ],
-      missingFields: ['description', 'ageRating', 'edition', 'endDate'],
+      missingFields: [
+        'description',
+        'ageRating',
+        'edition',
+        'endDate',
+        'salesStartDate',
+      ],
     });
   });
 });

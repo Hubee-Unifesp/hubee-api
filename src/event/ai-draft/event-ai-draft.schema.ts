@@ -12,7 +12,13 @@ const nullable = (schema: JsonSchema): JsonSchema => ({
 });
 
 const nullableString = nullable({ type: 'string' });
-const nullableDateTime = nullable({ type: 'string', format: 'date-time' });
+const nullableDate: JsonSchema = {
+  anyOf: [
+    { type: 'string', format: 'date-time' },
+    { type: 'string', format: 'date' },
+    { type: 'null' },
+  ],
+};
 
 const venueSuggestionSchema: JsonSchema = {
   type: 'object',
@@ -46,8 +52,9 @@ export const EVENT_AI_DRAFT_SCHEMA: JsonSchema = {
     category: nullable({ type: 'string', enum: [...EVENT_CATEGORIES] }),
     ageRating: nullable({ type: 'string', enum: eventAgeRating.enumValues }),
     edition: nullableString,
-    startDate: nullableDateTime,
-    endDate: nullableDateTime,
+    startDate: nullableDate,
+    endDate: nullableDate,
+    salesStartDate: nullableDate,
     venueSuggestion: nullable(venueSuggestionSchema),
     suggestedTicketTypes: { type: 'array', items: suggestedTicketTypeSchema },
     missingFields: {
