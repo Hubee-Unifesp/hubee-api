@@ -29,10 +29,11 @@ const objectSchemas = collectSchemas(EVENT_AI_DRAFT_SCHEMA).filter(
 );
 
 describe('schema do rascunho de evento com IA', () => {
-  it('exige todos os campos do DTO e missingFields', () => {
+  it('exige todos os campos do DTO, missingFields e questions', () => {
     expect(EVENT_AI_DRAFT_SCHEMA.required).toEqual([
       ...EVENT_AI_DRAFT_FIELDS,
       'missingFields',
+      'questions',
     ]);
   });
 

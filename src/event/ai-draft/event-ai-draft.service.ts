@@ -8,14 +8,20 @@ import { validate, type ValidationError } from 'class-validator';
 import { AiService } from '../../ai/ai.service';
 import { toResponse } from '../../common/serialization/to-response';
 import {
+  EVENT_AI_DRAFT_DESCRIPTION_MAX_LENGTH,
   EVENT_AI_DRAFT_FIELDS,
+  EVENT_AI_DRAFT_MAX_QUESTIONS,
+  EVENT_AI_DRAFT_QUESTION_MAX_LENGTH,
+  EventAiDraftDto,
   EventAiDraftResponseDto,
   type EventAiDraftField,
+  type EventAiDraftQuestionDto,
 } from '../dto/event-ai-draft-response.dto';
 import type { GenerateEventDraftDto } from '../dto/generate-event-draft.dto';
 import {
   buildEventAiDraftUserPrompt,
   EVENT_AI_DRAFT_SYSTEM_PROMPT,
+  EVENT_AI_DRAFT_TIME_ZONE,
 } from './event-ai-draft.prompt';
 import { EVENT_AI_DRAFT_SCHEMA } from './event-ai-draft.schema';
 
@@ -29,27 +35,30 @@ export class EventAiDraftService {
   constructor(private readonly ai: AiService) {}
 
   async generate(
-    { prompt }: GenerateEventDraftDto,
+    { prompt, draft: previous }: GenerateEventDraftDto,
     now: Date = new Date(),
   ): Promise<EventAiDraftResponseDto> {
     const raw = await this.ai.generateStructured({
       system: EVENT_AI_DRAFT_SYSTEM_PROMPT,
-      prompt: buildEventAiDraftUserPrompt(prompt, now),
+      prompt: buildEventAiDraftUserPrompt(prompt, now, previous),
       schema: EVENT_AI_DRAFT_SCHEMA,
       feature: 'event-ai-draft',
     });
 
     const draft = await this.parse(raw);
-    return toResponse(EventAiDraftResponseDto, this.normalize(draft));
+    return toResponse(
+      EventAiDraftResponseDto,
+      this.normalize(keepPrevious(draft, previous)),
+    );
   }
 
-  private async parse(raw: unknown): Promise<EventAiDraftResponseDto> {
+  private async parse(raw: unknown): Promise<EventAiDraftDto> {
     if (!isPlainObject(raw)) {
       this.logger.error('Rascunho da IA não é um objeto JSON');
       throw new ServiceUnavailableException(INVALID_DRAFT_MESSAGE);
     }
 
-    const draft = plainToInstance(EventAiDraftResponseDto, repair(raw));
+    const draft = plainToInstance(EventAiDraftDto, repair(raw));
     const errors = await validate(draft, {
       whitelist: true,
       forbidNonWhitelisted: true,
@@ -66,7 +75,7 @@ export class EventAiDraftService {
     return draft;
   }
 
-  private normalize(draft: EventAiDraftResponseDto): EventAiDraftResponseDto {
+  private normalize(draft: EventAiDraftDto): EventAiDraftResponseDto {
     const normalized: EventAiDraftResponseDto = {
       name: text(draft.name),
       description: text(draft.description),
@@ -75,6 +84,7 @@ export class EventAiDraftService {
       edition: text(draft.edition),
       startDate: draft.startDate ?? null,
       endDate: draft.endDate ?? null,
+      salesStartDate: draft.salesStartDate ?? null,
       venueSuggestion: normalizeVenue(draft.venueSuggestion),
       suggestedTicketTypes: draft.suggestedTicketTypes.map((ticketType) => ({
         batch: ticketType.batch.trim(),
@@ -83,21 +93,31 @@ export class EventAiDraftService {
         modality: ticketType.modality ?? null,
       })),
       missingFields: [],
+      questions: normalizeQuestions(draft.questions),
+      done: false,
     };
 
-    if (
-      normalized.startDate &&
-      normalized.endDate &&
-      Date.parse(normalized.endDate) <= Date.parse(normalized.startDate)
-    ) {
+    const { startDate, endDate, salesStartDate } = normalized;
+
+    if (startDate && endDate && !endsAfterStart(startDate, endDate)) {
       this.logger.warn('Rascunho da IA com endDate anterior a startDate');
       normalized.startDate = null;
       normalized.endDate = null;
     }
 
+    if (
+      salesStartDate &&
+      normalized.startDate &&
+      compareDates(salesStartDate, normalized.startDate) > 0
+    ) {
+      this.logger.warn('Rascunho da IA com salesStartDate depois de startDate');
+      normalized.salesStartDate = null;
+    }
+
     normalized.missingFields = EVENT_AI_DRAFT_FIELDS.filter((field) =>
       isMissing(normalized, field),
     );
+    normalized.done = normalized.questions.length === 0;
 
     return normalized;
   }
@@ -113,8 +133,32 @@ function repair(raw: PlainObject): PlainObject {
   const repaired: PlainObject = {
     ...raw,
     name: clip(raw.name, 255),
+    description: clip(raw.description, EVENT_AI_DRAFT_DESCRIPTION_MAX_LENGTH),
     edition: clip(raw.edition, 100),
   };
+
+  const questions = raw.questions;
+  if (Array.isArray(questions)) {
+    repaired.questions = questions
+      .filter(
+        (question: unknown) =>
+          !isPlainObject(question) ||
+          typeof question.question !== 'string' ||
+          question.question.trim() !== '',
+      )
+      .slice(0, EVENT_AI_DRAFT_MAX_QUESTIONS)
+      .map((question: unknown) =>
+        isPlainObject(question)
+          ? {
+              ...question,
+              question: clip(
+                question.question,
+                EVENT_AI_DRAFT_QUESTION_MAX_LENGTH,
+              ),
+            }
+          : question,
+      );
+  }
 
   const venue = raw.venueSuggestion;
   if (isPlainObject(venue)) {
@@ -144,6 +188,38 @@ function repair(raw: PlainObject): PlainObject {
   return repaired;
 }
 
+function keepPrevious(
+  draft: EventAiDraftDto,
+  previous: EventAiDraftDto | undefined,
+): EventAiDraftDto {
+  if (!previous) return draft;
+
+  const merged: EventAiDraftDto = { ...draft };
+  for (const field of EVENT_AI_DRAFT_FIELDS) {
+    if (field === 'suggestedTicketTypes') continue;
+    if (merged[field] === null || merged[field] === undefined) {
+      Object.assign(merged, { [field]: previous[field] ?? null });
+    }
+  }
+  if (merged.suggestedTicketTypes.length === 0) {
+    merged.suggestedTicketTypes = previous.suggestedTicketTypes ?? [];
+  }
+  return merged;
+}
+
+function normalizeQuestions(
+  questions: EventAiDraftQuestionDto[],
+): EventAiDraftQuestionDto[] {
+  const seen = new Set<EventAiDraftField>();
+  const normalized: EventAiDraftQuestionDto[] = [];
+  for (const { field, question } of questions) {
+    if (seen.has(field)) continue;
+    seen.add(field);
+    normalized.push({ field, question: question.trim() });
+  }
+  return normalized;
+}
+
 function clip(value: unknown, maxLength: number): unknown {
   if (typeof value !== 'string') return value;
   return Array.from(value.trim()).slice(0, maxLength).join('').trim();
@@ -167,8 +243,8 @@ function quantity(value: unknown): unknown {
 }
 
 function normalizeVenue(
-  venue: EventAiDraftResponseDto['venueSuggestion'] | undefined,
-): EventAiDraftResponseDto['venueSuggestion'] {
+  venue: EventAiDraftDto['venueSuggestion'] | undefined,
+): EventAiDraftDto['venueSuggestion'] {
   if (!venue) return null;
 
   const normalized = {
@@ -183,14 +259,49 @@ function normalizeVenue(
     : normalized;
 }
 
-function isMissing(
-  draft: EventAiDraftResponseDto,
-  field: EventAiDraftField,
-): boolean {
+const DATE_FIELDS = new Set<EventAiDraftField>([
+  'startDate',
+  'endDate',
+  'salesStartDate',
+]);
+
+const localDayFormat = new Intl.DateTimeFormat('en-CA', {
+  timeZone: EVENT_AI_DRAFT_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+function isDateOnly(value: string): boolean {
+  return !value.includes('T');
+}
+
+function localDay(value: string): string {
+  return isDateOnly(value) ? value : localDayFormat.format(new Date(value));
+}
+
+function compareDates(a: string, b: string): number {
+  if (isDateOnly(a) || isDateOnly(b)) {
+    return localDay(a).localeCompare(localDay(b));
+  }
+  return Date.parse(a) - Date.parse(b);
+}
+
+function endsAfterStart(start: string, end: string): boolean {
+  const diff = compareDates(end, start);
+  if (isDateOnly(start) || isDateOnly(end)) return diff >= 0;
+  return diff > 0;
+}
+
+function isMissing(draft: EventAiDraftDto, field: EventAiDraftField): boolean {
   if (field === 'suggestedTicketTypes') {
     return draft.suggestedTicketTypes.length === 0;
   }
-  return draft[field] === null;
+  const value = draft[field];
+  if (value === null) return true;
+  return (
+    DATE_FIELDS.has(field) && typeof value === 'string' && isDateOnly(value)
+  );
 }
 
 function text(value: string | null | undefined): string | null {
