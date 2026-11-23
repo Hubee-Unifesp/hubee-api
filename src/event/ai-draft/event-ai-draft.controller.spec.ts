@@ -23,14 +23,22 @@ import {
 import type { RateLimitStore } from '../../common/rate-limit/fixed-window-rate-limit';
 import { DRIZZLE } from '../../database/database.constants';
 import type { EventAiDraftResponseDto } from '../dto/event-ai-draft-response.dto';
-import { COMPLETE_DRAFT } from './__fixtures__/event-ai-draft.fixtures';
+import {
+  COMPLETE_DRAFT,
+  DATE_WITHOUT_TIME_DRAFT,
+} from './__fixtures__/event-ai-draft.fixtures';
 import { EventAiDraftController } from './event-ai-draft.controller';
 import { EventAiDraftService } from './event-ai-draft.service';
 
 const RATE_LIMIT_MAX = 3;
 
 const generate =
-  jest.fn<(dto: { prompt: string }) => Promise<EventAiDraftResponseDto>>();
+  jest.fn<
+    (dto: {
+      prompt: string;
+      draft?: EventAiDraftResponseDto;
+    }) => Promise<EventAiDraftResponseDto>
+  >();
 const insert = jest.fn();
 
 let isOrganizer = false;
@@ -209,6 +217,51 @@ describe('POST /events/ai-draft', () => {
     const response = await post(body).expect(400);
 
     expect(response.body.message).toContain(message);
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it('aceita o rascunho da rodada anterior junto com a resposta', async () => {
+    const draft = {
+      ...(DATE_WITHOUT_TIME_DRAFT.response as object),
+      done: false,
+    };
+
+    await post({ prompt: 'às 20h', draft }).expect(200);
+
+    const [dto] = generate.mock.calls[0];
+    expect(dto.prompt).toBe('às 20h');
+    expect(dto.draft?.startDate).toBe('2027-01-30');
+    expect(dto.draft?.questions).toHaveLength(3);
+  });
+
+  it.each([
+    ['com campo extra', { organizerId: 'org-1' }],
+    ['com categoria inválida', { category: 'teatro' }],
+    ['com data fora do formato', { startDate: '30/01/2027' }],
+    [
+      'com pergunta para campo desconhecido',
+      { questions: [{ field: 'coverImage', question: 'Foto?' }] },
+    ],
+    [
+      'com lotes demais',
+      {
+        suggestedTicketTypes: Array.from({ length: 21 }, (_, i) => ({
+          batch: `${i + 1}º lote`,
+          price: 10,
+          quantity: null,
+          modality: null,
+        })),
+      },
+    ],
+  ])('responde 400 com rascunho anterior %s', async (_case, overrides) => {
+    const draft = {
+      ...(DATE_WITHOUT_TIME_DRAFT.response as object),
+      done: false,
+      ...overrides,
+    };
+
+    await post({ prompt: 'às 20h', draft }).expect(400);
+
     expect(generate).not.toHaveBeenCalled();
   });
 
