@@ -125,96 +125,98 @@ describe('OrganizationAccessGuard', () => {
       name: string;
       route: keyof Routes;
       membership: Membership | undefined;
-      allowed: boolean;
+      expected: 'allow' | 'forbidden' | 'not_found';
     }[] = [
       {
         name: 'write: admin + full',
         route: 'write',
         membership: member({ role: 'admin', permission: 'full' }),
-        allowed: true,
+        expected: 'allow',
       },
       {
         name: 'write: member + full',
         route: 'write',
         membership: member({ permission: 'full' }),
-        allowed: true,
+        expected: 'allow',
       },
       {
         name: 'write: member + read_only',
         route: 'write',
         membership: member(),
-        allowed: false,
+        expected: 'forbidden',
       },
       {
         name: 'write: admin com read_only (linha inconsistente) fica em read',
         route: 'write',
         membership: member({ role: 'admin' }),
-        allowed: false,
+        expected: 'forbidden',
       },
       {
         name: 'manage: admin com read_only (linha inconsistente) é negado',
         route: 'manage',
         membership: member({ role: 'admin' }),
-        allowed: false,
+        expected: 'forbidden',
       },
       {
         name: 'manage: admin',
         route: 'manage',
         membership: member({ role: 'admin', permission: 'full' }),
-        allowed: true,
+        expected: 'allow',
       },
       {
         name: 'manage: member + full',
         route: 'manage',
         membership: member({ permission: 'full' }),
-        allowed: false,
+        expected: 'forbidden',
       },
       {
         name: 'read: member + read_only',
         route: 'byOrgDefault',
         membership: member(),
-        allowed: true,
+        expected: 'allow',
       },
       {
         name: 'read: member + full',
         route: 'byOrgDefault',
         membership: member({ permission: 'full' }),
-        allowed: true,
+        expected: 'allow',
       },
       {
-        name: 'sem vínculo',
+        name: 'sem vínculo (responde 404 para não vazar existência)',
         route: 'byOrgDefault',
         membership: undefined,
-        allowed: false,
+        expected: 'not_found',
       },
       {
-        name: 'convite pending, mesmo com admin + full',
+        name: 'convite pending, mesmo com admin + full (fakeDb retorna linha; guard bloqueia via effectiveLevel)',
         route: 'byOrgDefault',
         membership: member({
           role: 'admin',
           permission: 'full',
           inviteStatus: 'pending',
         }),
-        allowed: false,
+        expected: 'forbidden',
       },
       {
-        name: 'convite rejected, mesmo com admin + full',
+        name: 'convite rejected, mesmo com admin + full (fakeDb retorna linha; guard bloqueia via effectiveLevel)',
         route: 'byOrgDefault',
         membership: member({
           role: 'admin',
           permission: 'full',
           inviteStatus: 'rejected',
         }),
-        allowed: false,
+        expected: 'forbidden',
       },
     ];
 
-    it.each(cases)('$name', async ({ route, membership, allowed }) => {
+    it.each(cases)('$name', async ({ route, membership, expected }) => {
       const { guard } = guardWith(membership ? [membership] : []);
       const result = guard.canActivate(
         contextFor(Routes.prototype[route], orgRequest()),
       );
-      if (allowed) await expect(result).resolves.toBe(true);
+      if (expected === 'allow') await expect(result).resolves.toBe(true);
+      else if (expected === 'not_found')
+        await expect(result).rejects.toBeInstanceOf(NotFoundException);
       else await expect(result).rejects.toBeInstanceOf(ForbiddenException);
     });
   });

@@ -14,6 +14,7 @@ import type {
   DrizzleDatabase,
 } from '../database/database.provider';
 import { OrderService, isOnSale } from '../order/order.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { TicketService } from '../ticket/ticket.service';
 import { CheckoutDto } from './dto/checkout.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -35,6 +36,7 @@ export class PaymentService {
     private readonly paymentRepository: PaymentRepository,
     private readonly orderService: OrderService,
     private readonly ticketService: TicketService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findOne(orderId: string, user: AuthenticatedUser) {
@@ -89,6 +91,11 @@ export class PaymentService {
 
       const paidOrder = await this.orderService.markAsPaid(order.id, tx);
       await this.ticketService.issueForPaidOrder(paidOrder, items, tx);
+      await this.notificationsService.notifyPaymentConfirmed(
+        paidOrder,
+        items,
+        tx,
+      );
 
       return payment;
     });
@@ -125,7 +132,7 @@ export class PaymentService {
     return this.db.transaction(async (tx) => {
       // Adquire lock no pedido para evitar duas requisições simultâneas
       // lendo o mesmo payment.status antes do commit (GOL-215).
-      await this.lockOrderById(orderId, tx);
+      const order = await this.lockOrderById(orderId, tx);
       const payment = await this.findByOrder(orderId, tx);
 
       // Validação de transição de status dentro da transaction
@@ -149,6 +156,7 @@ export class PaymentService {
       if (dto.status === 'estornado') {
         await this.orderService.markAsCancelled(orderId, tx);
         await this.ticketService.cancelByOrder(orderId, tx);
+        await this.notificationsService.notifyOrderRefunded(order, tx);
       }
 
       return updatedPayment;

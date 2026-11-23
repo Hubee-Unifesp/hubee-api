@@ -19,6 +19,7 @@ import { UsersModule } from './users/users.module';
 import { VenueModule } from './venue/venue.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { AuthModule } from './auth/auth.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { AuthModule } from './auth/auth.module';
     VenueModule,
     SuppliersModule,
     AuthModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

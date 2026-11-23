@@ -10,12 +10,16 @@ import {
 import { INestApplication, RequestMethod, Type } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { createAiRateLimitStoreProvider } from '../ai/guards/ai-throttler.guard';
+import { EventAiDraftController } from '../event/ai-draft/event-ai-draft.controller';
 import { EventController } from '../event/event.controller';
 import { EventService } from '../event/event.service';
 import { ExpensesController } from '../expenses/expenses.controller';
 import { HealthController } from '../health/health.controller';
+import { NotificationsController } from '../notifications/notifications.controller';
 import { OrganizationEventController } from '../organization-event/organization-event.controller';
 import { OrganizationUsersController } from '../organization-users/organization-users.controller';
 import { OrderController } from '../order/order.controller';
@@ -37,6 +41,7 @@ import { events } from '../database/schema';
  */
 const CONTROLLERS: Type[] = [
   EventController,
+  EventAiDraftController,
   TicketTypeController,
   OrganizationController,
   VenueController,
@@ -50,6 +55,7 @@ const CONTROLLERS: Type[] = [
   OrganizationUsersController,
   OrganizationEventController,
   HealthController,
+  NotificationsController,
 ];
 
 /**
@@ -81,6 +87,8 @@ const PUBLIC_ROUTES = [
  */
 const AUTHENTICATED_ROUTES = [
   'POST /organizations',
+  'GET /users/me/invites',
+  'PATCH /organizations/:orgId/users/me',
   'POST /orders',
   'POST /payments',
   'GET /orders/:orderId/payments',
@@ -88,6 +96,9 @@ const AUTHENTICATED_ROUTES = [
   'GET /tickets',
   'GET /users/me/tickets',
   'GET /tickets/:id',
+  'GET /notifications',
+  'PATCH /notifications/read-all',
+  'PATCH /notifications/:id/read',
 ];
 
 /**
@@ -114,6 +125,10 @@ const ORGANIZER_WRITE_ROUTES = [
 const ORGANIZER_MANAGE_ROUTES = [
   'DELETE /events/:id',
   'PATCH /organizations/:id',
+  'POST /organizations/:orgId/users',
+  'GET /organizations/:orgId/users',
+  'PATCH /organizations/:orgId/users/:userId',
+  'DELETE /organizations/:orgId/users/:userId',
 ];
 
 const ORGANIZER_ROUTES = [
@@ -122,18 +137,18 @@ const ORGANIZER_ROUTES = [
 ];
 
 /**
- * Rotas com `@OrgAccess(..., { from: 'event' | 'param' })` resolvem a
- * organização a partir do recurso da URL (`:id` ou `:eventId`) e respondem 404
- * (e não 403) para quem não é membro da organização dona, evitando revelar
- * vínculo/existência. Rotas sem parâmetro de recurso (`POST /events` com
- * `{ from: 'body' }` e `POST /venues` com `{ from: 'any' }`) respondem 403.
+ * Rotas com `@OrgAccess(..., { from: 'event' | 'org' | 'param' })` resolvem a
+ * organização a partir do recurso da URL (`:id`, `:orgId` ou `:eventId`) e
+ * respondem 404 (e não 403) para quem não é membro da organização dona, evitando
+ * revelar vínculo/existência. Rotas sem parâmetro de recurso (`POST /events`
+ * com `{ from: 'body' }` e `POST /venues` com `{ from: 'any' }`) respondem 403.
  */
 const isResourceScoped = (route: { template: string }) =>
   route.template.includes(':');
 
 /**
  * ADMIN ou membro aceito de qualquer organização (`@OrganizerOnly`, GOL-202):
- * catálogo compartilhado de fornecedores.
+ * catálogo compartilhado de fornecedores e rascunho de evento com IA (GOL-263).
  */
 const ORGANIZER_ONLY_ROUTES = [
   'POST /suppliers',
@@ -143,6 +158,7 @@ const ORGANIZER_ONLY_ROUTES = [
   'DELETE /suppliers/:id',
   'POST /suppliers/:id/reviews',
   'GET /suppliers/:id/reviews',
+  'POST /events/ai-draft',
 ];
 
 /** Rotas de pedido que ganham proteção com checagem de dono na GOL-103. */
@@ -281,6 +297,16 @@ describe('Proteção de rotas (GOL-114)', () => {
       providers: [
         ...CONTROLLERS.map(mockServiceOf),
         { provide: DRIZZLE, useValue: fakeDrizzle },
+        createAiRateLimitStoreProvider(),
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) =>
+              ({ AI_RATE_LIMIT_MAX: 1000, AI_RATE_LIMIT_WINDOW_MS: 60_000 })[
+                key
+              ],
+          },
+        },
       ],
     }).compile();
     app = module.createNestApplication();

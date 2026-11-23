@@ -10,6 +10,8 @@ import request from 'supertest';
 import { DRIZZLE } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { OrganizationService } from '../organization/organization.service';
+import { NotificationsRepository } from '../notifications/notifications.repository';
+import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../storage/storage.service';
 import { VenueService } from '../venue/venue.service';
 import { EventController } from './event.controller';
@@ -64,6 +66,8 @@ describe('Eventos por organizadores (banco em memória)', () => {
       providers: [
         EventService,
         EventRepository,
+        NotificationsRepository,
+        NotificationsService,
         { provide: DRIZZLE, useValue: db },
         {
           provide: OrganizationService,

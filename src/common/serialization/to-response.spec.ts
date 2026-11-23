@@ -6,6 +6,11 @@ import { LoginResponseDto } from '../../auth/dto/login-response.dto';
 import { RegisterResponseDto } from '../../auth/dto/register-response.dto';
 import { EventResponseDto } from '../../event/dto/event-response.dto';
 import {
+  EventAiDraftResponseDto,
+  SuggestedTicketTypeDto,
+  VenueSuggestionDto,
+} from '../../event/dto/event-ai-draft-response.dto';
+import {
   EventDetailOrganizationDto,
   EventDetailResponseDto,
   EventDetailVenueDto,
@@ -15,9 +20,15 @@ import { EventListItemResponseDto } from '../../event/dto/event-list-item-respon
 import { EventPageResponseDto } from '../../event/dto/event-page-response.dto';
 import { PaginationMetaDto } from '../pagination/pagination-meta.dto';
 import { ExpenseResponseDto } from '../../expenses/dto/expense-response.dto';
+import {
+  NotificationListResponseDto,
+  NotificationResponseDto,
+  ReadAllNotificationsResponseDto,
+} from '../../notifications/dto/notification-response.dto';
 import { OrderResponseDto } from '../../order/dto/order-response.dto';
 import { OrganizationEventResponseDto } from '../../organization-event/dto/organization-event-response.dto';
 import { OrganizationUserResponseDto } from '../../organization-users/dto/organization-user-response.dto';
+import { UserInviteResponseDto } from '../../organization-users/dto/user-invite-response.dto';
 import { OrganizationResponseDto } from '../../organization/dto/organization-response.dto';
 import { PaymentResponseDto } from '../../payment/dto/payment-response.dto';
 import { SupplierResponseDto } from '../../suppliers/dto/supplier-response.dto';
@@ -55,11 +66,18 @@ const RESPONSE_DTOS: ClassConstructor<unknown>[] = [
   EventSummaryResponseDto,
   EventListItemResponseDto,
   EventPageResponseDto,
+  EventAiDraftResponseDto,
+  VenueSuggestionDto,
+  SuggestedTicketTypeDto,
   PaginationMetaDto,
   ExpenseResponseDto,
+  NotificationResponseDto,
+  NotificationListResponseDto,
+  ReadAllNotificationsResponseDto,
   OrderResponseDto,
   OrganizationEventResponseDto,
   OrganizationUserResponseDto,
+  UserInviteResponseDto,
   OrganizationResponseDto,
   PaymentResponseDto,
   SupplierResponseDto,
@@ -174,6 +192,62 @@ describe('toResponse(EventPageResponseDto)', () => {
   });
 });
 
+describe('toResponse(OrganizationUserResponseDto e UserInviteResponseDto)', () => {
+  it('expõe userName e userEmail em OrganizationUserResponseDto sem campos extras', () => {
+    const result = toResponse(OrganizationUserResponseDto, {
+      orgId: 'org-1',
+      userId: 'user-1',
+      userName: 'Maria Silva',
+      userEmail: 'maria@example.com',
+      role: 'member',
+      permission: 'full',
+      inviteStatus: 'pending',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+      password: 'secret',
+    });
+
+    expect(result).toBeInstanceOf(OrganizationUserResponseDto);
+    expect(JSON.parse(JSON.stringify(result))).toStrictEqual({
+      orgId: 'org-1',
+      userId: 'user-1',
+      userName: 'Maria Silva',
+      userEmail: 'maria@example.com',
+      role: 'member',
+      permission: 'full',
+      inviteStatus: 'pending',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('expõe organizationName no UserInviteResponseDto sem campos extras', () => {
+    const result = toResponse(UserInviteResponseDto, {
+      orgId: 'org-1',
+      organizationName: 'Atlética Unifesp',
+      userId: 'user-1',
+      role: 'member',
+      permission: 'read_only',
+      inviteStatus: 'pending',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+      internalField: 'ignorado',
+    });
+
+    expect(result).toBeInstanceOf(UserInviteResponseDto);
+    expect(JSON.parse(JSON.stringify(result))).toStrictEqual({
+      orgId: 'org-1',
+      organizationName: 'Atlética Unifesp',
+      userId: 'user-1',
+      role: 'member',
+      permission: 'read_only',
+      inviteStatus: 'pending',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+  });
+});
+
 describe('toResponse(EventDetailResponseDto)', () => {
   it('mapeia evento, local com endereço, organização e lotes sem campos internos', () => {
     const result = toResponse(EventDetailResponseDto, {
@@ -249,6 +323,62 @@ describe('toResponse(EventDetailResponseDto)', () => {
           quantity: 100,
         },
       ],
+    });
+  });
+});
+
+describe('toResponse(EventAiDraftResponseDto)', () => {
+  it('mapeia o rascunho com local e lotes, sem campos extras', () => {
+    const result = toResponse(EventAiDraftResponseDto, {
+      name: 'Festa Junina',
+      description: null,
+      category: 'festas',
+      ageRating: null,
+      edition: null,
+      startDate: '2026-11-28T20:00:00-03:00',
+      endDate: null,
+      venueSuggestion: {
+        name: 'Ginásio',
+        address: null,
+        city: 'São José dos Campos',
+        state: 'SP',
+        venueId: 'interno',
+      },
+      suggestedTicketTypes: [
+        {
+          batch: '1º lote',
+          price: 30,
+          quantity: null,
+          modality: 'inteira',
+          eventId: 'interno',
+        },
+      ],
+      missingFields: ['description', 'ageRating', 'edition', 'endDate'],
+      organizerId: 'interno',
+    });
+
+    expect(result.venueSuggestion).toBeInstanceOf(VenueSuggestionDto);
+    expect(result.suggestedTicketTypes[0]).toBeInstanceOf(
+      SuggestedTicketTypeDto,
+    );
+    expect(JSON.parse(JSON.stringify(result))).toEqual({
+      name: 'Festa Junina',
+      description: null,
+      category: 'festas',
+      ageRating: null,
+      edition: null,
+      startDate: '2026-11-28T20:00:00-03:00',
+      endDate: null,
+      venueSuggestion: {
+        name: 'Ginásio',
+        address: null,
+        city: 'São José dos Campos',
+        state: 'SP',
+      },
+      suggestedTicketTypes: [
+        { batch: '1º lote', price: 30, quantity: null, modality: 'inteira' },
+      ],
+      missingFields: ['description', 'ageRating', 'edition', 'endDate'],
     });
   });
 });
