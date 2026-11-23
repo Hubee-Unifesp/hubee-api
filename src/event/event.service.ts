@@ -16,6 +16,7 @@ import {
   validateImageUpload,
 } from '../common/validation/image-upload';
 import { OrganizationService } from '../organization/organization.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { StorageService } from '../storage/storage.service';
 import { VenueService } from '../venue/venue.service';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -49,6 +50,7 @@ export class EventService {
     private readonly organizationService: OrganizationService,
     private readonly venueService: VenueService,
     private readonly storageService: StorageService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -167,6 +169,14 @@ export class EventService {
       await this.ensureVenueExists(dto.venueId);
     }
 
+    if (dto.status === 'cancelled') {
+      return this.eventRepository.transaction(async (tx) => {
+        const updated = await this.eventRepository.update(id, dto, tx);
+        await this.notificationsService.notifyEventCancelled(updated, tx);
+        return updated;
+      });
+    }
+
     return this.eventRepository.update(id, dto);
   }
 
@@ -215,7 +225,14 @@ export class EventService {
       throw new UnprocessableEntityException('Evento já está cancelado');
     }
 
-    await this.eventRepository.update(id, { status: 'cancelled' });
+    await this.eventRepository.transaction(async (tx) => {
+      const updated = await this.eventRepository.update(
+        id,
+        { status: 'cancelled' },
+        tx,
+      );
+      await this.notificationsService.notifyEventCancelled(updated, tx);
+    });
   }
 
   /** Membro com convite aceito (qualquer nível) da organização. */

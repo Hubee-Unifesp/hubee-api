@@ -322,4 +322,8 @@ export class EventRepository {
       .returning();
     return event;
   }
+
+  transaction<T>(callback: (tx: DbExecutor) => Promise<T>): Promise<T> {
+    return this.db.transaction(callback);
+  }
 }

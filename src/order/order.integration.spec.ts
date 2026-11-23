@@ -19,6 +19,8 @@ import { DRIZZLE } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { EventRepository } from '../event/event.repository';
 import { EventService } from '../event/event.service';
+import { NotificationsRepository } from '../notifications/notifications.repository';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CheckoutController } from '../payment/checkout.controller';
 import { PaymentController } from '../payment/payment.controller';
 import { PaymentRepository } from '../payment/payment.repository';
@@ -116,6 +118,8 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
         TicketRepository,
         TicketTypeService,
         TicketTypeRepository,
+        NotificationsRepository,
+        NotificationsService,
         { provide: DRIZZLE, useValue: db },
         {
           provide: UsersService,

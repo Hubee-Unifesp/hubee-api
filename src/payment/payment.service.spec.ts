@@ -8,6 +8,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { DRIZZLE } from '../database/database.constants';
 import { payments } from '../database/schema';
+import { NotificationsService } from '../notifications/notifications.service';
 import { OrderService } from '../order/order.service';
 import { TicketService } from '../ticket/ticket.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -62,6 +63,12 @@ describe('PaymentService', () => {
     issueForPaidOrder: jest.Mock<TicketService['issueForPaidOrder']>;
     cancelByOrder: jest.Mock<TicketService['cancelByOrder']>;
   };
+  let notificationsService: {
+    notifyPaymentConfirmed: jest.Mock<
+      NotificationsService['notifyPaymentConfirmed']
+    >;
+    notifyOrderRefunded: jest.Mock<NotificationsService['notifyOrderRefunded']>;
+  };
   const tx = { tx: true };
   const db = {
     transaction: jest.fn(async (callback: (tx: unknown) => unknown) =>
@@ -90,6 +97,12 @@ describe('PaymentService', () => {
       issueForPaidOrder: jest.fn<TicketService['issueForPaidOrder']>(),
       cancelByOrder: jest.fn<TicketService['cancelByOrder']>(),
     };
+    notificationsService = {
+      notifyPaymentConfirmed:
+        jest.fn<NotificationsService['notifyPaymentConfirmed']>(),
+      notifyOrderRefunded:
+        jest.fn<NotificationsService['notifyOrderRefunded']>(),
+    };
     db.transaction.mockClear();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -99,6 +112,7 @@ describe('PaymentService', () => {
         { provide: PaymentRepository, useValue: paymentRepository },
         { provide: OrderService, useValue: orderService },
         { provide: TicketService, useValue: ticketService },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
 
@@ -222,6 +236,11 @@ describe('PaymentService', () => {
       );
       expect(orderService.markAsPaid).toHaveBeenCalledWith(ORDER_ID, tx);
       expect(ticketService.issueForPaidOrder).toHaveBeenCalledWith(
+        paidOrder,
+        items,
+        tx,
+      );
+      expect(notificationsService.notifyPaymentConfirmed).toHaveBeenCalledWith(
         paidOrder,
         items,
         tx,
@@ -493,6 +512,10 @@ describe('PaymentService', () => {
       );
       expect(orderService.markAsCancelled).toHaveBeenCalledWith(ORDER_ID, tx);
       expect(ticketService.cancelByOrder).toHaveBeenCalledWith(ORDER_ID, tx);
+      expect(notificationsService.notifyOrderRefunded).toHaveBeenCalledWith(
+        { id: ORDER_ID, userId: BUYER.id },
+        tx,
+      );
       expect(result).toEqual(refunded);
     });
 

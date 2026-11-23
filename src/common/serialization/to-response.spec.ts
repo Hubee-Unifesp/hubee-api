@@ -20,6 +20,11 @@ import { EventListItemResponseDto } from '../../event/dto/event-list-item-respon
 import { EventPageResponseDto } from '../../event/dto/event-page-response.dto';
 import { PaginationMetaDto } from '../pagination/pagination-meta.dto';
 import { ExpenseResponseDto } from '../../expenses/dto/expense-response.dto';
+import {
+  NotificationListResponseDto,
+  NotificationResponseDto,
+  ReadAllNotificationsResponseDto,
+} from '../../notifications/dto/notification-response.dto';
 import { OrderResponseDto } from '../../order/dto/order-response.dto';
 import { OrganizationEventResponseDto } from '../../organization-event/dto/organization-event-response.dto';
 import { OrganizationUserResponseDto } from '../../organization-users/dto/organization-user-response.dto';
@@ -66,6 +71,9 @@ const RESPONSE_DTOS: ClassConstructor<unknown>[] = [
   SuggestedTicketTypeDto,
   PaginationMetaDto,
   ExpenseResponseDto,
+  NotificationResponseDto,
+  NotificationListResponseDto,
+  ReadAllNotificationsResponseDto,
   OrderResponseDto,
   OrganizationEventResponseDto,
   OrganizationUserResponseDto,
