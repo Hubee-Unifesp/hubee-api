@@ -12,6 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { OrderService } from '../order/order.service';
 import { TicketService } from '../ticket/ticket.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { PaymentGateway } from './gateway/payment-gateway';
 import { PaymentRepository } from './payment.repository';
 import { PaymentService } from './payment.service';
 
@@ -69,6 +70,9 @@ describe('PaymentService', () => {
     >;
     notifyOrderRefunded: jest.Mock<NotificationsService['notifyOrderRefunded']>;
   };
+  let paymentGateway: {
+    charge: jest.Mock<PaymentGateway['charge']>;
+  };
   const tx = { tx: true };
   const db = {
     transaction: jest.fn(async (callback: (tx: unknown) => unknown) =>
@@ -103,6 +107,7 @@ describe('PaymentService', () => {
       notifyOrderRefunded:
         jest.fn<NotificationsService['notifyOrderRefunded']>(),
     };
+    paymentGateway = { charge: jest.fn<PaymentGateway['charge']>() };
     db.transaction.mockClear();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -113,6 +118,7 @@ describe('PaymentService', () => {
         { provide: OrderService, useValue: orderService },
         { provide: TicketService, useValue: ticketService },
         { provide: NotificationsService, useValue: notificationsService },
+        { provide: PaymentGateway, useValue: paymentGateway },
       ],
     }).compile();
 
@@ -179,6 +185,7 @@ describe('PaymentService', () => {
       updatedAt: new Date(),
     };
     const paidOrder = { ...pendingOrder, status: 'pago' as const };
+    const paidAt = new Date('2026-11-24T15:00:00Z');
     const items = [
       {
         id: 'item-1',
@@ -210,6 +217,7 @@ describe('PaymentService', () => {
         makePayment({ ...data, id: 'payment-1' }),
       );
       ticketService.issueForPaidOrder.mockResolvedValue([]);
+      paymentGateway.charge.mockResolvedValue({ status: 'confirmado', paidAt });
     });
 
     it('confirma o pagamento do total do pedido, paga o pedido e emite os ingressos na mesma transaction', async () => {
@@ -224,13 +232,18 @@ describe('PaymentService', () => {
         ['event-1'],
         tx,
       );
+      expect(paymentGateway.charge).toHaveBeenCalledWith({
+        orderId: ORDER_ID,
+        amount: 250.5,
+        paymentMethod: 'pix',
+      });
       expect(paymentRepository.create).toHaveBeenCalledWith(
         {
           orderId: ORDER_ID,
           paymentMethod: 'pix',
           amount: 250.5,
           status: 'confirmado',
-          paidAt: expect.any(Date),
+          paidAt,
         },
         tx,
       );
@@ -386,6 +399,31 @@ describe('PaymentService', () => {
         expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
       },
     );
+
+    it('responde 422 e não grava pagamento, não paga nem emite quando o gateway recusa a cobrança', async () => {
+      paymentGateway.charge.mockResolvedValue({ status: 'recusado' });
+
+      await expect(service.checkout(dto, BUYER)).rejects.toThrow(
+        new UnprocessableEntityException(
+          'O pagamento foi recusado. Tente novamente ou use outra forma de pagamento.',
+        ),
+      );
+      expect(paymentRepository.create).not.toHaveBeenCalled();
+      expect(orderService.markAsPaid).not.toHaveBeenCalled();
+      expect(ticketService.issueForPaidOrder).not.toHaveBeenCalled();
+      expect(
+        notificationsService.notifyPaymentConfirmed,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('não cobra no gateway quando o checkout é recusado antes da cobrança', async () => {
+      paymentRepository.findByOrderId.mockResolvedValue(makePayment());
+
+      await expect(service.checkout(dto, BUYER)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(paymentGateway.charge).not.toHaveBeenCalled();
+    });
 
     it('propaga a falha da emissão para a transaction desfazer o pagamento', async () => {
       ticketService.issueForPaidOrder.mockRejectedValue(new Error('db fora'));

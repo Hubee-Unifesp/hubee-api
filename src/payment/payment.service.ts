@@ -19,6 +19,7 @@ import { TicketService } from '../ticket/ticket.service';
 import { CheckoutDto } from './dto/checkout.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
+import { PaymentGateway } from './gateway/payment-gateway';
 import { PaymentRepository } from './payment.repository';
 
 // Máquina de estados para garantir transições válidas de pagamento
@@ -37,6 +38,7 @@ export class PaymentService {
     private readonly orderService: OrderService,
     private readonly ticketService: TicketService,
     private readonly notificationsService: NotificationsService,
+    private readonly paymentGateway: PaymentGateway,
   ) {}
 
   async findOne(orderId: string, user: AuthenticatedUser) {
@@ -45,8 +47,10 @@ export class PaymentService {
   }
 
   /**
-   * Paga o pedido do usuário. O gateway ainda é simulado (fora do escopo da
-   * GOL-175) e sempre aprova; quando houver um real, é aqui que ele entra.
+   * Paga o pedido do usuário cobrando o total no `PaymentGateway` registrado
+   * no `PaymentModule` (hoje o `SimulatedPaymentGateway`, que sempre aprova).
+   * Cobrança recusada responde 422 e desfaz a transaction: nada é gravado e o
+   * pedido continua pendente.
    *
    * Pagamento, mudança de status do pedido e emissão dos ingressos acontecem
    * na mesma transaction: se algo falhar, o pedido continua pendente e nenhum
@@ -78,13 +82,24 @@ export class PaymentService {
       const items = await this.orderService.findItems(order.id, tx);
       await this.ensureEventsOnSale(items, tx);
 
+      const charge = await this.paymentGateway.charge({
+        orderId: order.id,
+        amount: order.totalAmount,
+        paymentMethod: dto.paymentMethod,
+      });
+      if (charge.status !== 'confirmado') {
+        throw new UnprocessableEntityException(
+          'O pagamento foi recusado. Tente novamente ou use outra forma de pagamento.',
+        );
+      }
+
       const payment = await this.paymentRepository.create(
         {
           orderId: order.id,
           paymentMethod: dto.paymentMethod,
           amount: order.totalAmount,
           status: 'confirmado',
-          paidAt: new Date(),
+          paidAt: charge.paidAt,
         },
         tx,
       );

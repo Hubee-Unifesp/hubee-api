@@ -21,6 +21,8 @@ import { CheckoutController } from '../payment/checkout.controller';
 import { PaymentController } from '../payment/payment.controller';
 import { PaymentRepository } from '../payment/payment.repository';
 import { PaymentService } from '../payment/payment.service';
+import { PaymentGateway } from '../payment/gateway/payment-gateway';
+import { SimulatedPaymentGateway } from '../payment/gateway/simulated-payment-gateway';
 import { StorageService } from '../storage/storage.service';
 import { TicketRepository } from '../ticket/ticket.repository';
 import { TicketService } from '../ticket/ticket.service';
@@ -67,6 +69,7 @@ describe('Notificações in-app e gatilhos (GOL-268, PGlite)', () => {
         OrderService,
         PaymentRepository,
         PaymentService,
+        { provide: PaymentGateway, useClass: SimulatedPaymentGateway },
         TicketRepository,
         TicketService,
         TicketTypeRepository,
