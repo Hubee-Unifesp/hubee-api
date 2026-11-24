@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import { JwtModule } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
+import { DRIZZLE } from '../database/database.constants';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpensesController } from './expenses.controller';
@@ -45,7 +46,10 @@ describe('ExpensesController', () => {
     const module: TestingModule = await Test.createTestingModule({
       imports: [JwtModule.register({ secret: 'test-secret' })],
       controllers: [ExpensesController],
-      providers: [{ provide: ExpensesService, useValue: service }],
+      providers: [
+        { provide: ExpensesService, useValue: service },
+        { provide: DRIZZLE, useValue: {} },
+      ],
     }).compile();
 
     controller = module.get(ExpensesController);

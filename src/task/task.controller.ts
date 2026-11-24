@@ -23,14 +23,14 @@ import { QueryTaskDto } from './dto/query-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskService } from './task.service';
 import { toResponse } from '../common/serialization/to-response';
-import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import { OrgAccess } from '../auth/decorators/org-access.decorator';
 
 @ApiTags('tasks')
-@AdminOnly()
 @Controller('events/:eventId/tasks')
 export class TaskController {
   constructor(private readonly taskService: TaskService) {}
 
+  @OrgAccess('write', { from: 'event', param: 'eventId' })
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: TaskResponseDto })
@@ -44,6 +44,7 @@ export class TaskController {
     );
   }
 
+  @OrgAccess('read', { from: 'event', param: 'eventId' })
   @Get()
   @ApiOkResponse({ type: TaskResponseDto, isArray: true })
   async findAll(
@@ -56,6 +57,7 @@ export class TaskController {
     );
   }
 
+  @OrgAccess('read', { from: 'event', param: 'eventId' })
   @Get(':id')
   @ApiOkResponse({ type: TaskResponseDto })
   async findOne(
@@ -68,6 +70,7 @@ export class TaskController {
     );
   }
 
+  @OrgAccess('write', { from: 'event', param: 'eventId' })
   @Patch(':id')
   @ApiOkResponse({ type: TaskResponseDto })
   async update(
@@ -81,6 +84,7 @@ export class TaskController {
     );
   }
 
+  @OrgAccess('write', { from: 'event', param: 'eventId' })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()

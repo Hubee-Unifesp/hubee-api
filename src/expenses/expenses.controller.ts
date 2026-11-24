@@ -23,14 +23,14 @@ import { QueryExpenseDto } from './dto/query-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpensesService } from './expenses.service';
 import { toResponse } from '../common/serialization/to-response';
-import { AdminOnly } from '../auth/decorators/admin-only.decorator';
+import { OrgAccess } from '../auth/decorators/org-access.decorator';
 
 @ApiTags('expenses')
-@AdminOnly()
 @Controller('events/:eventId/expenses')
 export class ExpensesController {
   constructor(private readonly expensesService: ExpensesService) {}
 
+  @OrgAccess('write', { from: 'event', param: 'eventId' })
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiCreatedResponse({ type: ExpenseResponseDto })
@@ -44,6 +44,7 @@ export class ExpensesController {
     );
   }
 
+  @OrgAccess('write', { from: 'event', param: 'eventId' })
   @Get()
   @ApiOkResponse({ type: ExpenseResponseDto, isArray: true })
   async findAll(
@@ -56,6 +57,7 @@ export class ExpensesController {
     );
   }
 
+  @OrgAccess('write', { from: 'event', param: 'eventId' })
   @Get(':id')
   @ApiOkResponse({ type: ExpenseResponseDto })
   async findOne(
@@ -68,6 +70,7 @@ export class ExpensesController {
     );
   }
 
+  @OrgAccess('write', { from: 'event', param: 'eventId' })
   @Patch(':id')
   @ApiOkResponse({ type: ExpenseResponseDto })
   async update(
@@ -81,6 +84,7 @@ export class ExpensesController {
     );
   }
 
+  @OrgAccess('write', { from: 'event', param: 'eventId' })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
