@@ -4,6 +4,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { StorageModule } from '../storage/storage.module';
 import { VenueModule } from '../venue/venue.module';
+import { EventAiAssistantController } from './ai-assistant/event-ai-assistant.controller';
+import { EventAiAssistantService } from './ai-assistant/event-ai-assistant.service';
 import { EventAiDraftController } from './ai-draft/event-ai-draft.controller';
 import { EventAiDraftService } from './ai-draft/event-ai-draft.service';
 import { EventController } from './event.controller';
@@ -18,8 +20,17 @@ import { EventService } from './event.service';
     VenueModule,
     NotificationsModule,
   ],
-  controllers: [EventAiDraftController, EventController],
-  providers: [EventAiDraftService, EventRepository, EventService],
+  controllers: [
+    EventAiAssistantController,
+    EventAiDraftController,
+    EventController,
+  ],
+  providers: [
+    EventAiAssistantService,
+    EventAiDraftService,
+    EventRepository,
+    EventService,
+  ],
   exports: [EventService],
 })
 export class EventModule {}

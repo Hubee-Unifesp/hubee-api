@@ -14,6 +14,7 @@ import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { createAiRateLimitStoreProvider } from '../ai/guards/ai-throttler.guard';
+import { EventAiAssistantController } from '../event/ai-assistant/event-ai-assistant.controller';
 import { EventAiDraftController } from '../event/ai-draft/event-ai-draft.controller';
 import { EventController } from '../event/event.controller';
 import { EventService } from '../event/event.service';
@@ -42,6 +43,7 @@ import { events } from '../database/schema';
 const CONTROLLERS: Type[] = [
   EventController,
   EventAiDraftController,
+  EventAiAssistantController,
   TicketTypeController,
   OrganizationController,
   VenueController,
@@ -177,6 +179,7 @@ const ORGANIZER_ONLY_ROUTES = [
   'POST /suppliers/:id/reviews',
   'GET /suppliers/:id/reviews',
   'POST /events/ai-draft',
+  'POST /events/ai-assistant/turn',
 ];
 
 /** Rotas de pedido que ganham proteção com checagem de dono na GOL-103. */
