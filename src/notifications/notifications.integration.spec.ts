@@ -8,7 +8,6 @@ import { drizzle } from 'drizzle-orm/pglite';
 import request from 'supertest';
 import { DRIZZLE } from '../database/database.constants';
 import * as schema from '../database/schema';
-import { EventAiDraftService } from '../event/ai-draft/event-ai-draft.service';
 import { EventController } from '../event/event.controller';
 import { EventRepository } from '../event/event.repository';
 import { EventService } from '../event/event.service';
@@ -77,10 +76,6 @@ describe('Notificações in-app e gatilhos (GOL-268, PGlite)', () => {
         UsersService,
         EventRepository,
         EventService,
-        {
-          provide: EventAiDraftService,
-          useValue: { generateDraft: async () => ({}) },
-        },
         {
           provide: OrganizationService,
           useValue: { findOne: async () => ({}) },

@@ -156,12 +156,12 @@ describe('AnthropicAiService', () => {
 
     await makeService().generateStructured({
       ...REQUEST,
-      feature: 'event-ai-draft',
+      feature: 'event-ai-assistant',
     });
 
     expect(log).toHaveBeenCalledTimes(1);
     const [message] = log.mock.calls[0] as [string];
-    expect(message).toContain('feature=event-ai-draft');
+    expect(message).toContain('feature=event-ai-assistant');
     expect(message).toContain('effort=medium');
     expect(message).toContain('input_tokens=1200');
     expect(message).toContain('output_tokens=340');
