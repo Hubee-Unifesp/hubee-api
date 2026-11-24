@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import {
   Inject,
   Injectable,
@@ -125,7 +125,7 @@ export class TicketService {
           eventId: item.eventId,
           ticketTypeId: item.ticketTypeId,
           holderUserId: holderUserIds[index],
-          qrCode: randomUUID(),
+          qrCode: generateQrCode(),
         })),
         tx,
       );
