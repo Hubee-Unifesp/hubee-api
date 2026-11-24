@@ -356,7 +356,8 @@ describe('TicketService', () => {
         holderUserId: 'user-1',
       });
       expect(rows[1].holderUserId).toBe('buyer-1');
-      expect(rows[0].qrCode).toEqual(expect.any(String));
+      expect(rows[0].qrCode).toMatch(/^[0-9a-f]{64}$/);
+      expect(rows[1].qrCode).toMatch(/^[0-9a-f]{64}$/);
       expect(rows[0].qrCode).not.toBe(rows[1].qrCode);
     });
 
