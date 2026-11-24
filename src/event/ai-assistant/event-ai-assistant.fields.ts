@@ -56,7 +56,9 @@ export function isComplete(
     case 'salesStart':
       return draft.salesStartDate !== null && draft.salesStartTime !== null;
     case 'venue':
-      return Boolean(draft.venue?.name && draft.venue.city);
+      return Boolean(
+        draft.venue?.city && (draft.venue.name || draft.venue.address),
+      );
     case 'ticketTypes':
       return (
         draft.ticketTypes.length > 0 &&
@@ -212,10 +214,13 @@ export function questionText(
       if (draft.venue?.name && !draft.venue.city) {
         return `Em que cidade fica o ${draft.venue.name}?`;
       }
-      if (draft.venue?.city && !draft.venue.name) {
-        return `Qual é o nome do local em ${draft.venue.city}?`;
+      if (draft.venue?.address && !draft.venue.city) {
+        return `Em que cidade fica o endereço ${draft.venue.address}?`;
       }
-      return 'Onde vai ser o evento? Diga o nome do local e a cidade.';
+      if (draft.venue?.city) {
+        return `Onde vai ser em ${draft.venue.city}? Diga o nome do local ou o endereço.`;
+      }
+      return 'Onde vai ser o evento? Diga o nome do local ou o endereço, e a cidade.';
     case 'ticketTypes': {
       const incomplete = draft.ticketTypes.find(
         (ticketType) => !isTicketTypeComplete(ticketType),

@@ -10,15 +10,20 @@ const nullable = (schema: JsonSchema): JsonSchema => ({
   anyOf: [schema, { type: 'null' }],
 });
 
-const nullableString = nullable({ type: 'string' });
+const text: JsonSchema = { type: 'string' };
+
+const optionalEnum = (values: readonly string[]): JsonSchema => ({
+  type: 'string',
+  enum: ['', ...values],
+});
 
 const venueSchema: JsonSchema = {
   type: 'object',
   properties: {
-    name: nullableString,
-    address: nullableString,
-    city: nullableString,
-    state: nullableString,
+    name: text,
+    address: text,
+    city: text,
+    state: text,
   },
   required: ['name', 'address', 'city', 'state'],
   additionalProperties: false,
@@ -55,17 +60,17 @@ export const EVENT_AI_ASSISTANT_PATCH_FIELDS = [
 export const EVENT_AI_ASSISTANT_SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
-    name: nullableString,
-    description: nullableString,
-    category: nullable({ type: 'string', enum: [...EVENT_CATEGORIES] }),
-    ageRating: nullable({ type: 'string', enum: eventAgeRating.enumValues }),
-    edition: nullableString,
-    startDate: nullableString,
-    startTime: nullableString,
-    endDate: nullableString,
-    endTime: nullableString,
-    salesStartDate: nullableString,
-    salesStartTime: nullableString,
+    name: text,
+    description: text,
+    category: optionalEnum(EVENT_CATEGORIES),
+    ageRating: optionalEnum(eventAgeRating.enumValues),
+    edition: text,
+    startDate: text,
+    startTime: text,
+    endDate: text,
+    endTime: text,
+    salesStartDate: text,
+    salesStartTime: text,
     venue: nullable(venueSchema),
     ticketTypes: nullable({ type: 'array', items: ticketTypeSchema }),
     declined: { type: 'boolean' },

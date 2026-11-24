@@ -156,7 +156,7 @@ function oneOf<T extends string>(
   value: unknown,
   allowed: readonly T[],
 ): T | null | undefined {
-  if (value === null || value === undefined) return undefined;
+  if (value === null || value === undefined || value === '') return undefined;
   return allowed.includes(value as T) ? (value as T) : null;
 }
 
@@ -170,6 +170,7 @@ function isRealDate(value: string): boolean {
 function dateValue(value: unknown): string | null | undefined {
   if (value === null || value === undefined) return undefined;
   if (typeof value !== 'string') return null;
+  if (value.trim() === '') return undefined;
   const trimmed = value.trim();
   return ASSISTANT_DATE_PATTERN.test(trimmed) && isRealDate(trimmed)
     ? trimmed
@@ -179,6 +180,7 @@ function dateValue(value: unknown): string | null | undefined {
 function timeValue(value: unknown): string | null | undefined {
   if (value === null || value === undefined) return undefined;
   if (typeof value !== 'string') return null;
+  if (value.trim() === '') return undefined;
   const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
   if (!match) return null;
   const normalized = `${match[1].padStart(2, '0')}:${match[2]}`;

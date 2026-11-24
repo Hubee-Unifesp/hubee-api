@@ -12,17 +12,17 @@ import {
 const NOW = new Date('2026-11-24T15:00:00Z');
 
 const NULL_PATCH = {
-  name: null,
-  description: null,
-  category: null,
-  ageRating: null,
-  edition: null,
-  startDate: null,
-  startTime: null,
-  endDate: null,
-  endTime: null,
-  salesStartDate: null,
-  salesStartTime: null,
+  name: '',
+  description: '',
+  category: '',
+  ageRating: '',
+  edition: '',
+  startDate: '',
+  startTime: '',
+  endDate: '',
+  endTime: '',
+  salesStartDate: '',
+  salesStartTime: '',
   venue: null,
   ticketTypes: null,
   declined: false,
@@ -340,5 +340,30 @@ describe('sanitizePatch()', () => {
     );
 
     expect(result.fields).toEqual({});
+  });
+});
+
+describe('EVENT_AI_ASSISTANT_SCHEMA', () => {
+  function countUnions(schema: unknown): number {
+    if (Array.isArray(schema)) {
+      return schema.reduce(
+        (total: number, item) => total + countUnions(item),
+        0,
+      );
+    }
+    if (typeof schema !== 'object' || schema === null) return 0;
+    const node = schema as Record<string, unknown>;
+    const own = 'anyOf' in node || Array.isArray(node.type) ? 1 : 0;
+    return (
+      own +
+      Object.values(node).reduce(
+        (total: number, value) => total + countUnions(value),
+        0,
+      )
+    );
+  }
+
+  it('respeita o limite de 16 parâmetros com união da Anthropic', () => {
+    expect(countUnions(EVENT_AI_ASSISTANT_SCHEMA)).toBeLessThanOrEqual(16);
   });
 });

@@ -59,12 +59,33 @@ describe('isComplete()', () => {
     ).toBe(true);
   });
 
-  it('local precisa de nome e cidade', () => {
+  it('local precisa da cidade e do nome ou do endereço', () => {
     const venue = { name: 'Ginásio', address: null, city: null, state: null };
     expect(isComplete(draft({ venue }), 'venue')).toBe(false);
     expect(
       isComplete(draft({ venue: { ...venue, city: 'Santos' } }), 'venue'),
     ).toBe(true);
+    expect(
+      isComplete(
+        draft({
+          venue: {
+            name: null,
+            address: 'Av. Presidente Juscelino Kubitschek',
+            city: 'São José dos Campos',
+            state: 'SP',
+          },
+        }),
+        'venue',
+      ),
+    ).toBe(true);
+    expect(
+      isComplete(
+        draft({
+          venue: { name: null, address: null, city: 'Santos', state: 'SP' },
+        }),
+        'venue',
+      ),
+    ).toBe(false);
   });
 
   it('lotes precisam de preço e quantidade em todos', () => {
@@ -193,6 +214,53 @@ describe('nextQuestion()', () => {
       {},
     );
     expect(question?.text).toBe('Em que cidade fica o Bar do Zé?');
+  });
+
+  it('pergunta a cidade quando só o endereço é conhecido', () => {
+    const question = nextQuestion(
+      draft({
+        ...COMPLETE_REQUIRED,
+        venue: {
+          name: null,
+          address: 'Rua Talim, 330',
+          city: null,
+          state: null,
+        },
+      }),
+      {},
+    );
+    expect(question?.text).toBe(
+      'Em que cidade fica o endereço Rua Talim, 330?',
+    );
+  });
+
+  it('com só a cidade, aceita nome do local ou endereço', () => {
+    const question = nextQuestion(
+      draft({
+        ...COMPLETE_REQUIRED,
+        venue: { name: null, address: null, city: 'Santos', state: 'SP' },
+      }),
+      {},
+    );
+    expect(question?.text).toBe(
+      'Onde vai ser em Santos? Diga o nome do local ou o endereço.',
+    );
+  });
+
+  it('não pede o nome do local quando já tem endereço e cidade', () => {
+    const question = nextQuestion(
+      draft({
+        ...COMPLETE_REQUIRED,
+        venue: {
+          name: null,
+          address: 'Av. Presidente Juscelino Kubitschek',
+          city: 'São José dos Campos',
+          state: 'SP',
+        },
+      }),
+      {},
+    );
+    expect(question?.field).toBe('ticketTypes');
   });
 
   it('pergunta o que falta do lote incompleto', () => {
