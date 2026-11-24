@@ -116,6 +116,23 @@ const ORGANIZER_WRITE_ROUTES = [
   'PATCH /events/:eventId/ticket-types/:id',
   'DELETE /events/:eventId/ticket-types/:id',
   'POST /venues',
+  'POST /events/:eventId/tasks',
+  'PATCH /events/:eventId/tasks/:id',
+  'DELETE /events/:eventId/tasks/:id',
+  'POST /events/:eventId/expenses',
+  'GET /events/:eventId/expenses',
+  'GET /events/:eventId/expenses/:id',
+  'PATCH /events/:eventId/expenses/:id',
+  'DELETE /events/:eventId/expenses/:id',
+];
+
+/**
+ * Como `ORGANIZER_WRITE_ROUTES`, mas basta `read`: membro só leitura também
+ * passa (GOL-290). Despesas ficam fora por serem dado financeiro.
+ */
+const ORGANIZER_READ_ROUTES = [
+  'GET /events/:eventId/tasks',
+  'GET /events/:eventId/tasks/:id',
 ];
 
 /**
@@ -132,6 +149,7 @@ const ORGANIZER_MANAGE_ROUTES = [
 ];
 
 const ORGANIZER_ROUTES = [
+  ...ORGANIZER_READ_ROUTES,
   ...ORGANIZER_WRITE_ROUTES,
   ...ORGANIZER_MANAGE_ROUTES,
 ];
@@ -406,6 +424,16 @@ describe('Proteção de rotas (GOL-114)', () => {
   });
 
   it.each([
+    'GET /events/:eventId/tasks',
+    'POST /events/:eventId/tasks',
+    'GET /events/:eventId/expenses',
+    'POST /events/:eventId/expenses',
+  ])('%s não é mais só ADMIN (GOL-290)', (label) => {
+    expect(protectedRoutes.map((r) => r.label)).not.toContain(label);
+    expect(organizerRoutes.map((r) => r.label)).toContain(label);
+  });
+
+  it.each([
     'PATCH /orders/:orderId/payments',
     'POST /orders/:orderId/tickets',
     'PATCH /tickets/:id',
@@ -542,6 +570,7 @@ describe('Proteção de rotas (GOL-114)', () => {
       };
       const byEvent = isResourceScoped(route);
       const needsManage = ORGANIZER_MANAGE_ROUTES.includes(route.label);
+      const readOnlyAllowed = ORGANIZER_READ_ROUTES.includes(route.label);
 
       afterEach(() => {
         membership.current = undefined;
@@ -559,9 +588,16 @@ describe('Proteção de rotas (GOL-114)', () => {
         await asMember(undefined).expect(byEvent ? 404 : 403);
       });
 
-      it('403 para membro só leitura', async () => {
-        await asMember('read_only').expect(403);
-      });
+      if (readOnlyAllowed) {
+        it('2xx para membro só leitura', async () => {
+          const response = await asMember('read_only');
+          expect(response.status).toBeLessThan(300);
+        });
+      } else {
+        it('403 para membro só leitura', async () => {
+          await asMember('read_only').expect(403);
+        });
+      }
 
       if (needsManage) {
         it('403 para membro com permissão full que não é administrador', async () => {
