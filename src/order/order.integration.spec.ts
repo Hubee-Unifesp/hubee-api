@@ -25,6 +25,8 @@ import { CheckoutController } from '../payment/checkout.controller';
 import { PaymentController } from '../payment/payment.controller';
 import { PaymentRepository } from '../payment/payment.repository';
 import { PaymentService } from '../payment/payment.service';
+import { PaymentGateway } from '../payment/gateway/payment-gateway';
+import { SimulatedPaymentGateway } from '../payment/gateway/simulated-payment-gateway';
 import { TicketController } from '../ticket/ticket.controller';
 import { TicketRepository } from '../ticket/ticket.repository';
 import { TicketService } from '../ticket/ticket.service';
@@ -114,6 +116,7 @@ describe('Pedidos, checkout e ingressos (banco em memória)', () => {
         OrderItemRepository,
         PaymentService,
         PaymentRepository,
+        { provide: PaymentGateway, useClass: SimulatedPaymentGateway },
         TicketService,
         TicketRepository,
         TicketTypeService,
