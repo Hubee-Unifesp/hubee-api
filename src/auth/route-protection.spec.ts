@@ -15,7 +15,6 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { createAiRateLimitStoreProvider } from '../ai/guards/ai-throttler.guard';
 import { EventAiAssistantController } from '../event/ai-assistant/event-ai-assistant.controller';
-import { EventAiDraftController } from '../event/ai-draft/event-ai-draft.controller';
 import { EventController } from '../event/event.controller';
 import { EventService } from '../event/event.service';
 import { ExpensesController } from '../expenses/expenses.controller';
@@ -42,7 +41,6 @@ import { events } from '../database/schema';
  */
 const CONTROLLERS: Type[] = [
   EventController,
-  EventAiDraftController,
   EventAiAssistantController,
   TicketTypeController,
   OrganizationController,
@@ -168,7 +166,7 @@ const isResourceScoped = (route: { template: string }) =>
 
 /**
  * ADMIN ou membro aceito de qualquer organização (`@OrganizerOnly`, GOL-202):
- * catálogo compartilhado de fornecedores e rascunho de evento com IA (GOL-263).
+ * catálogo compartilhado de fornecedores e assistente de criação de evento com IA (GOL-291).
  */
 const ORGANIZER_ONLY_ROUTES = [
   'POST /suppliers',
@@ -178,7 +176,6 @@ const ORGANIZER_ONLY_ROUTES = [
   'DELETE /suppliers/:id',
   'POST /suppliers/:id/reviews',
   'GET /suppliers/:id/reviews',
-  'POST /events/ai-draft',
   'POST /events/ai-assistant/turn',
 ];
 

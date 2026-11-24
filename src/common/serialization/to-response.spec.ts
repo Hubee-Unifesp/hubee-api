@@ -6,10 +6,12 @@ import { LoginResponseDto } from '../../auth/dto/login-response.dto';
 import { RegisterResponseDto } from '../../auth/dto/register-response.dto';
 import { EventResponseDto } from '../../event/dto/event-response.dto';
 import {
-  EventAiDraftResponseDto,
-  SuggestedTicketTypeDto,
-  VenueSuggestionDto,
-} from '../../event/dto/event-ai-draft-response.dto';
+  AssistantDraftDto,
+  AssistantQuestionDto,
+  AssistantTicketTypeDto,
+  AssistantVenueDto,
+  EventAiAssistantTurnResponseDto,
+} from '../../event/ai-assistant/dto/event-ai-assistant.dto';
 import {
   EventDetailOrganizationDto,
   EventDetailResponseDto,
@@ -66,9 +68,11 @@ const RESPONSE_DTOS: ClassConstructor<unknown>[] = [
   EventSummaryResponseDto,
   EventListItemResponseDto,
   EventPageResponseDto,
-  EventAiDraftResponseDto,
-  VenueSuggestionDto,
-  SuggestedTicketTypeDto,
+  EventAiAssistantTurnResponseDto,
+  AssistantDraftDto,
+  AssistantQuestionDto,
+  AssistantVenueDto,
+  AssistantTicketTypeDto,
   PaginationMetaDto,
   ExpenseResponseDto,
   NotificationResponseDto,
@@ -327,77 +331,87 @@ describe('toResponse(EventDetailResponseDto)', () => {
   });
 });
 
-describe('toResponse(EventAiDraftResponseDto)', () => {
-  it('mapeia o rascunho com local e lotes, sem campos extras', () => {
-    const result = toResponse(EventAiDraftResponseDto, {
-      name: 'Festa Junina',
-      description: null,
-      category: 'festas',
-      ageRating: null,
-      edition: null,
-      startDate: '2026-11-28T20:00:00-03:00',
-      endDate: null,
-      salesStartDate: '2026-11-20',
-      venueSuggestion: {
-        name: 'Ginásio',
-        address: null,
-        city: 'São José dos Campos',
-        state: 'SP',
-        venueId: 'interno',
-      },
-      suggestedTicketTypes: [
-        {
-          batch: '1º lote',
-          price: 30,
-          quantity: null,
-          modality: 'inteira',
-          eventId: 'interno',
+describe('toResponse(EventAiAssistantTurnResponseDto)', () => {
+  it('mapeia a rodada com rascunho, local, lotes e pergunta, sem campos extras', () => {
+    const result = toResponse(EventAiAssistantTurnResponseDto, {
+      draft: {
+        name: 'Festa Junina',
+        description: null,
+        category: 'festas',
+        ageRating: null,
+        edition: null,
+        startDate: '2026-11-28',
+        startTime: '20:00',
+        endDate: null,
+        endTime: null,
+        salesStartDate: null,
+        salesStartTime: null,
+        venue: {
+          name: 'Ginásio',
+          address: null,
+          city: 'São José dos Campos',
+          state: 'SP',
+          venueId: 'interno',
         },
-      ],
-      missingFields: [
-        'description',
-        'ageRating',
-        'edition',
-        'endDate',
-        'salesStartDate',
-      ],
-      questions: [
-        { field: 'description', question: 'Qual a programação?', extra: 'x' },
-      ],
+        ticketTypes: [
+          {
+            batch: '1º lote',
+            price: 30,
+            quantity: null,
+            modality: 'inteira',
+            eventId: 'interno',
+          },
+        ],
+        skipped: ['ageRating'],
+        organizerId: 'interno',
+      },
+      reply: 'Anotado.',
+      question: {
+        field: 'end',
+        text: 'Quando o evento termina?',
+        skippable: false,
+        extra: 'x',
+      },
+      missingRequired: ['end'],
       done: false,
-      organizerId: 'interno',
+      tokens: 120,
     });
 
-    expect(result.venueSuggestion).toBeInstanceOf(VenueSuggestionDto);
-    expect(result.suggestedTicketTypes[0]).toBeInstanceOf(
-      SuggestedTicketTypeDto,
-    );
+    expect(result.draft).toBeInstanceOf(AssistantDraftDto);
+    expect(result.draft.venue).toBeInstanceOf(AssistantVenueDto);
+    expect(result.draft.ticketTypes[0]).toBeInstanceOf(AssistantTicketTypeDto);
+    expect(result.question).toBeInstanceOf(AssistantQuestionDto);
     expect(JSON.parse(JSON.stringify(result))).toEqual({
-      name: 'Festa Junina',
-      description: null,
-      category: 'festas',
-      ageRating: null,
-      edition: null,
-      startDate: '2026-11-28T20:00:00-03:00',
-      endDate: null,
-      salesStartDate: '2026-11-20',
-      venueSuggestion: {
-        name: 'Ginásio',
-        address: null,
-        city: 'São José dos Campos',
-        state: 'SP',
+      draft: {
+        name: 'Festa Junina',
+        description: null,
+        category: 'festas',
+        ageRating: null,
+        edition: null,
+        startDate: '2026-11-28',
+        startTime: '20:00',
+        endDate: null,
+        endTime: null,
+        salesStartDate: null,
+        salesStartTime: null,
+        venue: {
+          name: 'Ginásio',
+          address: null,
+          city: 'São José dos Campos',
+          state: 'SP',
+        },
+        ticketTypes: [
+          { batch: '1º lote', price: 30, quantity: null, modality: 'inteira' },
+        ],
+        skipped: ['ageRating'],
       },
-      suggestedTicketTypes: [
-        { batch: '1º lote', price: 30, quantity: null, modality: 'inteira' },
-      ],
-      missingFields: [
-        'description',
-        'ageRating',
-        'edition',
-        'endDate',
-        'salesStartDate',
-      ],
-      questions: [{ field: 'description', question: 'Qual a programação?' }],
+      reply: 'Anotado.',
+      question: {
+        field: 'end',
+        text: 'Quando o evento termina?',
+        skippable: false,
+      },
+      missingRequired: ['end'],
       done: false,
     });
   });
