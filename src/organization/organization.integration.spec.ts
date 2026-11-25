@@ -168,6 +168,39 @@ describe('Organizações — cadastro por usuário autenticado e vínculo de adm
       });
     });
 
+    it('usuário com permissão manage consegue salvar titleColor, descriptionColor e fazer upload de capa (PATCH /organizations/:id/photo)', async () => {
+      const colored = await http()
+        .patch(`/organizations/${orgId}`)
+        .set(as('creator'))
+        .send({
+          titleColor: '#FFFDF5',
+          descriptionColor: '#F5F0DC',
+        })
+        .expect(200);
+
+      expect(colored.body).toMatchObject({
+        id: orgId,
+        titleColor: '#FFFDF5',
+        descriptionColor: '#F5F0DC',
+      });
+
+      const png = Buffer.from([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+      ]);
+
+      await http()
+        .patch(`/organizations/${orgId}/photo`)
+        .set(as('creator'))
+        .attach('file', png, { filename: 'capa.png', contentType: 'image/png' })
+        .expect(200);
+
+      await http()
+        .patch(`/organizations/${orgId}/photo`)
+        .set(as('writeMember'))
+        .attach('file', png, { filename: 'capa.png', contentType: 'image/png' })
+        .expect(403);
+    });
+
     it('membro da organização com permissão apenas write recebe 403 Forbidden ao tentar o PATCH', async () => {
       await http()
         .patch(`/organizations/${orgId}`)

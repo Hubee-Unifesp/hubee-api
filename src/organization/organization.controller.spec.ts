@@ -23,6 +23,9 @@ const row = {
   id: 'org-1',
   name: 'Centro Acadêmico',
   description: null,
+  photoUrl: null,
+  titleColor: null,
+  descriptionColor: null,
   representativeId: 'user-1',
   createdAt: new Date('2026-01-01T00:00:00Z'),
   updatedAt: new Date('2026-01-01T00:00:00Z'),
@@ -35,6 +38,7 @@ describe('OrganizationController', () => {
     findOne: jest.Mock<OrganizationService['findOne']>;
     create: jest.Mock<OrganizationService['create']>;
     update: jest.Mock<OrganizationService['update']>;
+    updatePhoto: jest.Mock<OrganizationService['updatePhoto']>;
     remove: jest.Mock<OrganizationService['remove']>;
   };
 
@@ -44,6 +48,7 @@ describe('OrganizationController', () => {
       findOne: jest.fn<OrganizationService['findOne']>(),
       create: jest.fn<OrganizationService['create']>(),
       update: jest.fn<OrganizationService['update']>(),
+      updatePhoto: jest.fn<OrganizationService['updatePhoto']>(),
       remove: jest.fn<OrganizationService['remove']>(),
     };
 
@@ -102,6 +107,22 @@ describe('OrganizationController', () => {
 
     expect(service.update).toHaveBeenCalledWith('org-1', dto);
     expect(result).toEqual(updated);
+    expect(result).toBeInstanceOf(OrganizationResponseDto);
+  });
+
+  it('PATCH /organizations/:id/photo delega para organizationService.updatePhoto()', async () => {
+    const file = {
+      mimetype: 'image/png',
+      size: 120,
+      buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    };
+    const updated = { ...row, photoUrl: 'https://cdn.example.com/org.png' } as never;
+    service.updatePhoto.mockResolvedValue(updated);
+
+    const result = await controller.updatePhoto('org-1', file);
+
+    expect(service.updatePhoto).toHaveBeenCalledWith('org-1', file);
+    expect(result.photoUrl).toBe('https://cdn.example.com/org.png');
     expect(result).toBeInstanceOf(OrganizationResponseDto);
   });
 
