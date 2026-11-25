@@ -71,6 +71,13 @@
       "when": 1795321387224,
       "tag": "0009_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795646762169,
+      "tag": "0010_expenses_budget_format",
+      "breakpoints": true
     }
   ]
 }
