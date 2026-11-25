@@ -116,7 +116,10 @@ describe('OrganizationController', () => {
       size: 120,
       buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     };
-    const updated = { ...row, photoUrl: 'https://cdn.example.com/org.png' } as never;
+    const updated = {
+      ...row,
+      photoUrl: 'https://cdn.example.com/org.png',
+    } as never;
     service.updatePhoto.mockResolvedValue(updated);
 
     const result = await controller.updatePhoto('org-1', file);

@@ -32,6 +32,7 @@ import { DRIZZLE } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { OrganizationRepository } from '../organization/organization.repository';
 import { OrganizationService } from '../organization/organization.service';
+import { StorageService } from '../storage/storage.service';
 import { UsersService } from '../users/users.service';
 import { OrganizationUsersController } from './organization-users.controller';
 import { OrganizationUsersService } from './organization-users.service';
@@ -225,6 +226,10 @@ describe('Convites e permissões de membros da organização (GOL-275, HTTP + PG
         OrganizationRepository,
         UsersService,
         { provide: DRIZZLE, useValue: db },
+        {
+          provide: StorageService,
+          useValue: { upload: async () => '', delete: async () => undefined },
+        },
       ],
     }).compile();
 
