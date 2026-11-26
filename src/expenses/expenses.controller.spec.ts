@@ -3,19 +3,26 @@ import { JwtModule } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DRIZZLE } from '../database/database.constants';
 import { CreateExpenseDto } from './dto/create-expense.dto';
+import { ExpenseResponseDto } from './dto/expense-response.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
-import { ExpenseResponseDto } from './dto/expense-response.dto';
 
-/** Linha completa do banco, como o service a retorna. */
+/** Linha completa do banco com o nome do fornecedor, como o service a retorna. */
 const row = {
   id: 'expense-1',
   eventId: 'event-1',
   supplierId: 'fornecedor-1',
+  supplierName: 'Som & Luz Ltda',
   description: 'Aluguel de som e luz',
+  group: 'fixed' as const,
+  category: 'Estrutura',
+  quantity: 2,
+  unitPrice: 750,
   amount: 1500,
-  costType: 'infraestrutura',
+  responsible: 'Ana',
+  quoted: true,
+  notes: 'Montagem na véspera',
   dueDate: new Date('2026-10-01T00:00:00Z'),
   paymentStatus: 'pendente' as const,
   createdAt: new Date('2026-01-01T00:00:00Z'),
@@ -59,8 +66,10 @@ describe('ExpensesController', () => {
     const dto: CreateExpenseDto = {
       supplierId: 'fornecedor-1',
       description: 'Aluguel de som e luz',
-      amount: 1500,
-      costType: 'infraestrutura',
+      group: 'fixed',
+      category: 'Estrutura',
+      quantity: 2,
+      unitPrice: 750,
       dueDate: new Date('2026-10-01T00:00:00Z'),
     };
     const created = row as never;
@@ -78,10 +87,14 @@ describe('ExpensesController', () => {
     service.findAll.mockResolvedValue(list);
 
     const result = await controller.findAll(EVENT_ID, {
+      group: 'fixed',
+      quoted: true,
       paymentStatus: 'pendente',
     });
 
     expect(service.findAll).toHaveBeenCalledWith(EVENT_ID, {
+      group: 'fixed',
+      quoted: true,
       paymentStatus: 'pendente',
     });
     expect(result).toEqual(list);
@@ -100,8 +113,8 @@ describe('ExpensesController', () => {
   });
 
   it('PATCH /events/:eventId/expenses/:id delega para expensesService.update()', async () => {
-    const dto: UpdateExpenseDto = { paymentStatus: 'pago' };
-    const updated = row as never;
+    const dto: UpdateExpenseDto = { quoted: true, paymentStatus: 'pago' };
+    const updated = { ...row, quoted: true, paymentStatus: 'pago' } as never;
     service.update.mockResolvedValue(updated);
 
     const result = await controller.update(EVENT_ID, 'expense-1', dto);

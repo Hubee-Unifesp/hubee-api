@@ -1,8 +1,13 @@
-import { Expose } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
-import { expensePaymentStatus } from '../../database/schema';
+import { Expose } from 'class-transformer';
+import {
+  expenseGroup,
+  expensePaymentStatus,
+  type ExpenseGroup,
+  type ExpensePaymentStatus,
+} from '../../database/schema';
 
-/** Contrato de saída (público) de uma despesa. */
+/** Contrato de saída (público) de uma despesa do evento. */
 export class ExpenseResponseDto {
   @Expose()
   @ApiProperty({ format: 'uuid' })
@@ -13,28 +18,56 @@ export class ExpenseResponseDto {
   eventId: string;
 
   @Expose()
-  @ApiProperty({ format: 'uuid' })
-  supplierId: string;
+  @ApiProperty({ format: 'uuid', nullable: true })
+  supplierId: string | null;
+
+  @Expose()
+  @ApiProperty({ nullable: true })
+  supplierName: string | null;
 
   @Expose()
   @ApiProperty()
   description: string;
 
   @Expose()
+  @ApiProperty({ enum: expenseGroup.enumValues })
+  group: ExpenseGroup;
+
+  @Expose()
+  @ApiProperty()
+  category: string;
+
+  @Expose()
+  @ApiProperty({ type: Number })
+  quantity: number;
+
+  @Expose()
+  @ApiProperty({ type: Number })
+  unitPrice: number;
+
+  @Expose()
   @ApiProperty({ type: Number })
   amount: number;
 
   @Expose()
-  @ApiProperty()
-  costType: string;
+  @ApiProperty({ nullable: true })
+  responsible: string | null;
 
   @Expose()
-  @ApiProperty()
-  dueDate: Date;
+  @ApiProperty({ type: Boolean })
+  quoted: boolean;
+
+  @Expose()
+  @ApiProperty({ nullable: true })
+  notes: string | null;
+
+  @Expose()
+  @ApiProperty({ nullable: true })
+  dueDate: Date | null;
 
   @Expose()
   @ApiProperty({ enum: expensePaymentStatus.enumValues })
-  paymentStatus: string;
+  paymentStatus: ExpensePaymentStatus;
 
   @Expose()
   @ApiProperty()

@@ -1,10 +1,29 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { EventService } from '../event/event.service';
 import { SuppliersService } from '../suppliers/suppliers.service';
-import { CreateExpenseDto } from './dto/create-expense.dto';
+import { CreateExpenseDto, MAX_EXPENSE_AMOUNT } from './dto/create-expense.dto';
 import { QueryExpenseDto } from './dto/query-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpensesRepository } from './expenses.repository';
+
+/** Calcula o valor total da despesa (`quantity × unitPrice`) com 2 casas decimais. */
+export function calculateExpenseAmount(
+  quantity: number,
+  unitPrice: number,
+): number {
+  const amount =
+    Math.round((quantity * unitPrice + Number.EPSILON) * 100) / 100;
+  if (amount > MAX_EXPENSE_AMOUNT) {
+    throw new BadRequestException(
+      'O valor total da despesa excede o limite permitido.',
+    );
+  }
+  return amount;
+}
 
 @Injectable()
 export class ExpensesService {
@@ -19,6 +38,9 @@ export class ExpensesService {
 
     return this.expensesRepository.findAll({
       eventId,
+      group: query.group,
+      category: query.category,
+      quoted: query.quoted,
       paymentStatus: query.paymentStatus,
     });
   }
@@ -38,19 +60,40 @@ export class ExpensesService {
 
   async create(eventId: string, dto: CreateExpenseDto) {
     await this.ensureEventExists(eventId);
-    await this.ensureSupplierExists(dto.supplierId);
+    if (dto.supplierId) {
+      await this.ensureSupplierExists(dto.supplierId);
+    }
 
-    return this.expensesRepository.create({ ...dto, eventId });
+    const quantity = dto.quantity ?? 1;
+    const amount = calculateExpenseAmount(quantity, dto.unitPrice);
+
+    return this.expensesRepository.create({
+      ...dto,
+      eventId,
+      quantity,
+      amount,
+    });
   }
 
   async update(eventId: string, id: string, dto: UpdateExpenseDto) {
-    await this.findOne(eventId, id);
+    const current = await this.findOne(eventId, id);
 
     if (dto.supplierId) {
       await this.ensureSupplierExists(dto.supplierId);
     }
 
-    return this.expensesRepository.update(id, dto);
+    const nextAmount =
+      dto.quantity !== undefined || dto.unitPrice !== undefined
+        ? calculateExpenseAmount(
+            dto.quantity ?? current.quantity,
+            dto.unitPrice ?? current.unitPrice,
+          )
+        : undefined;
+
+    return this.expensesRepository.update(id, {
+      ...dto,
+      ...(nextAmount !== undefined ? { amount: nextAmount } : {}),
+    });
   }
 
   async remove(eventId: string, id: string): Promise<void> {

@@ -220,4 +220,94 @@ describe('Migrations Drizzle (Postgres em memória)', () => {
     const { rows } = await pg.query('SELECT * FROM "notifications"');
     expect(rows).toHaveLength(0);
   });
+
+  it('migra despesas antigas sem perda de dados e valida constraints de orçamento', async () => {
+    const db = database();
+    const expensesMigrationIndex = journal.entries.findIndex(
+      (entry) => entry.tag === '0011_expenses_budget_format',
+    );
+    for (const entry of journal.entries.slice(0, expensesMigrationIndex)) {
+      await pg.exec(migrationSql(entry.tag));
+    }
+
+    const {
+      rows: [ids],
+    } = await pg.query<{ event_id: string; supplier_id: string }>(`
+      WITH addr AS (
+        INSERT INTO "addresses" ("zip_code", "street", "number", "neighborhood", "city", "state")
+        VALUES ('01310-100', 'Av. Paulista', '100', 'Bela Vista', 'São Paulo', 'SP')
+        RETURNING "id"
+      ), ven AS (
+        INSERT INTO "venues" ("name", "max_capacity", "address_id")
+        SELECT 'Arena', 1000, "id" FROM addr
+        RETURNING "id"
+      ), org AS (
+        INSERT INTO "organizations" ("name")
+        VALUES ('Org Teste')
+        RETURNING "id"
+      ), ev AS (
+        INSERT INTO "events" ("name", "organizer_id", "venue_id", "start_date", "end_date")
+        SELECT 'Evento Legado', org.id, ven.id, '2026-12-01T18:00:00Z', '2026-12-01T23:00:00Z'
+        FROM org, ven
+        RETURNING "id"
+      ), sup AS (
+        INSERT INTO "suppliers" ("company_name", "cnpj_cpf")
+        VALUES ('Fornecedor Legado', '12345678000199')
+        RETURNING "id"
+      )
+      SELECT ev.id AS event_id, sup.id AS supplier_id FROM ev, sup
+    `);
+
+    await pg.query(
+      `INSERT INTO "expenses" ("event_id", "fornecedor_id", "description", "amount", "cost_type", "due_date", "payment_status")
+       VALUES ($1, $2, 'Palco Principal', 2500.50, 'Estrutura', '2026-11-30T00:00:00Z', 'pago')`,
+      [ids.event_id, ids.supplier_id],
+    );
+
+    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+
+    const { rows } = await pg.query<{
+      description: string;
+      group: string;
+      category: string;
+      quantity: string;
+      unit_price: string;
+      amount: string;
+      quoted: boolean;
+      payment_status: string;
+      fornecedor_id: string;
+    }>('SELECT * FROM "expenses"');
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        description: 'Palco Principal',
+        group: 'fixed',
+        category: 'Estrutura',
+        quantity: '1.00',
+        unit_price: '2500.50',
+        amount: '2500.50',
+        quoted: false,
+        payment_status: 'pago',
+        fornecedor_id: ids.supplier_id,
+      }),
+    ]);
+
+    await expect(
+      pg.query(
+        `INSERT INTO "expenses" ("event_id", "description", "group", "category", "quantity", "unit_price", "amount")
+         VALUES ($1, 'Qtd negativa', 'fixed', 'Estrutura', -1, 10, 0)`,
+        [ids.event_id],
+      ),
+    ).rejects.toThrow(/expenses_quantity_non_negative/);
+
+    await expect(
+      pg.query(
+        `INSERT INTO "expenses" ("event_id", "description", "group", "category", "quantity", "unit_price", "amount")
+         VALUES ($1, 'Preço negativo', 'fixed', 'Estrutura', 1, -5, 0)`,
+        [ids.event_id],
+      ),
+    ).rejects.toThrow(/expenses_unit_price_non_negative/);
+
+    expect(await catalog(pg)).toEqual(expected);
+  });
 });
