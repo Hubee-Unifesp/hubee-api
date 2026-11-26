@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { EventService } from '../event/event.service';
 import { calculatePlanningSummary } from './planning-summary';
 import { PlanningRepository } from './planning.repository';
@@ -15,7 +15,8 @@ export class PlanningService {
    * esperado do evento (`expectedAudience`).
    */
   async getSummary(eventId: string, audience?: number) {
-    const event = await this.findEvent(eventId);
+    // `findOne` já responde 404 (`Evento ${id} não encontrado`).
+    const event = await this.eventService.findOne(eventId);
 
     const [expenses, lots] = await Promise.all([
       this.planningRepository.findExpenses(eventId),
@@ -30,16 +31,5 @@ export class PlanningService {
         audience: audience ?? event.expectedAudience,
       }),
     };
-  }
-
-  private async findEvent(eventId: string) {
-    try {
-      return await this.eventService.findOne(eventId);
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw new NotFoundException(`Evento ${eventId} não encontrado`);
-      }
-      throw error;
-    }
   }
 }

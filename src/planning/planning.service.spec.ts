@@ -81,7 +81,9 @@ describe('PlanningService', () => {
   });
 
   it('responde 404 quando o evento não existe', async () => {
-    eventService.findOne.mockRejectedValue(new NotFoundException());
+    eventService.findOne.mockRejectedValue(
+      new NotFoundException('Evento event-x não encontrado'),
+    );
 
     await expect(service.getSummary('event-x')).rejects.toThrow(
       'Evento event-x não encontrado',
