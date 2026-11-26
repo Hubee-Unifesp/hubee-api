@@ -43,6 +43,10 @@ export interface PlanningLotInput {
   quantity: number;
   modality: TicketTypeModality;
   salesStartDate: Date | null;
+  /** Desempata lotes com o mesmo início de vendas. */
+  salesEndDate?: Date | null;
+  /** Ordem de cadastro, último desempate antes do `id`. */
+  createdAt?: Date;
 }
 
 export interface PlanningSummaryInput {
@@ -118,21 +122,33 @@ const fromCents = (cents: number) => cents / 100;
 const round2 = (value: number) =>
   Math.round((value + Math.sign(value) * Number.EPSILON) * 100) / 100;
 
+/** Data como número para ordenar; sem data vai para o fim. */
+const timeOrLast = (date: Date | null | undefined) =>
+  date?.getTime() ?? Number.POSITIVE_INFINITY;
+
 /**
- * Ordem de venda dos lotes: data de início de vendas (lote sem data segue a
- * janela do evento e fica depois dos datados), depois preço e, por fim, `id`
- * para a ordem ser estável.
+ * Ordem de venda dos lotes: data de início de vendas, data de fim de vendas
+ * (lote sem data segue a janela do evento e fica depois dos datados), preço
+ * (regra da planilha), ordem de cadastro e, por fim, `id` para a ordem ser
+ * estável.
  */
 export function sortLotsBySalesOrder<T extends PlanningLotInput>(
   lots: readonly T[],
 ): T[] {
-  return [...lots].sort((a, b) => {
-    const aStart = a.salesStartDate?.getTime() ?? Number.POSITIVE_INFINITY;
-    const bStart = b.salesStartDate?.getTime() ?? Number.POSITIVE_INFINITY;
-    if (aStart !== bStart) return aStart < bStart ? -1 : 1;
-    if (a.price !== b.price) return a.price - b.price;
-    return a.id.localeCompare(b.id);
-  });
+  const byTime = (a: Date | null | undefined, b: Date | null | undefined) => {
+    const aTime = timeOrLast(a);
+    const bTime = timeOrLast(b);
+    return aTime === bTime ? 0 : aTime < bTime ? -1 : 1;
+  };
+
+  return [...lots].sort(
+    (a, b) =>
+      byTime(a.salesStartDate, b.salesStartDate) ||
+      byTime(a.salesEndDate, b.salesEndDate) ||
+      a.price - b.price ||
+      byTime(a.createdAt, b.createdAt) ||
+      a.id.localeCompare(b.id),
+  );
 }
 
 /** Modalidade que forma a fila de venda; as demais são cotas paralelas. */

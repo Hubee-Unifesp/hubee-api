@@ -36,6 +36,8 @@ export class PlanningRepository {
         quantity: ticketTypes.quantity,
         modality: ticketTypes.modality,
         salesStartDate: ticketTypes.salesStartDate,
+        salesEndDate: ticketTypes.salesEndDate,
+        createdAt: ticketTypes.createdAt,
       })
       .from(ticketTypes)
       .where(eq(ticketTypes.eventId, eventId));

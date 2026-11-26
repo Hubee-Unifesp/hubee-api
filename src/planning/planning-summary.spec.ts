@@ -355,6 +355,44 @@ describe('calculatePlanningSummary (GOL-297)', () => {
       ]);
     });
 
+    it('com o mesmo início, desempata pelo fim de vendas, preço e ordem de cadastro', () => {
+      const lot = (
+        id: string,
+        batch: string,
+        extra: Partial<PlanningLotInput>,
+      ): PlanningLotInput => ({
+        id,
+        batch,
+        price: 50,
+        quantity: 1,
+        modality: 'inteira',
+        salesStartDate: day(1),
+        ...extra,
+      });
+
+      const sorted = sortLotsBySalesOrder([
+        lot('a', 'Sem fim', { salesEndDate: null }),
+        lot('b', 'Cadastrado depois', {
+          salesEndDate: day(9),
+          createdAt: day(3),
+        }),
+        lot('c', 'Termina antes', { salesEndDate: day(5), price: 90 }),
+        lot('d', 'Mais barato', { salesEndDate: day(9), price: 40 }),
+        lot('e', 'Cadastrado antes', {
+          salesEndDate: day(9),
+          createdAt: day(2),
+        }),
+      ]);
+
+      expect(sorted.map((l) => l.batch)).toEqual([
+        'Termina antes',
+        'Mais barato',
+        'Cadastrado antes',
+        'Cadastrado depois',
+        'Sem fim',
+      ]);
+    });
+
     it('break-even acima do planejado aponta para o último lote', () => {
       const summary = calculatePlanningSummary({
         expenses: [
