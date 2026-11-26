@@ -2,6 +2,7 @@ import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  integer,
   pgEnum,
   pgTable,
   text,
@@ -44,6 +45,9 @@ export const EVENT_CATEGORIES = [
 
 export type EventCategory = (typeof EVENT_CATEGORIES)[number];
 
+/** Limite do público esperado aceito na API (cabe com folga em `integer`). */
+export const MAX_EXPECTED_AUDIENCE = 10_000_000;
+
 export const events = pgTable(
   'events',
   {
@@ -65,6 +69,8 @@ export const events = pgTable(
     edition: varchar('edition', { length: 100 }),
     photoUrl: varchar('photo_url', { length: 2048 }),
     featured: boolean('featured').notNull().default(false),
+    // Público esperado usado no planejamento financeiro (break-even, GOL-297).
+    expectedAudience: integer('expected_audience'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -77,6 +83,10 @@ export const events = pgTable(
     check(
       'events_sales_start_before_event',
       sql`${table.salesStartDate} <= ${table.startDate}`,
+    ),
+    check(
+      'events_expected_audience_positive',
+      sql`${table.expectedAudience} > 0`,
     ),
   ],
 );

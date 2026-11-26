@@ -526,6 +526,43 @@ describe('Eventos por organizadores (banco em memória)', () => {
     });
   });
 
+  it('PATCH salva e limpa o público esperado sem expô-lo na resposta pública (GOL-297)', async () => {
+    const { body: event } = await http()
+      .post('/events')
+      .set(as('organizer'))
+      .send(newEvent(orgA, { expectedAudience: 300 }))
+      .expect(201);
+    const audienceOf = async () =>
+      (
+        await db.query.events.findFirst({
+          where: eq(schema.events.id, event.id),
+        })
+      )?.expectedAudience;
+
+    expect(event).not.toHaveProperty('expectedAudience');
+    expect(await audienceOf()).toBe(300);
+
+    await http()
+      .patch(`/events/${event.id}`)
+      .set(as('organizer'))
+      .send({ expectedAudience: 320 })
+      .expect(200);
+    expect(await audienceOf()).toBe(320);
+
+    await http()
+      .patch(`/events/${event.id}`)
+      .set(as('organizer'))
+      .send({ expectedAudience: 0 })
+      .expect(400);
+
+    await http()
+      .patch(`/events/${event.id}`)
+      .set(as('organizer'))
+      .send({ expectedAudience: null })
+      .expect(200);
+    expect(await audienceOf()).toBeNull();
+  });
+
   it.each(['name', 'venueId', 'startDate', 'endDate', 'status', 'featured'])(
     'PATCH com %s null responde 400',
     async (field) => {

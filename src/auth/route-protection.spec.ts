@@ -26,6 +26,7 @@ import { OrderController } from '../order/order.controller';
 import { OrganizationController } from '../organization/organization.controller';
 import { CheckoutController } from '../payment/checkout.controller';
 import { PaymentController } from '../payment/payment.controller';
+import { PlanningController } from '../planning/planning.controller';
 import { SuppliersController } from '../suppliers/suppliers.controller';
 import { TaskController } from '../task/task.controller';
 import { TicketController } from '../ticket/ticket.controller';
@@ -47,6 +48,7 @@ const CONTROLLERS: Type[] = [
   VenueController,
   SuppliersController,
   ExpensesController,
+  PlanningController,
   TaskController,
   PaymentController,
   CheckoutController,
@@ -124,6 +126,7 @@ const ORGANIZER_WRITE_ROUTES = [
   'GET /events/:eventId/expenses/:id',
   'PATCH /events/:eventId/expenses/:id',
   'DELETE /events/:eventId/expenses/:id',
+  'GET /events/:eventId/planning/summary',
 ];
 
 /**
@@ -432,6 +435,13 @@ describe('Proteção de rotas (GOL-114)', () => {
   ])('%s não é mais só ADMIN (GOL-290)', (label) => {
     expect(protectedRoutes.map((r) => r.label)).not.toContain(label);
     expect(organizerRoutes.map((r) => r.label)).toContain(label);
+  });
+
+  it('GET /events/:eventId/planning/summary exige write como as despesas (GOL-297)', () => {
+    const label = 'GET /events/:eventId/planning/summary';
+    expect(organizerRoutes.map((r) => r.label)).toContain(label);
+    expect(ORGANIZER_WRITE_ROUTES).toContain(label);
+    expect(ORGANIZER_READ_ROUTES).not.toContain(label);
   });
 
   it.each([

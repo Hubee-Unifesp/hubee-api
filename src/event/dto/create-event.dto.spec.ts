@@ -1,6 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { CreateEventDto } from './create-event.dto';
+import { UpdateEventDto } from './update-event.dto';
 
 async function validationErrorsFor(payload: unknown): Promise<string[]> {
   const dto = plainToInstance(CreateEventDto, payload);
@@ -92,5 +93,44 @@ describe('CreateEventDto', () => {
     await expect(
       validationErrorsFor(validPayload({ photoUrl: 'nao-e-url' })),
     ).resolves.toContain('isUrl');
+  });
+});
+
+describe('expectedAudience (GOL-297)', () => {
+  async function errorsFor(
+    dto: typeof CreateEventDto | typeof UpdateEventDto,
+    payload: Record<string, unknown>,
+  ) {
+    const errors = await validate(plainToInstance(dto, payload));
+    return errors
+      .filter((error) => error.property === 'expectedAudience')
+      .flatMap((error) => Object.keys(error.constraints ?? {}));
+  }
+
+  it.each([CreateEventDto, UpdateEventDto])(
+    '%p aceita público inteiro positivo',
+    async (dto) => {
+      await expect(errorsFor(dto, { expectedAudience: 300 })).resolves.toEqual(
+        [],
+      );
+    },
+  );
+
+  it.each([
+    [0, 'min'],
+    [-5, 'min'],
+    [10.5, 'isInt'],
+    ['300', 'isInt'],
+    [10_000_001, 'max'],
+  ])('recusa %p (%s)', async (value, constraint) => {
+    await expect(
+      errorsFor(UpdateEventDto, { expectedAudience: value }),
+    ).resolves.toContain(constraint);
+  });
+
+  it('PATCH aceita null para limpar o público esperado', async () => {
+    await expect(
+      errorsFor(UpdateEventDto, { expectedAudience: null }),
+    ).resolves.toEqual([]);
   });
 });
