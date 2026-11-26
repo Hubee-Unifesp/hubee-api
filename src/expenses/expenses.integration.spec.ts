@@ -226,6 +226,29 @@ describe('Despesas em formato de orçamento (GOL-296, banco em memória)', () =>
         })
         .expect(400);
     });
+
+    it('rejeita null em campos não anuláveis, dueDate numérico e estouro de numeric(12,2) com 400', async () => {
+      for (const override of [
+        { quoted: null },
+        { paymentStatus: null },
+        { quantity: null },
+        { dueDate: 0 },
+        { notes: 'a'.repeat(1001) },
+        { quantity: 100_000, unitPrice: 200_000 },
+      ]) {
+        await http()
+          .post(`/events/${eventOfA}/expenses`)
+          .set(as('writerA'))
+          .send({
+            description: 'Item inválido',
+            group: 'fixed',
+            category: 'Estrutura',
+            unitPrice: 100,
+            ...override,
+          })
+          .expect(400);
+      }
+    });
   });
 
   describe('CRUD no formato de orçamento', () => {

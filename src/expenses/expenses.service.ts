@@ -1,7 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { EventService } from '../event/event.service';
 import { SuppliersService } from '../suppliers/suppliers.service';
-import { CreateExpenseDto } from './dto/create-expense.dto';
+import { CreateExpenseDto, MAX_EXPENSE_AMOUNT } from './dto/create-expense.dto';
 import { QueryExpenseDto } from './dto/query-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpensesRepository } from './expenses.repository';
@@ -11,7 +15,14 @@ export function calculateExpenseAmount(
   quantity: number,
   unitPrice: number,
 ): number {
-  return Math.round((quantity * unitPrice + Number.EPSILON) * 100) / 100;
+  const amount =
+    Math.round((quantity * unitPrice + Number.EPSILON) * 100) / 100;
+  if (amount > MAX_EXPENSE_AMOUNT) {
+    throw new BadRequestException(
+      'O valor total da despesa excede o limite permitido.',
+    );
+  }
+  return amount;
 }
 
 @Injectable()

@@ -1,5 +1,3 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsDate,
@@ -9,11 +7,13 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
   Min,
 } from 'class-validator';
 import {
   IsOptionalUpdate,
+  ToDate,
   TrimString,
 } from '../../common/validation/update-validation';
 import {
@@ -22,26 +22,13 @@ import {
   type ExpenseGroup,
   type ExpensePaymentStatus,
 } from '../../database/schema';
-
-const toNullableDate = ({ value }: { value: unknown }) => {
-  if (value === null || value === undefined) return value;
-  if (value instanceof Date) return value;
-  if (typeof value === 'string' || typeof value === 'number') {
-    return new Date(value);
-  }
-  return value;
-};
+import { MAX_EXPENSE_AMOUNT } from './create-expense.dto';
 
 /**
- * Atualização parcial de uma despesa do evento.
- * Campos obrigatórios no banco usam `IsOptionalUpdate()` para rejeitar `null`
- * com 400; campos opcionais (`supplierId`, `dueDate`, `responsible`, `notes`)
- * usam `@IsOptional()` e aceitam `null` para limpar o valor gravado.
+ * Atualização parcial de despesa: campos NOT NULL usam `@IsOptionalUpdate()`
+ * para rejeitar `null` com 400; opcionais aceitam `null` para limpar o valor.
  */
 export class UpdateExpenseDto {
-  @ApiPropertyOptional({
-    description: 'Descrição do item de despesa do evento',
-  })
   @IsOptionalUpdate()
   @TrimString()
   @IsString({ message: 'A descrição deve ser um texto.' })
@@ -51,19 +38,12 @@ export class UpdateExpenseDto {
   })
   description?: string;
 
-  @ApiPropertyOptional({
-    enum: expenseGroup.enumValues,
-    description: 'Grupo orçamentário da despesa',
-  })
   @IsOptionalUpdate()
   @IsIn(expenseGroup.enumValues, {
     message: 'Grupo de despesa inválido. Use: fixed, variable ou marketing.',
   })
   group?: ExpenseGroup;
 
-  @ApiPropertyOptional({
-    description: 'Categoria da despesa dentro do orçamento',
-  })
   @IsOptionalUpdate()
   @TrimString()
   @IsString({ message: 'A categoria deve ser um texto.' })
@@ -73,61 +53,37 @@ export class UpdateExpenseDto {
   })
   category?: string;
 
-  @ApiPropertyOptional({
-    type: Number,
-    minimum: 0,
-    description: 'Quantidade de unidades do item',
-  })
   @IsOptionalUpdate()
   @IsNumber(
-    { maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false },
-    { message: 'A quantidade deve ser um número com até 2 casas decimais.' },
+    { maxDecimalPlaces: 2 },
+    { message: 'A quantidade deve ter no máximo 2 casas decimais.' },
   )
   @Min(0, { message: 'A quantidade não pode ser negativa.' })
+  @Max(MAX_EXPENSE_AMOUNT, {
+    message: 'A quantidade excede o limite permitido.',
+  })
   quantity?: number;
 
-  @ApiPropertyOptional({
-    type: Number,
-    minimum: 0,
-    description: 'Valor unitário do item em reais',
-  })
   @IsOptionalUpdate()
   @IsNumber(
-    { maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false },
-    {
-      message: 'O valor unitário deve ser um número com até 2 casas decimais.',
-    },
+    { maxDecimalPlaces: 2 },
+    { message: 'O valor unitário deve ter no máximo 2 casas decimais.' },
   )
   @Min(0, { message: 'O valor unitário não pode ser negativo.' })
+  @Max(MAX_EXPENSE_AMOUNT, {
+    message: 'O valor unitário excede o limite permitido.',
+  })
   unitPrice?: number;
 
-  @ApiPropertyOptional({
-    format: 'uuid',
-    nullable: true,
-    description:
-      'Identificador do fornecedor associado (envie null para limpar)',
-  })
   @IsOptional()
-  @IsUUID('4', {
-    message: 'O identificador do fornecedor deve ser um UUID válido.',
-  })
+  @IsUUID(undefined, { message: 'Fornecedor inválido.' })
   supplierId?: string | null;
 
-  @ApiPropertyOptional({
-    type: String,
-    format: 'date-time',
-    nullable: true,
-    description: 'Data de vencimento prevista (envie null para limpar)',
-  })
   @IsOptional()
-  @Transform(toNullableDate)
-  @IsDate({ message: 'A data de vencimento é inválida.' })
+  @ToDate()
+  @IsDate({ message: 'Data de vencimento inválida.' })
   dueDate?: Date | null;
 
-  @ApiPropertyOptional({
-    nullable: true,
-    description: 'Pessoa ou equipe responsável (envie null para limpar)',
-  })
   @IsOptional()
   @TrimString()
   @IsString({ message: 'O responsável deve ser um texto.' })
@@ -136,27 +92,18 @@ export class UpdateExpenseDto {
   })
   responsible?: string | null;
 
-  @ApiPropertyOptional({
-    type: Boolean,
-    description: 'Indica se o item já foi cotado',
-  })
   @IsOptionalUpdate()
   @IsBoolean({ message: 'O campo cotado deve ser verdadeiro ou falso.' })
   quoted?: boolean;
 
-  @ApiPropertyOptional({
-    nullable: true,
-    description: 'Observações livres (envie null para limpar)',
-  })
   @IsOptional()
   @TrimString()
   @IsString({ message: 'As observações devem ser um texto.' })
+  @MaxLength(1000, {
+    message: 'As observações devem ter no máximo 1000 caracteres.',
+  })
   notes?: string | null;
 
-  @ApiPropertyOptional({
-    enum: expensePaymentStatus.enumValues,
-    description: 'Status de pagamento da despesa',
-  })
   @IsOptionalUpdate()
   @IsIn(expensePaymentStatus.enumValues, {
     message: 'Status de pagamento inválido.',

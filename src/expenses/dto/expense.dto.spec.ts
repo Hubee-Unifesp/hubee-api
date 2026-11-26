@@ -1,19 +1,17 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { CreateExpenseDto } from './create-expense.dto';
+import { CreateExpenseDto, MAX_EXPENSE_AMOUNT } from './create-expense.dto';
 import { QueryExpenseDto } from './query-expense.dto';
 import { UpdateExpenseDto } from './update-expense.dto';
 
-async function validateDto<T extends object>(
-  dtoClass: new () => T,
+async function validationErrorsFor(
+  dtoClass:
+    typeof CreateExpenseDto | typeof UpdateExpenseDto | typeof QueryExpenseDto,
   payload: unknown,
-): Promise<{ dto: T; constraints: string[] }> {
+): Promise<string[]> {
   const dto = plainToInstance(dtoClass, payload);
   const errors = await validate(dto);
-  const constraints = errors.flatMap((error) =>
-    Object.keys(error.constraints ?? {}),
-  );
-  return { dto, constraints };
+  return errors.flatMap((error) => Object.keys(error.constraints ?? {}));
 }
 
 describe('CreateExpenseDto', () => {
@@ -25,18 +23,15 @@ describe('CreateExpenseDto', () => {
   };
 
   it('aceita payload mínimo sem fornecedor e sem data aplicando padrões', async () => {
-    const { dto, constraints } = await validateDto(
-      CreateExpenseDto,
-      validPayload,
-    );
+    const dto = plainToInstance(CreateExpenseDto, validPayload);
 
-    expect(constraints).toEqual([]);
+    await expect(validate(dto)).resolves.toEqual([]);
     expect(dto.quantity).toBe(1);
     expect(dto.quoted).toBe(false);
   });
 
-  it('aceita payload completo com fornecedor, data, quantidade, responsável e notas', async () => {
-    const { dto, constraints } = await validateDto(CreateExpenseDto, {
+  it('aceita payload completo e limpa textos', async () => {
+    const dto = plainToInstance(CreateExpenseDto, {
       ...validPayload,
       quantity: 2,
       supplierId: '11111111-1111-4111-8111-111111111111',
@@ -47,61 +42,105 @@ describe('CreateExpenseDto', () => {
       paymentStatus: 'pendente',
     });
 
-    expect(constraints).toEqual([]);
+    await expect(validate(dto)).resolves.toEqual([]);
     expect(dto.responsible).toBe('Ana');
     expect(dto.notes).toBe('Incluir montagem');
     expect(dto.dueDate).toBeInstanceOf(Date);
   });
 
-  it('recusa grupo inválido e categoria vazia', async () => {
-    const { constraints: groupErrors } = await validateDto(CreateExpenseDto, {
-      ...validPayload,
-      group: 'outro',
-    });
-    expect(groupErrors).toContain('isIn');
-
-    const { constraints: catErrors } = await validateDto(CreateExpenseDto, {
-      ...validPayload,
-      category: '   ',
-    });
-    expect(catErrors).toContain('isNotEmpty');
+  it('recusa null em quantity, quoted e paymentStatus', async () => {
+    for (const field of ['quantity', 'quoted', 'paymentStatus']) {
+      const errors = await validationErrorsFor(CreateExpenseDto, {
+        ...validPayload,
+        [field]: null,
+      });
+      expect(errors.length).toBeGreaterThan(0);
+    }
   });
 
-  it('recusa quantidade ou valor unitário negativo ou com mais de 2 casas decimais', async () => {
-    const { constraints: negQty } = await validateDto(CreateExpenseDto, {
-      ...validPayload,
-      quantity: -1,
-    });
-    expect(negQty).toContain('min');
+  it('recusa grupo inválido e categoria vazia', async () => {
+    await expect(
+      validationErrorsFor(CreateExpenseDto, {
+        ...validPayload,
+        group: 'outro',
+      }),
+    ).resolves.toContain('isIn');
 
-    const { constraints: decPrice } = await validateDto(CreateExpenseDto, {
-      ...validPayload,
-      unitPrice: 10.999,
-    });
-    expect(decPrice).toContain('isNumber');
+    await expect(
+      validationErrorsFor(CreateExpenseDto, {
+        ...validPayload,
+        category: '   ',
+      }),
+    ).resolves.toContain('isNotEmpty');
+  });
+
+  it('recusa quantidade ou valor unitário negativo, com mais de 2 casas ou acima do limite', async () => {
+    await expect(
+      validationErrorsFor(CreateExpenseDto, {
+        ...validPayload,
+        quantity: -1,
+      }),
+    ).resolves.toContain('min');
+
+    await expect(
+      validationErrorsFor(CreateExpenseDto, {
+        ...validPayload,
+        unitPrice: 10.999,
+      }),
+    ).resolves.toContain('isNumber');
+
+    await expect(
+      validationErrorsFor(CreateExpenseDto, {
+        ...validPayload,
+        quantity: MAX_EXPENSE_AMOUNT + 1,
+      }),
+    ).resolves.toContain('max');
+
+    await expect(
+      validationErrorsFor(CreateExpenseDto, {
+        ...validPayload,
+        unitPrice: MAX_EXPENSE_AMOUNT + 1,
+      }),
+    ).resolves.toContain('max');
+  });
+
+  it('recusa dueDate numérico (como 0) e notes acima de 1000 caracteres', async () => {
+    await expect(
+      validationErrorsFor(CreateExpenseDto, {
+        ...validPayload,
+        dueDate: 0,
+      }),
+    ).resolves.toContain('isDate');
+
+    await expect(
+      validationErrorsFor(CreateExpenseDto, {
+        ...validPayload,
+        notes: 'a'.repeat(1001),
+      }),
+    ).resolves.toContain('maxLength');
   });
 });
 
 describe('UpdateExpenseDto', () => {
   it('aceita atualização parcial só com quoted ou só com paymentStatus', async () => {
     await expect(
-      validateDto(UpdateExpenseDto, { quoted: true }),
-    ).resolves.toMatchObject({ constraints: [] });
+      validationErrorsFor(UpdateExpenseDto, { quoted: true }),
+    ).resolves.toEqual([]);
 
     await expect(
-      validateDto(UpdateExpenseDto, { paymentStatus: 'pago' }),
-    ).resolves.toMatchObject({ constraints: [] });
+      validationErrorsFor(UpdateExpenseDto, { paymentStatus: 'pago' }),
+    ).resolves.toEqual([]);
   });
 
   it('aceita null nos campos opcionais para limpar valores gravados', async () => {
-    const { dto, constraints } = await validateDto(UpdateExpenseDto, {
+    const dto = plainToInstance(UpdateExpenseDto, {
       supplierId: null,
       dueDate: null,
       responsible: null,
       notes: null,
     });
 
-    expect(constraints).toEqual([]);
+    await expect(validate(dto)).resolves.toEqual([]);
     expect(dto.supplierId).toBeNull();
     expect(dto.dueDate).toBeNull();
     expect(dto.responsible).toBeNull();
@@ -118,24 +157,40 @@ describe('UpdateExpenseDto', () => {
       'quoted',
       'paymentStatus',
     ]) {
-      const { constraints } = await validateDto(UpdateExpenseDto, {
+      const errors = await validationErrorsFor(UpdateExpenseDto, {
         [field]: null,
       });
-      expect(constraints.length).toBeGreaterThan(0);
+      expect(errors.length).toBeGreaterThan(0);
     }
+  });
+
+  it('recusa dueDate numérico, notes > 1000 caracteres e valores acima do limite', async () => {
+    await expect(
+      validationErrorsFor(UpdateExpenseDto, { dueDate: 0 }),
+    ).resolves.toContain('isDate');
+
+    await expect(
+      validationErrorsFor(UpdateExpenseDto, { notes: 'a'.repeat(1001) }),
+    ).resolves.toContain('maxLength');
+
+    await expect(
+      validationErrorsFor(UpdateExpenseDto, {
+        unitPrice: MAX_EXPENSE_AMOUNT + 1,
+      }),
+    ).resolves.toContain('max');
   });
 });
 
 describe('QueryExpenseDto', () => {
   it('converte quoted string para boolean e limpa category', async () => {
-    const { dto, constraints } = await validateDto(QueryExpenseDto, {
+    const dto = plainToInstance(QueryExpenseDto, {
       group: 'variable',
       category: ' Open ',
       quoted: 'true',
       paymentStatus: 'pendente',
     });
 
-    expect(constraints).toEqual([]);
+    await expect(validate(dto)).resolves.toEqual([]);
     expect(dto.group).toBe('variable');
     expect(dto.category).toBe('Open');
     expect(dto.quoted).toBe(true);
@@ -143,9 +198,8 @@ describe('QueryExpenseDto', () => {
   });
 
   it('recusa quoted diferente de boolean', async () => {
-    const { constraints } = await validateDto(QueryExpenseDto, {
-      quoted: 'talvez',
-    });
-    expect(constraints).toContain('isBoolean');
+    await expect(
+      validationErrorsFor(QueryExpenseDto, { quoted: 'talvez' }),
+    ).resolves.toContain('isBoolean');
   });
 });

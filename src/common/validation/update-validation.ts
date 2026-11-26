@@ -10,3 +10,9 @@ export function TrimString() {
     typeof value === 'string' ? value.trim() : value,
   );
 }
+
+export function ToDate() {
+  return Transform(({ value }) =>
+    typeof value === 'string' ? new Date(value) : value,
+  );
+}

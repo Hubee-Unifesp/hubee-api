@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventService } from '../event/event.service';
 import { SuppliersService } from '../suppliers/suppliers.service';
@@ -40,6 +40,12 @@ describe('calculateExpenseAmount', () => {
     expect(calculateExpenseAmount(3, 19.99)).toBe(59.97);
     expect(calculateExpenseAmount(0, 250)).toBe(0);
     expect(calculateExpenseAmount(2.5, 10.1)).toBe(25.25);
+  });
+
+  it('lança BadRequestException quando o total ultrapassa numeric(12,2)', () => {
+    expect(() => calculateExpenseAmount(100_000, 200_000)).toThrow(
+      BadRequestException,
+    );
   });
 });
 

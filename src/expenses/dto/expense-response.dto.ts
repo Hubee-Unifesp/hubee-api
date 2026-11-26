@@ -1,6 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Expose } from 'class-transformer';
-import { expenseGroup, expensePaymentStatus } from '../../database/schema';
+import {
+  expenseGroup,
+  expensePaymentStatus,
+  type ExpenseGroup,
+  type ExpensePaymentStatus,
+} from '../../database/schema';
 
 /** Contrato de saída (público) de uma despesa do evento. */
 export class ExpenseResponseDto {
@@ -26,7 +31,7 @@ export class ExpenseResponseDto {
 
   @Expose()
   @ApiProperty({ enum: expenseGroup.enumValues })
-  group: string;
+  group: ExpenseGroup;
 
   @Expose()
   @ApiProperty()
@@ -62,7 +67,7 @@ export class ExpenseResponseDto {
 
   @Expose()
   @ApiProperty({ enum: expensePaymentStatus.enumValues })
-  paymentStatus: string;
+  paymentStatus: ExpensePaymentStatus;
 
   @Expose()
   @ApiProperty()

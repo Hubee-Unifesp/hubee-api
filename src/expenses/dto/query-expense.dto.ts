@@ -17,10 +17,7 @@ import {
 } from '../../database/schema';
 
 export class QueryExpenseDto {
-  @ApiPropertyOptional({
-    enum: expenseGroup.enumValues,
-    description: 'Filtra despesas pelo grupo orçamentário',
-  })
+  @ApiPropertyOptional({ enum: expenseGroup.enumValues })
   @IsOptional()
   @IsIn(expenseGroup.enumValues, {
     message: 'Grupo de despesa inválido. Use: fixed, variable ou marketing.',
@@ -28,7 +25,8 @@ export class QueryExpenseDto {
   group?: ExpenseGroup;
 
   @ApiPropertyOptional({
-    description: 'Filtra despesas pela categoria',
+    description:
+      'Categoria exata da despesa (sem diferenciar maiúsculas e minúsculas)',
     example: 'Estrutura',
   })
   @IsOptional()
@@ -40,11 +38,7 @@ export class QueryExpenseDto {
   })
   category?: string;
 
-  @ApiPropertyOptional({
-    type: Boolean,
-    description:
-      'Filtra despesas cotadas (true) ou pendentes de cotação (false)',
-  })
+  @ApiPropertyOptional({ type: Boolean })
   @IsOptional()
   @Transform(({ value }) => {
     if (value === 'true') return true;
@@ -54,10 +48,7 @@ export class QueryExpenseDto {
   @IsBoolean({ message: 'O filtro cotado deve ser verdadeiro ou falso.' })
   quoted?: boolean;
 
-  @ApiPropertyOptional({
-    enum: expensePaymentStatus.enumValues,
-    description: 'Filtra despesas pelo status de pagamento',
-  })
+  @ApiPropertyOptional({ enum: expensePaymentStatus.enumValues })
   @IsOptional()
   @IsIn(expensePaymentStatus.enumValues, {
     message: 'Status de pagamento inválido.',

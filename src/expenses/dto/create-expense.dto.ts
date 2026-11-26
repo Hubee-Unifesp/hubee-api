@@ -1,5 +1,3 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsDate,
@@ -9,10 +7,15 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
   Min,
 } from 'class-validator';
-import { TrimString } from '../../common/validation/update-validation';
+import {
+  IsOptionalUpdate,
+  ToDate,
+  TrimString,
+} from '../../common/validation/update-validation';
 import {
   expenseGroup,
   expensePaymentStatus,
@@ -20,20 +23,9 @@ import {
   type ExpensePaymentStatus,
 } from '../../database/schema';
 
-const toNullableDate = ({ value }: { value: unknown }) => {
-  if (value === null || value === undefined) return value;
-  if (value instanceof Date) return value;
-  if (typeof value === 'string' || typeof value === 'number') {
-    return new Date(value);
-  }
-  return value;
-};
+export const MAX_EXPENSE_AMOUNT = 9_999_999_999.99;
 
 export class CreateExpenseDto {
-  @ApiProperty({
-    description: 'Descrição do item de despesa do evento',
-    example: 'Palco e sonorização principal',
-  })
   @TrimString()
   @IsString({ message: 'A descrição deve ser um texto.' })
   @IsNotEmpty({ message: 'A descrição da despesa é obrigatória.' })
@@ -42,20 +34,11 @@ export class CreateExpenseDto {
   })
   description: string;
 
-  @ApiProperty({
-    enum: expenseGroup.enumValues,
-    description: 'Grupo orçamentário da despesa',
-    example: 'fixed',
-  })
   @IsIn(expenseGroup.enumValues, {
     message: 'Grupo de despesa inválido. Use: fixed, variable ou marketing.',
   })
   group: ExpenseGroup;
 
-  @ApiProperty({
-    description: 'Categoria da despesa dentro do orçamento',
-    example: 'Estrutura',
-  })
   @TrimString()
   @IsString({ message: 'A categoria deve ser um texto.' })
   @IsNotEmpty({ message: 'A categoria da despesa é obrigatória.' })
@@ -64,63 +47,36 @@ export class CreateExpenseDto {
   })
   category: string;
 
-  @ApiPropertyOptional({
-    type: Number,
-    default: 1,
-    minimum: 0,
-    description: 'Quantidade de unidades do item (padrão 1)',
-    example: 2,
-  })
-  @IsOptional()
+  @IsOptionalUpdate()
   @IsNumber(
-    { maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false },
-    { message: 'A quantidade deve ser um número com até 2 casas decimais.' },
+    { maxDecimalPlaces: 2 },
+    { message: 'A quantidade deve ter no máximo 2 casas decimais.' },
   )
   @Min(0, { message: 'A quantidade não pode ser negativa.' })
+  @Max(MAX_EXPENSE_AMOUNT, {
+    message: 'A quantidade excede o limite permitido.',
+  })
   quantity?: number = 1;
 
-  @ApiProperty({
-    type: Number,
-    minimum: 0,
-    description: 'Valor unitário do item em reais',
-    example: 1500.5,
-  })
   @IsNumber(
-    { maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false },
-    {
-      message: 'O valor unitário deve ser um número com até 2 casas decimais.',
-    },
+    { maxDecimalPlaces: 2 },
+    { message: 'O valor unitário deve ter no máximo 2 casas decimais.' },
   )
   @Min(0, { message: 'O valor unitário não pode ser negativo.' })
+  @Max(MAX_EXPENSE_AMOUNT, {
+    message: 'O valor unitário excede o limite permitido.',
+  })
   unitPrice: number;
 
-  @ApiPropertyOptional({
-    format: 'uuid',
-    nullable: true,
-    description: 'Identificador do fornecedor associado (opcional)',
-  })
   @IsOptional()
-  @IsUUID('4', {
-    message: 'O identificador do fornecedor deve ser um UUID válido.',
-  })
+  @IsUUID(undefined, { message: 'Fornecedor inválido.' })
   supplierId?: string | null;
 
-  @ApiPropertyOptional({
-    type: String,
-    format: 'date-time',
-    nullable: true,
-    description: 'Data de vencimento prevista (opcional)',
-  })
   @IsOptional()
-  @Transform(toNullableDate)
-  @IsDate({ message: 'A data de vencimento é inválida.' })
+  @ToDate()
+  @IsDate({ message: 'Data de vencimento inválida.' })
   dueDate?: Date | null;
 
-  @ApiPropertyOptional({
-    nullable: true,
-    description: 'Pessoa ou equipe responsável pela despesa',
-    example: 'Ana',
-  })
   @IsOptional()
   @TrimString()
   @IsString({ message: 'O responsável deve ser um texto.' })
@@ -129,30 +85,19 @@ export class CreateExpenseDto {
   })
   responsible?: string | null;
 
-  @ApiPropertyOptional({
-    type: Boolean,
-    default: false,
-    description: 'Indica se o item já possui orçamento/cotação confirmada',
-  })
-  @IsOptional()
+  @IsOptionalUpdate()
   @IsBoolean({ message: 'O campo cotado deve ser verdadeiro ou falso.' })
   quoted?: boolean = false;
 
-  @ApiPropertyOptional({
-    nullable: true,
-    description: 'Observações livres sobre a despesa ou cotação',
-  })
   @IsOptional()
   @TrimString()
   @IsString({ message: 'As observações devem ser um texto.' })
+  @MaxLength(1000, {
+    message: 'As observações devem ter no máximo 1000 caracteres.',
+  })
   notes?: string | null;
 
-  @ApiPropertyOptional({
-    enum: expensePaymentStatus.enumValues,
-    default: 'pendente',
-    description: 'Status de pagamento da despesa',
-  })
-  @IsOptional()
+  @IsOptionalUpdate()
   @IsIn(expensePaymentStatus.enumValues, {
     message: 'Status de pagamento inválido.',
   })

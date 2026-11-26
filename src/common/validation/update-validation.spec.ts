@@ -1,6 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { IsNotEmpty, IsString, validate } from 'class-validator';
-import { IsOptionalUpdate, TrimString } from './update-validation';
+import { IsOptionalUpdate, ToDate, TrimString } from './update-validation';
 
 class OptionalUpdateDto {
   @IsOptionalUpdate()
@@ -11,6 +11,11 @@ class OptionalUpdateDto {
 
 class TrimStringDto {
   @TrimString()
+  value: unknown;
+}
+
+class ToDateDto {
+  @ToDate()
   value: unknown;
 }
 
@@ -50,5 +55,18 @@ describe('TrimString', () => {
     const dto = plainToInstance(TrimStringDto, { value });
 
     expect(dto.value).toBe(expected);
+  });
+});
+
+describe('ToDate', () => {
+  it('converte string ISO em Date e preserva null, undefined e números', () => {
+    expect(
+      plainToInstance(ToDateDto, { value: '2026-12-01T12:00:00.000Z' }).value,
+    ).toBeInstanceOf(Date);
+    expect(plainToInstance(ToDateDto, { value: null }).value).toBeNull();
+    expect(
+      plainToInstance(ToDateDto, { value: undefined }).value,
+    ).toBeUndefined();
+    expect(plainToInstance(ToDateDto, { value: 0 }).value).toBe(0);
   });
 });
