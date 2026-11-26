@@ -249,6 +249,9 @@ describe('Resumo financeiro do planejamento (GOL-297, banco em memória)', () =>
     expect(body.tickets.lots[0]).toMatchObject({
       batch: 'Promocional',
       price: 45,
+      quantity: 10,
+      modality: 'inteira',
+      sequential: true,
       start: 1,
       end: 10,
     });

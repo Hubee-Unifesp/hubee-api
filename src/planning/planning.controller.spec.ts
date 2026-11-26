@@ -37,6 +37,7 @@ describe('PlanningController', () => {
             batch: '1º Lote',
             price: 50,
             quantity: 300,
+            modality: 'inteira' as const,
             salesStartDate: null,
           },
         ],

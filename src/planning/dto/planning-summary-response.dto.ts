@@ -1,6 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Expose, Type } from 'class-transformer';
-import { expenseGroup, type ExpenseGroup } from '../../database/schema';
+import {
+  expenseGroup,
+  ticketTypeModality,
+  type ExpenseGroup,
+  type TicketTypeModality,
+} from '../../database/schema';
 
 export class PlanningExpensesByGroupDto {
   @Expose()
@@ -90,6 +95,21 @@ export class PlanningLotRangeDto {
   price: number;
 
   @Expose()
+  @ApiProperty({ description: 'Quantidade planejada do lote.', example: 85 })
+  quantity: number;
+
+  @Expose()
+  @ApiProperty({ enum: ticketTypeModality.enumValues })
+  modality: TicketTypeModality;
+
+  @Expose()
+  @ApiProperty({
+    description:
+      'true para lote da fila de venda (`inteira`); false para cota paralela (`meia`, `estudante`, `vip`, `cortesia`), que entra com a quantidade planejada. Sem lote `inteira`, todos os lotes formam a fila.',
+  })
+  sequential: boolean;
+
+  @Expose()
   @ApiProperty({
     nullable: true,
     description:
@@ -120,7 +140,8 @@ export class PlanningTicketsSummaryDto {
   @ApiProperty({
     type: PlanningLotRangeDto,
     isArray: true,
-    description: 'Lotes na ordem de venda (data de início, depois preço).',
+    description:
+      'Lotes da fila de venda na ordem de venda (data de início, depois preço), seguidos das cotas paralelas.',
   })
   lots: PlanningLotRangeDto[];
 }
@@ -157,7 +178,8 @@ export class PlanningResultDto {
   @Expose()
   @ApiProperty({
     nullable: true,
-    description: 'Lote em que sai o ingresso do empate.',
+    description:
+      'Lote em que a receita acumulada cobre as despesas (cotas paralelas primeiro, depois a fila).',
     example: '3º Lote',
   })
   breakEvenBatch: string | null;

@@ -38,6 +38,7 @@ describe('PlanningService', () => {
         batch: '1º Lote',
         price: 20,
         quantity: 100,
+        modality: 'inteira' as const,
         salesStartDate: null,
       },
     ]);

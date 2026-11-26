@@ -34,6 +34,7 @@ export class PlanningRepository {
         batch: ticketTypes.batch,
         price: ticketTypes.price,
         quantity: ticketTypes.quantity,
+        modality: ticketTypes.modality,
         salesStartDate: ticketTypes.salesStartDate,
       })
       .from(ticketTypes)

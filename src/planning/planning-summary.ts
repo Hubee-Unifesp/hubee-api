@@ -1,4 +1,8 @@
-import type { ExpenseGroup, ExpensePaymentStatus } from '../database/schema';
+import type {
+  ExpenseGroup,
+  ExpensePaymentStatus,
+  TicketTypeModality,
+} from '../database/schema';
 
 /**
  * Cálculo do resumo financeiro e do break-even do planejamento do evento
@@ -8,6 +12,20 @@ import type { ExpenseGroup, ExpensePaymentStatus } from '../database/schema';
  *
  * Valores monetários são somados em centavos inteiros para não acumular erro
  * de ponto flutuante, e só são arredondados para 2 casas na saída.
+ *
+ * Lotes e público:
+ * - Só os lotes `inteira` formam a fila de venda (os degraus da planilha). O
+ *   público acima do planejado entra no último lote da fila; abaixo, sai dos
+ *   últimos lotes da fila primeiro.
+ * - `meia`, `estudante`, `vip` e `cortesia` são cotas vendidas em paralelo:
+ *   entram com a quantidade planejada (limitada ao público) e só perdem
+ *   público depois que a fila esvazia. Assim uma cortesia de R$ 0 não
+ *   "consome" os primeiros ingressos da fila.
+ * - Sem nenhum lote `inteira`, todos os lotes viram a fila.
+ *
+ * A API é a fonte de verdade: o front repete esta conta só para a simulação da
+ * régua e recarrega o resumo da API ao abrir a página e depois de cada
+ * alteração. Por isso cada lote sai com `modality` e `quantity`.
  */
 
 export interface PlanningExpenseInput {
@@ -23,6 +41,7 @@ export interface PlanningLotInput {
   batch: string;
   price: number;
   quantity: number;
+  modality: TicketTypeModality;
   salesStartDate: Date | null;
 }
 
@@ -57,6 +76,10 @@ export interface PlanningLotRange {
   id: string;
   batch: string;
   price: number;
+  quantity: number;
+  modality: TicketTypeModality;
+  /** `true` para lote da fila de venda; `false` para cota paralela. */
+  sequential: boolean;
   /** Primeiro ingresso do público pedido vendido neste lote (1-based). */
   start: number | null;
   /** Último ingresso do público pedido vendido neste lote. */
@@ -112,39 +135,79 @@ export function sortLotsBySalesOrder<T extends PlanningLotInput>(
   });
 }
 
+/** Modalidade que forma a fila de venda; as demais são cotas paralelas. */
+export const SEQUENTIAL_MODALITY: TicketTypeModality = 'inteira';
+
 /**
- * Quantos ingressos de cada lote saem para um público: os lotes enchem na
- * ordem de venda; abaixo do planejado, saem dos últimos lotes primeiro, e o
- * público acima do planejado entra no último lote.
+ * Lotes do evento separados em fila de venda e cotas paralelas, cada grupo na
+ * ordem de venda.
+ */
+export interface PlanningLotPlan {
+  queue: PlanningLotInput[];
+  parallel: PlanningLotInput[];
+}
+
+export function planLots(lots: readonly PlanningLotInput[]): PlanningLotPlan {
+  const sorted = sortLotsBySalesOrder(lots);
+  const queue = sorted.filter((lot) => lot.modality === SEQUENTIAL_MODALITY);
+  if (queue.length === 0) return { queue: sorted, parallel: [] };
+  return {
+    queue,
+    parallel: sorted.filter((lot) => lot.modality !== SEQUENTIAL_MODALITY),
+  };
+}
+
+/** Lotes na ordem da resposta: a fila de venda e depois as cotas paralelas. */
+const orderedLots = (plan: PlanningLotPlan) => [
+  ...plan.queue,
+  ...plan.parallel,
+];
+
+const plannedQuantity = (lot: PlanningLotInput) => Math.max(0, lot.quantity);
+
+/**
+ * Quantos ingressos de cada lote saem para um público, na ordem de
+ * `orderedLots`: as cotas paralelas ficam com a quantidade planejada, e o
+ * restante enche a fila na ordem de venda, com o excedente no último lote.
  */
 export function allocateAudience(
-  sortedLots: readonly PlanningLotInput[],
+  plan: PlanningLotPlan,
   audience: number,
 ): number[] {
   let remaining = Math.max(0, audience);
-  const allocation = sortedLots.map((lot) => {
-    const taken = Math.min(Math.max(0, lot.quantity), remaining);
+  const take = (lot: PlanningLotInput) => {
+    const taken = Math.min(plannedQuantity(lot), remaining);
     remaining -= taken;
     return taken;
-  });
-  if (remaining > 0 && allocation.length > 0) {
-    allocation[allocation.length - 1] += remaining;
-  }
-  return allocation;
+  };
+
+  const parallel = plan.parallel.map(take);
+  const queue = plan.queue.map(take);
+  if (remaining > 0 && queue.length > 0) queue[queue.length - 1] += remaining;
+
+  return [...queue, ...parallel];
 }
 
-/** Lote do ingresso de número `ticket` (1-based) na ordem de venda. */
-function lotOfTicket(
-  sortedLots: readonly PlanningLotInput[],
-  ticket: number,
+/**
+ * Lote em que sai o ingresso do empate: o primeiro em que a receita acumulada
+ * cobre as despesas. As cotas paralelas entram antes (são vendidas junto com
+ * a fila) e a fila segue na ordem de venda, com o último lote absorvendo o
+ * público acima do planejado. Sem despesas, nenhum ingresso é preciso.
+ */
+function breakEvenLot(
+  plan: PlanningLotPlan,
+  expensesTotalCents: number,
 ): PlanningLotInput | null {
-  if (sortedLots.length === 0 || ticket < 1) return null;
-  let sold = 0;
-  for (const lot of sortedLots) {
-    sold += Math.max(0, lot.quantity);
-    if (ticket <= sold) return lot;
+  if (expensesTotalCents <= 0) return null;
+
+  let revenueCents = 0;
+  for (const lot of [...plan.parallel, ...plan.queue]) {
+    revenueCents += toCents(lot.price) * plannedQuantity(lot);
+    if (revenueCents >= expensesTotalCents) return lot;
   }
-  return sortedLots[sortedLots.length - 1];
+
+  const last = plan.queue.at(-1);
+  return last && last.price > 0 ? last : null;
 }
 
 function emptyResult(audience: number | null): PlanningResult {
@@ -165,29 +228,26 @@ function emptyResult(audience: number | null): PlanningResult {
  * break-even também (sem divisão por zero).
  */
 export function calculatePlanningResult(
-  sortedLots: readonly PlanningLotInput[],
+  plan: PlanningLotPlan,
   expensesTotalCents: number,
   audience: number | null,
 ): PlanningResult {
   if (audience === null || audience <= 0) return emptyResult(audience);
 
   const costPerPerson = round2(fromCents(expensesTotalCents) / audience);
-  if (sortedLots.length === 0) {
+  const lots = orderedLots(plan);
+  if (lots.length === 0) {
     return { ...emptyResult(audience), costPerPerson };
   }
 
-  const allocation = allocateAudience(sortedLots, audience);
-  const revenueCents = sortedLots.reduce(
+  const allocation = allocateAudience(plan, audience);
+  const revenueCents = lots.reduce(
     (sum, lot, index) => sum + toCents(lot.price) * allocation[index],
     0,
   );
   const averageTicket = fromCents(revenueCents) / audience;
   const breakEven =
     averageTicket > 0 ? fromCents(expensesTotalCents) / averageTicket : null;
-  // Arredonda antes do teto para um 300,0000000001 de ponto flutuante não
-  // virar o ingresso 301.
-  const breakEvenTicket =
-    breakEven !== null ? Math.ceil(Number(breakEven.toFixed(6))) : 0;
 
   return {
     audience,
@@ -196,7 +256,10 @@ export function calculatePlanningResult(
     breakEven: breakEven !== null ? round2(breakEven) : null,
     costPerPerson,
     profit: fromCents(revenueCents - expensesTotalCents),
-    breakEvenBatch: lotOfTicket(sortedLots, breakEvenTicket)?.batch ?? null,
+    breakEvenBatch:
+      breakEven !== null
+        ? (breakEvenLot(plan, expensesTotalCents)?.batch ?? null)
+        : null,
   };
 }
 
@@ -260,21 +323,25 @@ function summarizeExpenses(expenses: readonly PlanningExpenseInput[]) {
 }
 
 function ticketRanges(
-  sortedLots: readonly PlanningLotInput[],
+  plan: PlanningLotPlan,
   audience: number | null,
 ): PlanningLotRange[] {
+  const lots = orderedLots(plan);
   const allocation =
     audience !== null && audience > 0
-      ? allocateAudience(sortedLots, audience)
-      : sortedLots.map(() => 0);
+      ? allocateAudience(plan, audience)
+      : lots.map(() => 0);
 
   let sold = 0;
-  return sortedLots.map((lot, index) => {
+  return lots.map((lot, index) => {
     const taken = allocation[index];
     const range = {
       id: lot.id,
       batch: lot.batch,
       price: lot.price,
+      quantity: lot.quantity,
+      modality: lot.modality,
+      sequential: index < plan.queue.length,
       start: taken > 0 ? sold + 1 : null,
       end: taken > 0 ? sold + taken : null,
     };
@@ -286,7 +353,7 @@ function ticketRanges(
 export function calculatePlanningSummary(
   input: PlanningSummaryInput,
 ): PlanningSummary {
-  const sortedLots = sortLotsBySalesOrder(input.lots);
+  const plan = planLots(input.lots);
   const { totalCents, expenses, byCategory, pending } = summarizeExpenses(
     input.expenses,
   );
@@ -296,9 +363,7 @@ export function calculatePlanningSummary(
     audience !== null && audience > 0
       ? PLANNING_SCENARIO_DELTAS.map((delta) => audience + delta)
           .filter((value) => value > 0)
-          .map((value) =>
-            calculatePlanningResult(sortedLots, totalCents, value),
-          )
+          .map((value) => calculatePlanningResult(plan, totalCents, value))
       : [];
 
   return {
@@ -306,13 +371,10 @@ export function calculatePlanningSummary(
     byCategory,
     pending,
     tickets: {
-      planned: sortedLots.reduce(
-        (sum, lot) => sum + Math.max(0, lot.quantity),
-        0,
-      ),
-      lots: ticketRanges(sortedLots, audience),
+      planned: input.lots.reduce((sum, lot) => sum + plannedQuantity(lot), 0),
+      lots: ticketRanges(plan, audience),
     },
-    result: calculatePlanningResult(sortedLots, totalCents, audience),
+    result: calculatePlanningResult(plan, totalCents, audience),
     scenarios,
   };
 }

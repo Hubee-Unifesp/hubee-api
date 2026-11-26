@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import {
   allocateAudience,
+  planLots,
   calculatePlanningSummary,
   type PlanningExpenseInput,
   type PlanningLotInput,
@@ -17,6 +18,7 @@ const SHEET_LOTS: PlanningLotInput[] = [
     batch: '3º Lote',
     price: 60,
     quantity: 30,
+    modality: 'inteira' as const,
     salesStartDate: day(6),
   },
   {
@@ -24,6 +26,7 @@ const SHEET_LOTS: PlanningLotInput[] = [
     batch: 'Promocional',
     price: 45,
     quantity: 10,
+    modality: 'inteira' as const,
     salesStartDate: day(1),
   },
   {
@@ -31,6 +34,7 @@ const SHEET_LOTS: PlanningLotInput[] = [
     batch: 'Pré-venda 2',
     price: 50,
     quantity: 40,
+    modality: 'inteira' as const,
     salesStartDate: day(3),
   },
   {
@@ -38,6 +42,7 @@ const SHEET_LOTS: PlanningLotInput[] = [
     batch: 'Pré-venda 1',
     price: 48.33,
     quantity: 30,
+    modality: 'inteira' as const,
     salesStartDate: day(2),
   },
   {
@@ -45,6 +50,7 @@ const SHEET_LOTS: PlanningLotInput[] = [
     batch: '2º Lote',
     price: 55,
     quantity: 105,
+    modality: 'inteira' as const,
     salesStartDate: day(5),
   },
   {
@@ -52,6 +58,7 @@ const SHEET_LOTS: PlanningLotInput[] = [
     batch: '1º Lote',
     price: 50,
     quantity: 85,
+    modality: 'inteira' as const,
     salesStartDate: day(4),
   },
 ];
@@ -279,6 +286,7 @@ describe('calculatePlanningSummary (GOL-297)', () => {
             batch: 'Cortesia',
             price: 0,
             quantity: 100,
+            modality: 'cortesia' as const,
             salesStartDate: null,
           },
         ],
@@ -320,6 +328,7 @@ describe('calculatePlanningSummary (GOL-297)', () => {
           batch: 'Sem data caro',
           price: 80,
           quantity: 1,
+          modality: 'inteira' as const,
           salesStartDate: null,
         },
         {
@@ -327,6 +336,7 @@ describe('calculatePlanningSummary (GOL-297)', () => {
           batch: 'Sem data barato',
           price: 20,
           quantity: 1,
+          modality: 'inteira' as const,
           salesStartDate: null,
         },
         {
@@ -334,6 +344,7 @@ describe('calculatePlanningSummary (GOL-297)', () => {
           batch: 'Datado',
           price: 100,
           quantity: 1,
+          modality: 'inteira' as const,
           salesStartDate: day(1),
         },
       ]);
@@ -355,6 +366,7 @@ describe('calculatePlanningSummary (GOL-297)', () => {
             batch: 'Único',
             price: 10,
             quantity: 50,
+            modality: 'inteira' as const,
             salesStartDate: null,
           },
           {
@@ -362,6 +374,7 @@ describe('calculatePlanningSummary (GOL-297)', () => {
             batch: 'Final',
             price: 10,
             quantity: 10,
+            modality: 'inteira' as const,
             salesStartDate: null,
           },
         ],
@@ -374,9 +387,147 @@ describe('calculatePlanningSummary (GOL-297)', () => {
     });
 
     it('allocateAudience coloca o excedente no último lote', () => {
-      expect(allocateAudience(sortLotsBySalesOrder(SHEET_LOTS), 320)).toEqual([
+      expect(allocateAudience(planLots(SHEET_LOTS), 320)).toEqual([
         10, 30, 40, 85, 105, 50,
       ]);
+    });
+  });
+  describe('modalidades em paralelo (meia, estudante, vip e cortesia)', () => {
+    const paidWithCourtesy = (audience: number) =>
+      calculatePlanningSummary({
+        expenses: SHEET_EXPENSES,
+        lots: [
+          ...SHEET_LOTS,
+          // Sem data e de R$ 0: antes vinha primeiro na ordem de venda e
+          // consumia os 100 primeiros ingressos da fila.
+          {
+            id: 'c',
+            batch: 'Cortesia',
+            price: 0,
+            quantity: 100,
+            modality: 'cortesia' as const,
+            salesStartDate: null,
+          },
+        ],
+        audience,
+      });
+
+    it('cortesia entra como público sem receita e não desloca a fila de venda', () => {
+      const summary = paidWithCourtesy(400);
+
+      expect(summary.tickets.planned).toBe(400);
+      expect(
+        summary.tickets.lots.map(({ batch, sequential, start, end }) => [
+          batch,
+          sequential,
+          start,
+          end,
+        ]),
+      ).toEqual([
+        ['Promocional', true, 1, 10],
+        ['Pré-venda 1', true, 11, 40],
+        ['Pré-venda 2', true, 41, 80],
+        ['1º Lote', true, 81, 165],
+        ['2º Lote', true, 166, 270],
+        ['3º Lote', true, 271, 300],
+        ['Cortesia', false, 301, 400],
+      ]);
+      // A mesma receita da planilha, agora dividida por 400 pessoas.
+      expect(summary.result).toEqual({
+        audience: 400,
+        revenue: 15724.9,
+        averageTicket: 39.31,
+        breakEven: 394.38,
+        costPerPerson: 38.76,
+        profit: 220.96,
+        breakEvenBatch: '3º Lote',
+      });
+    });
+
+    it('abaixo do planejado o público sai da fila antes das cotas', () => {
+      const summary = paidWithCourtesy(150);
+
+      expect(
+        summary.tickets.lots
+          .filter(({ start }) => start !== null)
+          .map(({ batch, start, end }) => [batch, start, end]),
+      ).toEqual([
+        ['Promocional', 1, 10],
+        ['Pré-venda 1', 11, 40],
+        ['Pré-venda 2', 41, 50],
+        ['Cortesia', 51, 150],
+      ]);
+      expect(summary.result.revenue).toBe(450 + 1449.9 + 500);
+    });
+
+    it('meia paga entra na receita antes da fila e antecipa o lote do empate', () => {
+      const summary = calculatePlanningSummary({
+        expenses: [
+          expense({ group: 'fixed', category: 'Estrutura', amount: 1000 }),
+        ],
+        lots: [
+          {
+            id: 'a',
+            batch: '1º Lote',
+            price: 20,
+            quantity: 30,
+            modality: 'inteira' as const,
+            salesStartDate: day(1),
+          },
+          {
+            id: 'b',
+            batch: '2º Lote',
+            price: 30,
+            quantity: 30,
+            modality: 'inteira' as const,
+            salesStartDate: day(2),
+          },
+          {
+            id: 'm',
+            batch: 'Meia',
+            price: 10,
+            quantity: 20,
+            modality: 'meia' as const,
+            salesStartDate: day(1),
+          },
+        ],
+        audience: 80,
+      });
+
+      // Meia 200 + 1º Lote 600 = 800 < 1000: o empate sai no 2º Lote.
+      expect(summary.result).toMatchObject({
+        revenue: 200 + 600 + 900,
+        breakEvenBatch: '2º Lote',
+      });
+      expect(summary.tickets.lots.map((l) => l.batch)).toEqual([
+        '1º Lote',
+        '2º Lote',
+        'Meia',
+      ]);
+    });
+
+    it('sem lote inteira, todos os lotes formam a fila', () => {
+      const summary = calculatePlanningSummary({
+        expenses: [],
+        lots: [
+          {
+            id: 'e',
+            batch: 'Estudante',
+            price: 25,
+            quantity: 10,
+            modality: 'estudante' as const,
+            salesStartDate: null,
+          },
+        ],
+        audience: 15,
+      });
+
+      expect(summary.tickets.lots[0]).toMatchObject({
+        sequential: true,
+        start: 1,
+        end: 15,
+      });
+      expect(summary.result.revenue).toBe(375);
     });
   });
 });
