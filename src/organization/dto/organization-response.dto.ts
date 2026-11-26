@@ -16,6 +16,18 @@ export class OrganizationResponseDto {
   description: string | null;
 
   @Expose()
+  @ApiProperty({ nullable: true, required: false })
+  photoUrl: string | null;
+
+  @Expose()
+  @ApiProperty({ nullable: true, required: false, example: '#FFFDF5' })
+  titleColor: string | null;
+
+  @Expose()
+  @ApiProperty({ nullable: true, required: false, example: '#F5F0DC' })
+  descriptionColor: string | null;
+
+  @Expose()
   @ApiProperty({ format: 'uuid', nullable: true, required: false })
   representativeId: string | null;
 

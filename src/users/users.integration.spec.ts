@@ -46,6 +46,7 @@ describe('Users /me e controle de acesso (Postgres em memória)', () => {
       '0000_lyrical_spencer_smythe',
       '0001_authentication_base',
       '0006_user_avatar_url',
+      '0010_uneven_mongoose',
     ]) {
       await pg.exec(
         readFileSync(`src/database/migrations/${migration}.sql`, 'utf8'),

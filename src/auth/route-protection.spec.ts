@@ -142,6 +142,7 @@ const ORGANIZER_READ_ROUTES = [
 const ORGANIZER_MANAGE_ROUTES = [
   'DELETE /events/:id',
   'PATCH /organizations/:id',
+  'PATCH /organizations/:id/photo',
   'POST /organizations/:orgId/users',
   'GET /organizations/:orgId/users',
   'PATCH /organizations/:orgId/users/:userId',
