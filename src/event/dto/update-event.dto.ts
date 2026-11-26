@@ -1,12 +1,15 @@
 import { Type } from 'class-transformer';
 import {
   IsDate,
+  IsInt,
   IsIn,
   IsOptional,
   IsString,
   IsUrl,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
   IsBoolean,
   ValidateIf,
 } from 'class-validator';
@@ -14,6 +17,7 @@ import {
   EVENT_CATEGORIES,
   eventAgeRating,
   eventStatus,
+  MAX_EXPECTED_AUDIENCE,
 } from '../../database/schema';
 import type {
   EventAgeRating,
@@ -23,7 +27,8 @@ import type {
 
 /**
  * Campos opcionais do evento (`description`, `ageRating`, `salesStartDate`,
- * `category`, `edition` e `photoUrl`) aceitam `null` para serem apagados.
+ * `category`, `edition`, `photoUrl` e `expectedAudience`) aceitam `null` para
+ * serem apagados.
  *
  * Os campos NOT NULL usam `@ValidateIf` em vez de `@IsOptional()`: o
  * `@IsOptional()` também pula a validação para `null`, que chegaria ao banco
@@ -84,4 +89,12 @@ export class UpdateEventDto {
   @ValidateIf((_, value) => value !== undefined)
   @IsBoolean()
   featured?: boolean;
+
+  @IsOptional()
+  @IsInt({ message: 'O público esperado deve ser um número inteiro.' })
+  @Min(1, { message: 'O público esperado deve ser de pelo menos 1 pessoa.' })
+  @Max(MAX_EXPECTED_AUDIENCE, {
+    message: `O público esperado deve ser de no máximo ${MAX_EXPECTED_AUDIENCE} pessoas.`,
+  })
+  expectedAudience?: number | null;
 }

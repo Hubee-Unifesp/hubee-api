@@ -49,6 +49,8 @@ const row = {
 
 const detailRow = {
   ...row,
+  // Planejamento interno (GOL-297): está na linha do banco, mas não na resposta.
+  expectedAudience: null,
   status: 'published' as const,
   organization: {
     id: 'org-1',

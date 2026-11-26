@@ -13,6 +13,7 @@ import { OrganizationEventModule } from './organization-event/organization-event
 import { OrganizationModule } from './organization/organization.module';
 import { TaskModule } from './task/task.module';
 import { PaymentModule } from './payment/payment.module';
+import { PlanningModule } from './planning/planning.module';
 import { TicketModule } from './ticket/ticket.module';
 import { TicketTypeModule } from './ticket-type/ticket-type.module';
 import { UsersModule } from './users/users.module';
@@ -38,6 +39,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     OrganizationModule,
     TaskModule,
     PaymentModule,
+    PlanningModule,
     TicketModule,
     TicketTypeModule,
     UsersModule,

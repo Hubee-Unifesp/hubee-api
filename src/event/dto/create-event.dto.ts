@@ -1,15 +1,22 @@
 import { Type } from 'class-transformer';
 import {
   IsDate,
+  IsInt,
   IsIn,
   IsOptional,
   IsString,
   IsUrl,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
   IsBoolean,
 } from 'class-validator';
-import { EVENT_CATEGORIES, eventAgeRating } from '../../database/schema';
+import {
+  EVENT_CATEGORIES,
+  eventAgeRating,
+  MAX_EXPECTED_AUDIENCE,
+} from '../../database/schema';
 import type { EventAgeRating, EventCategory } from '../../database/schema';
 
 export class CreateEventDto {
@@ -61,4 +68,12 @@ export class CreateEventDto {
   @IsOptional()
   @IsBoolean()
   featured?: boolean;
+
+  @IsOptional()
+  @IsInt({ message: 'O público esperado deve ser um número inteiro.' })
+  @Min(1, { message: 'O público esperado deve ser de pelo menos 1 pessoa.' })
+  @Max(MAX_EXPECTED_AUDIENCE, {
+    message: `O público esperado deve ser de no máximo ${MAX_EXPECTED_AUDIENCE} pessoas.`,
+  })
+  expectedAudience?: number;
 }
