@@ -81,8 +81,11 @@ export class OrganizationService {
     const organization = await this.findOne(id);
     await this.ensureRepresentativeExists(dto.representativeId);
     const updated = await this.organizationRepository.update(id, dto);
+    if (!updated) {
+      throw new NotFoundException(`Organização ${id} não encontrada`);
+    }
     if (dto.photoUrl === null && organization.photoUrl) {
-      await this.deletePhoto(organization.photoUrl);
+      await this.deleteOrganizationPhoto(id, organization.photoUrl);
     }
     return updated;
   }
@@ -100,21 +103,29 @@ export class OrganizationService {
       throw error;
     }
 
-    if (organization.photoUrl) {
-      await this.deletePhoto(organization.photoUrl);
+    if (!updated) {
+      await this.deletePhoto(photoUrl);
+      throw new NotFoundException(`Organização ${id} não encontrada`);
+    }
+
+    if (organization.photoUrl && organization.photoUrl !== photoUrl) {
+      await this.deleteOrganizationPhoto(id, organization.photoUrl);
     }
 
     return updated;
   }
 
   async remove(id: string): Promise<void> {
-    await this.findOne(id);
+    const organization = await this.findOne(id);
     // organization_users.organization_id has no ON DELETE action, so the
     // memberships must go first, atomically with the organization itself.
     await this.db.transaction(async (tx) => {
       await this.organizationRepository.deleteMembers(id, tx);
       await this.organizationRepository.delete(id, tx);
     });
+    if (organization.photoUrl) {
+      await this.deleteOrganizationPhoto(id, organization.photoUrl);
+    }
   }
 
   /**
@@ -161,6 +172,19 @@ export class OrganizationService {
         'Não foi possível enviar a imagem. Tente novamente.',
       );
     }
+  }
+
+  private async deleteOrganizationPhoto(
+    organizationId: string,
+    url: string,
+  ): Promise<void> {
+    if (!url.includes(`/organizations/${organizationId}/`)) {
+      this.logger.warn(
+        `Ignorando exclusão de photoUrl fora do escopo da organização ${organizationId}: ${url}`,
+      );
+      return;
+    }
+    await this.deletePhoto(url);
   }
 
   private async deletePhoto(url: string): Promise<void> {

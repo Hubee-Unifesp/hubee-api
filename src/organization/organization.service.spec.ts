@@ -237,7 +237,7 @@ describe('OrganizationService', () => {
 
     it('apaga a foto antiga do storage quando photoUrl é limpo com null', async () => {
       const organization = makeOrganization({
-        photoUrl: 'https://cdn.example.com/old-cover.png',
+        photoUrl: 'https://cdn.example.com/organizations/org-1/old-cover.png',
       });
       const updated = makeOrganization({ photoUrl: null });
       organizationRepository.findById.mockResolvedValue(organization);
@@ -249,9 +249,22 @@ describe('OrganizationService', () => {
         photoUrl: null,
       });
       expect(storageService.delete).toHaveBeenCalledWith(
-        'https://cdn.example.com/old-cover.png',
+        'https://cdn.example.com/organizations/org-1/old-cover.png',
       );
       expect(result).toEqual(updated);
+    });
+
+    it('não apaga photoUrl do storage se a URL antiga não pertencer ao prefixo da organização', async () => {
+      const organization = makeOrganization({
+        photoUrl: 'https://cdn.example.com/events/evt-1/cover.png',
+      });
+      const updated = makeOrganization({ photoUrl: null });
+      organizationRepository.findById.mockResolvedValue(organization);
+      organizationRepository.update.mockResolvedValue(updated);
+
+      await service.update('org-1', { photoUrl: null });
+
+      expect(storageService.delete).not.toHaveBeenCalled();
     });
 
     it('lança NotFound e não escreve quando a organização não existe', async () => {
@@ -284,8 +297,8 @@ describe('OrganizationService', () => {
     };
 
     it('faz upload da nova capa, salva photoUrl e remove a capa antiga', async () => {
-      const oldUrl = 'https://cdn.example.com/old.png';
-      const newUrl = 'https://cdn.example.com/new.png';
+      const oldUrl = 'https://cdn.example.com/organizations/org-1/old.png';
+      const newUrl = 'https://cdn.example.com/organizations/org-1/new.png';
       organizationRepository.findById.mockResolvedValue(
         makeOrganization({ photoUrl: oldUrl }),
       );
@@ -306,11 +319,35 @@ describe('OrganizationService', () => {
       expect(storageService.delete).toHaveBeenCalledWith(oldUrl);
       expect(result).toEqual(updated);
     });
+
+    it('não apaga a capa quando o storage retorna a mesma URL e limpa o upload se a organização sumir antes do update', async () => {
+      const sameUrl = 'https://cdn.example.com/organizations/org-1/cover.png';
+      organizationRepository.findById.mockResolvedValue(
+        makeOrganization({ photoUrl: sameUrl }),
+      );
+      storageService.upload.mockResolvedValue(sameUrl);
+      organizationRepository.update.mockResolvedValue(
+        makeOrganization({ photoUrl: sameUrl }),
+      );
+
+      await service.updatePhoto('org-1', validPng);
+      expect(storageService.delete).not.toHaveBeenCalled();
+
+      organizationRepository.update.mockResolvedValue(undefined as never);
+      await expect(
+        service.updatePhoto('org-1', validPng),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(storageService.delete).toHaveBeenCalledWith(sameUrl);
+    });
   });
 
   describe('remove()', () => {
-    it('remove os vínculos e a organização na mesma transação quando ela existe', async () => {
-      organizationRepository.findById.mockResolvedValue(makeOrganization());
+    it('remove os vínculos, a organização na mesma transação e apaga a capa do storage quando ela existe', async () => {
+      organizationRepository.findById.mockResolvedValue(
+        makeOrganization({
+          photoUrl: 'https://cdn.example.com/organizations/org-1/cover.png',
+        }),
+      );
       organizationRepository.deleteMembers.mockResolvedValue(undefined);
       organizationRepository.delete.mockResolvedValue(undefined);
 
@@ -322,6 +359,9 @@ describe('OrganizationService', () => {
         tx,
       );
       expect(organizationRepository.delete).toHaveBeenCalledWith('org-1', tx);
+      expect(storageService.delete).toHaveBeenCalledWith(
+        'https://cdn.example.com/organizations/org-1/cover.png',
+      );
       expect(
         organizationRepository.deleteMembers.mock.invocationCallOrder[0],
       ).toBeLessThan(organizationRepository.delete.mock.invocationCallOrder[0]);
