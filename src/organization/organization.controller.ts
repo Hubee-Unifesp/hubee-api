@@ -1,4 +1,6 @@
 import {
+  ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiOkResponse,
@@ -17,12 +19,18 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { QueryOrganizationDto } from './dto/query-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OrganizationService } from './organization.service';
 import { toResponse } from '../common/serialization/to-response';
+import {
+  ImageFileInterceptor,
+  type ImageUploadFile,
+} from '../common/validation/image-upload';
 import { AdminOnly } from '../auth/decorators/admin-only.decorator';
 import { Authenticated } from '../auth/decorators/authenticated.decorator';
 import { OrgAccess } from '../auth/decorators/org-access.decorator';
@@ -78,6 +86,34 @@ export class OrganizationController {
     return toResponse(
       OrganizationResponseDto,
       await this.organizationService.update(id, dto),
+    );
+  }
+
+  @OrgAccess('manage', { from: 'param', param: 'id' })
+  @Patch(':id/photo')
+  @UseInterceptors(ImageFileInterceptor)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Capa da organização (.jpg, .jpeg ou .png, até 2MB)',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({ type: OrganizationResponseDto })
+  async updatePhoto(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file?: ImageUploadFile,
+  ) {
+    return toResponse(
+      OrganizationResponseDto,
+      await this.organizationService.updatePhoto(id, file),
     );
   }
 

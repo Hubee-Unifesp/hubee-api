@@ -1,5 +1,5 @@
 {
-  "id": "408dd98b-ecc8-4624-ba5b-e10ea91e7e92",
+  "id": "ded5fb97-0146-45a2-b55e-60d428da0279",
   "prevId": "d1972825-f8b3-4582-acbc-0d6efe93286d",
   "version": "7",
   "dialect": "postgresql",
@@ -1549,6 +1549,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "photo_url": {
+          "name": "photo_url",
+          "type": "varchar(2048)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "title_color": {
+          "name": "title_color",
+          "type": "varchar(7)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description_color": {
+          "name": "description_color",
+          "type": "varchar(7)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "representative_id": {
           "name": "representative_id",
           "type": "uuid",
@@ -1613,37 +1631,11 @@
           "name": "fornecedor_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "description": {
           "name": "description",
           "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "group": {
-          "name": "group",
-          "type": "expense_group",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "category": {
-          "name": "category",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "quantity": {
-          "name": "quantity",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "unit_price": {
-          "name": "unit_price",
-          "type": "numeric(12, 2)",
           "primaryKey": false,
           "notNull": true
         },
@@ -1653,30 +1645,17 @@
           "primaryKey": false,
           "notNull": true
         },
-        "responsible": {
-          "name": "responsible",
-          "type": "varchar(255)",
+        "cost_type": {
+          "name": "cost_type",
+          "type": "varchar(100)",
           "primaryKey": false,
-          "notNull": false
-        },
-        "quoted": {
-          "name": "quoted",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "due_date": {
           "name": "due_date",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "payment_status": {
           "name": "payment_status",
@@ -1737,14 +1716,6 @@
         "expenses_amount_non_negative": {
           "name": "expenses_amount_non_negative",
           "value": "\"expenses\".\"amount\" >= 0"
-        },
-        "expenses_quantity_non_negative": {
-          "name": "expenses_quantity_non_negative",
-          "value": "\"expenses\".\"quantity\" >= 0"
-        },
-        "expenses_unit_price_non_negative": {
-          "name": "expenses_unit_price_non_negative",
-          "value": "\"expenses\".\"unit_price\" >= 0"
         }
       },
       "isRLSEnabled": false
@@ -2012,15 +1983,6 @@
         "main",
         "co_organizer",
         "supporter"
-      ]
-    },
-    "public.expense_group": {
-      "name": "expense_group",
-      "schema": "public",
-      "values": [
-        "fixed",
-        "variable",
-        "marketing"
       ]
     },
     "public.despesa_payment_status": {

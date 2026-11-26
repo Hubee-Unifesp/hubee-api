@@ -223,7 +223,10 @@ describe('Migrations Drizzle (Postgres em memória)', () => {
 
   it('migra despesas antigas sem perda de dados e valida constraints de orçamento', async () => {
     const db = database();
-    for (const entry of journal.entries.slice(0, 10)) {
+    const expensesMigrationIndex = journal.entries.findIndex(
+      (entry) => entry.tag === '0011_expenses_budget_format',
+    );
+    for (const entry of journal.entries.slice(0, expensesMigrationIndex)) {
       await pg.exec(migrationSql(entry.tag));
     }
 

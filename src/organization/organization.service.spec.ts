@@ -3,6 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DRIZZLE } from '../database/database.constants';
 import { organizations } from '../database/schema';
+import { StorageService } from '../storage/storage.service';
 import { UsersService } from '../users/users.service';
 import { OrganizationRepository } from './organization.repository';
 import { OrganizationService } from './organization.service';
@@ -14,6 +15,9 @@ function makeOrganization(overrides: Partial<Organization> = {}): Organization {
     id: 'org-1',
     name: 'Centro Acadêmico',
     description: 'Organização estudantil',
+    photoUrl: null,
+    titleColor: null,
+    descriptionColor: null,
     representativeId: 'user-1',
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -41,6 +45,10 @@ describe('OrganizationService', () => {
   let usersService: {
     findOne: jest.Mock<UsersService['findOne']>;
   };
+  let storageService: {
+    upload: jest.Mock<StorageService['upload']>;
+    delete: jest.Mock<StorageService['delete']>;
+  };
 
   beforeEach(async () => {
     db.transaction.mockClear();
@@ -55,6 +63,10 @@ describe('OrganizationService', () => {
     };
     usersService = {
       findOne: jest.fn<UsersService['findOne']>(),
+    };
+    storageService = {
+      upload: jest.fn<StorageService['upload']>(),
+      delete: jest.fn<StorageService['delete']>(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -71,6 +83,10 @@ describe('OrganizationService', () => {
         {
           provide: UsersService,
           useValue: usersService,
+        },
+        {
+          provide: StorageService,
+          useValue: storageService,
         },
       ],
     }).compile();
@@ -219,6 +235,38 @@ describe('OrganizationService', () => {
       expect(result).toEqual(updated);
     });
 
+    it('apaga a foto antiga do storage quando photoUrl é limpo com null', async () => {
+      const organization = makeOrganization({
+        photoUrl: 'https://cdn.example.com/organizations/org-1/old-cover.png',
+      });
+      const updated = makeOrganization({ photoUrl: null });
+      organizationRepository.findById.mockResolvedValue(organization);
+      organizationRepository.update.mockResolvedValue(updated);
+
+      const result = await service.update('org-1', { photoUrl: null });
+
+      expect(organizationRepository.update).toHaveBeenCalledWith('org-1', {
+        photoUrl: null,
+      });
+      expect(storageService.delete).toHaveBeenCalledWith(
+        'https://cdn.example.com/organizations/org-1/old-cover.png',
+      );
+      expect(result).toEqual(updated);
+    });
+
+    it('não apaga photoUrl do storage se a URL antiga não pertencer ao prefixo da organização', async () => {
+      const organization = makeOrganization({
+        photoUrl: 'https://cdn.example.com/events/evt-1/cover.png',
+      });
+      const updated = makeOrganization({ photoUrl: null });
+      organizationRepository.findById.mockResolvedValue(organization);
+      organizationRepository.update.mockResolvedValue(updated);
+
+      await service.update('org-1', { photoUrl: null });
+
+      expect(storageService.delete).not.toHaveBeenCalled();
+    });
+
     it('lança NotFound e não escreve quando a organização não existe', async () => {
       organizationRepository.findById.mockResolvedValue(undefined);
 
@@ -241,9 +289,65 @@ describe('OrganizationService', () => {
     });
   });
 
+  describe('updatePhoto()', () => {
+    const validPng = {
+      mimetype: 'image/png',
+      size: 8,
+      buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    };
+
+    it('faz upload da nova capa, salva photoUrl e remove a capa antiga', async () => {
+      const oldUrl = 'https://cdn.example.com/organizations/org-1/old.png';
+      const newUrl = 'https://cdn.example.com/organizations/org-1/new.png';
+      organizationRepository.findById.mockResolvedValue(
+        makeOrganization({ photoUrl: oldUrl }),
+      );
+      storageService.upload.mockResolvedValue(newUrl);
+      const updated = makeOrganization({ photoUrl: newUrl });
+      organizationRepository.update.mockResolvedValue(updated);
+
+      const result = await service.updatePhoto('org-1', validPng);
+
+      expect(storageService.upload).toHaveBeenCalledWith({
+        pathname: 'organizations/org-1/cover.png',
+        buffer: validPng.buffer,
+        contentType: 'image/png',
+      });
+      expect(organizationRepository.update).toHaveBeenCalledWith('org-1', {
+        photoUrl: newUrl,
+      });
+      expect(storageService.delete).toHaveBeenCalledWith(oldUrl);
+      expect(result).toEqual(updated);
+    });
+
+    it('não apaga a capa quando o storage retorna a mesma URL e limpa o upload se a organização sumir antes do update', async () => {
+      const sameUrl = 'https://cdn.example.com/organizations/org-1/cover.png';
+      organizationRepository.findById.mockResolvedValue(
+        makeOrganization({ photoUrl: sameUrl }),
+      );
+      storageService.upload.mockResolvedValue(sameUrl);
+      organizationRepository.update.mockResolvedValue(
+        makeOrganization({ photoUrl: sameUrl }),
+      );
+
+      await service.updatePhoto('org-1', validPng);
+      expect(storageService.delete).not.toHaveBeenCalled();
+
+      organizationRepository.update.mockResolvedValue(undefined as never);
+      await expect(
+        service.updatePhoto('org-1', validPng),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(storageService.delete).toHaveBeenCalledWith(sameUrl);
+    });
+  });
+
   describe('remove()', () => {
-    it('remove os vínculos e a organização na mesma transação quando ela existe', async () => {
-      organizationRepository.findById.mockResolvedValue(makeOrganization());
+    it('remove os vínculos, a organização na mesma transação e apaga a capa do storage quando ela existe', async () => {
+      organizationRepository.findById.mockResolvedValue(
+        makeOrganization({
+          photoUrl: 'https://cdn.example.com/organizations/org-1/cover.png',
+        }),
+      );
       organizationRepository.deleteMembers.mockResolvedValue(undefined);
       organizationRepository.delete.mockResolvedValue(undefined);
 
@@ -255,6 +359,9 @@ describe('OrganizationService', () => {
         tx,
       );
       expect(organizationRepository.delete).toHaveBeenCalledWith('org-1', tx);
+      expect(storageService.delete).toHaveBeenCalledWith(
+        'https://cdn.example.com/organizations/org-1/cover.png',
+      );
       expect(
         organizationRepository.deleteMembers.mock.invocationCallOrder[0],
       ).toBeLessThan(organizationRepository.delete.mock.invocationCallOrder[0]);
