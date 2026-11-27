@@ -92,6 +92,13 @@
       "when": 1795709656951,
       "tag": "0012_events_expected_audience",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795722512621,
+      "tag": "0013_expense_installments",
+      "breakpoints": true
     }
   ]
 }

@@ -19,6 +19,7 @@ import { VenueService } from '../venue/venue.service';
 import { ExpensesController } from './expenses.controller';
 import { ExpensesRepository } from './expenses.repository';
 import { ExpensesService } from './expenses.service';
+import { InstallmentsRepository } from './installments/installments.repository';
 
 describe('Despesas em formato de orçamento (GOL-296, banco em memória)', () => {
   let app: INestApplication;
@@ -45,6 +46,7 @@ describe('Despesas em formato de orçamento (GOL-296, banco em memória)', () =>
       providers: [
         ExpensesService,
         ExpensesRepository,
+        InstallmentsRepository,
         EventService,
         EventRepository,
         SuppliersService,

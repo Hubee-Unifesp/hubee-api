@@ -4,6 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EventService } from '../event/event.service';
 import { SuppliersService } from '../suppliers/suppliers.service';
 import { ExpensesRepository } from './expenses.repository';
+import { InstallmentsRepository } from './installments/installments.repository';
 import { calculateExpenseAmount, ExpensesService } from './expenses.service';
 
 type ExpenseWithSupplier = NonNullable<
@@ -60,6 +61,11 @@ describe('ExpensesService', () => {
   };
   let eventService: { findOne: jest.Mock<EventService['findOne']> };
   let suppliersService: { findOne: jest.Mock<SuppliersService['findOne']> };
+  let installmentsRepository: {
+    transaction: jest.Mock<(callback: (tx: unknown) => unknown) => unknown>;
+    lockExpense: jest.Mock<InstallmentsRepository['lockExpense']>;
+    sumActiveAmount: jest.Mock<InstallmentsRepository['sumActiveAmount']>;
+  };
 
   beforeEach(async () => {
     expensesRepository = {
@@ -80,9 +86,20 @@ describe('ExpensesService', () => {
       } as never),
     };
 
+    installmentsRepository = {
+      transaction: jest.fn((callback: (tx: unknown) => unknown) =>
+        callback('tx'),
+      ),
+      lockExpense: jest.fn<InstallmentsRepository['lockExpense']>(),
+      sumActiveAmount: jest
+        .fn<InstallmentsRepository['sumActiveAmount']>()
+        .mockResolvedValue(0),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExpensesService,
+        { provide: InstallmentsRepository, useValue: installmentsRepository },
         { provide: ExpensesRepository, useValue: expensesRepository },
         { provide: EventService, useValue: eventService },
         { provide: SuppliersService, useValue: suppliersService },
@@ -255,10 +272,43 @@ describe('ExpensesService', () => {
 
       await service.update(EVENT_ID, 'expense-1', { quantity: 4 });
 
-      expect(expensesRepository.update).toHaveBeenCalledWith('expense-1', {
-        quantity: 4,
-        amount: 3000,
-      });
+      expect(expensesRepository.update).toHaveBeenCalledWith(
+        'expense-1',
+        { quantity: 4, amount: 3000 },
+        'tx',
+      );
+    });
+
+    it('recusa reduzir o valor abaixo da soma das parcelas', async () => {
+      expensesRepository.findById.mockResolvedValue(
+        makeExpense({ quantity: 2, unitPrice: 750, amount: 1500 }),
+      );
+      installmentsRepository.sumActiveAmount.mockResolvedValue(1200);
+
+      await expect(
+        service.update(EVENT_ID, 'expense-1', { quantity: 1 }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(installmentsRepository.lockExpense).toHaveBeenCalledWith(
+        'expense-1',
+        'tx',
+      );
+      expect(expensesRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('aceita reduzir o valor até a soma exata das parcelas', async () => {
+      expensesRepository.findById.mockResolvedValue(
+        makeExpense({ quantity: 2, unitPrice: 750, amount: 1500 }),
+      );
+      expensesRepository.update.mockResolvedValue(makeExpense());
+      installmentsRepository.sumActiveAmount.mockResolvedValue(750);
+
+      await service.update(EVENT_ID, 'expense-1', { quantity: 1 });
+
+      expect(expensesRepository.update).toHaveBeenCalledWith(
+        'expense-1',
+        { quantity: 1, amount: 750 },
+        'tx',
+      );
     });
 
     it('valida novo fornecedor quando informado e permite limpar com null', async () => {

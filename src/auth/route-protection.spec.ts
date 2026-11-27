@@ -18,6 +18,7 @@ import { EventAiAssistantController } from '../event/ai-assistant/event-ai-assis
 import { EventController } from '../event/event.controller';
 import { EventService } from '../event/event.service';
 import { ExpensesController } from '../expenses/expenses.controller';
+import { InstallmentsController } from '../expenses/installments/installments.controller';
 import { HealthController } from '../health/health.controller';
 import { NotificationsController } from '../notifications/notifications.controller';
 import { OrganizationEventController } from '../organization-event/organization-event.controller';
@@ -48,6 +49,7 @@ const CONTROLLERS: Type[] = [
   VenueController,
   SuppliersController,
   ExpensesController,
+  InstallmentsController,
   PlanningController,
   TaskController,
   PaymentController,
@@ -126,6 +128,12 @@ const ORGANIZER_WRITE_ROUTES = [
   'GET /events/:eventId/expenses/:id',
   'PATCH /events/:eventId/expenses/:id',
   'DELETE /events/:eventId/expenses/:id',
+  'GET /events/:eventId/installments',
+  'GET /events/:eventId/expenses/:expenseId/installments',
+  'GET /events/:eventId/expenses/:expenseId/installments/:id',
+  'POST /events/:eventId/expenses/:expenseId/installments',
+  'PATCH /events/:eventId/expenses/:expenseId/installments/:id',
+  'DELETE /events/:eventId/expenses/:expenseId/installments/:id',
   'GET /events/:eventId/planning/summary',
 ];
 
@@ -439,6 +447,18 @@ describe('Proteção de rotas (GOL-114)', () => {
 
   it('GET /events/:eventId/planning/summary exige write como as despesas (GOL-297)', () => {
     const label = 'GET /events/:eventId/planning/summary';
+    expect(organizerRoutes.map((r) => r.label)).toContain(label);
+    expect(ORGANIZER_WRITE_ROUTES).toContain(label);
+    expect(ORGANIZER_READ_ROUTES).not.toContain(label);
+  });
+
+  it.each([
+    'GET /events/:eventId/installments',
+    'GET /events/:eventId/expenses/:expenseId/installments',
+    'POST /events/:eventId/expenses/:expenseId/installments',
+    'PATCH /events/:eventId/expenses/:expenseId/installments/:id',
+    'DELETE /events/:eventId/expenses/:expenseId/installments/:id',
+  ])('%s exige write como as despesas (GOL-300)', (label) => {
     expect(organizerRoutes.map((r) => r.label)).toContain(label);
     expect(ORGANIZER_WRITE_ROUTES).toContain(label);
     expect(ORGANIZER_READ_ROUTES).not.toContain(label);
