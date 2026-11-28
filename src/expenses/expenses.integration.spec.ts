@@ -253,6 +253,106 @@ describe('Despesas em formato de orçamento (GOL-296, banco em memória)', () =>
     });
   });
 
+  describe('Criação em lote (GOL-305)', () => {
+    const item = (overrides: Record<string, unknown> = {}) => ({
+      description: 'Item do lote',
+      group: 'fixed',
+      category: 'Estrutura',
+      unitPrice: 100,
+      ...overrides,
+    });
+
+    const countExpenses = async () =>
+      (
+        await http()
+          .get(`/events/${eventOfB}/expenses`)
+          .set(as('outsider'))
+          .expect(200)
+      ).body.length;
+
+    it('cria todas as despesas e devolve a lista no formato da listagem', async () => {
+      const res = await http()
+        .post(`/events/${eventOfB}/expenses/batch`)
+        .set(as('outsider'))
+        .send({
+          items: [
+            item({ description: 'Palco', quantity: 2, unitPrice: 1500 }),
+            item({
+              supplierId,
+              description: 'Bartender',
+              group: 'variable',
+              category: 'Bar',
+              quantity: 3,
+              unitPrice: 19.99,
+            }),
+          ],
+        })
+        .expect(201);
+
+      expect(res.body).toHaveLength(2);
+      expect(res.body[0]).toMatchObject({
+        eventId: eventOfB,
+        description: 'Palco',
+        quantity: 2,
+        amount: 3000,
+        quoted: false,
+        paymentStatus: 'pendente',
+        supplierName: null,
+      });
+      expect(res.body[1]).toMatchObject({
+        description: 'Bartender',
+        amount: 59.97,
+        supplierName: 'Som & Luz Eventos Ltda',
+      });
+    });
+
+    it('com um item inválido responde 400 indicando o item e não cria nenhuma', async () => {
+      const before = await countExpenses();
+
+      const res = await http()
+        .post(`/events/${eventOfB}/expenses/batch`)
+        .set(as('outsider'))
+        .send({ items: [item(), item({ group: 'outro' })] })
+        .expect(400);
+
+      expect(res.body.message).toBe(
+        'Item 2: Grupo de despesa inválido. Use: fixed, variable ou marketing.',
+      );
+      expect(await countExpenses()).toBe(before);
+    });
+
+    it('rejeita lista vazia e mais de 50 itens com mensagem em pt-BR', async () => {
+      const empty = await http()
+        .post(`/events/${eventOfB}/expenses/batch`)
+        .set(as('outsider'))
+        .send({ items: [] })
+        .expect(400);
+      expect(empty.body.message).toContain('Envie ao menos uma despesa.');
+
+      const tooMany = await http()
+        .post(`/events/${eventOfB}/expenses/batch`)
+        .set(as('outsider'))
+        .send({ items: Array.from({ length: 51 }, () => item()) })
+        .expect(400);
+      expect(tooMany.body.message).toContain(
+        'Envie no máximo 50 despesas por vez.',
+      );
+    });
+
+    it('exige permissão write e oculta evento de outra organização', async () => {
+      await http()
+        .post(`/events/${eventOfA}/expenses/batch`)
+        .set(as('readOnlyA'))
+        .send({ items: [item()] })
+        .expect(403);
+      await http()
+        .post(`/events/${eventOfA}/expenses/batch`)
+        .set(as('outsider'))
+        .send({ items: [item()] })
+        .expect(404);
+    });
+  });
+
   describe('CRUD no formato de orçamento', () => {
     it('cria despesa sem fornecedor e sem data aplicando padrões e calculando amount', async () => {
       const res = await http()
