@@ -3,6 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { EventService } from '../event/event.service';
 import { SuppliersService } from '../suppliers/suppliers.service';
 import { CreateExpenseDto, MAX_EXPENSE_AMOUNT } from './dto/create-expense.dto';
@@ -24,6 +26,13 @@ export function calculateExpenseAmount(
     );
   }
   return amount;
+}
+
+function batchItemError(index: number, error: unknown) {
+  if (error instanceof BadRequestException) {
+    return new BadRequestException(`Item ${index + 1}: ${error.message}`);
+  }
+  return error;
 }
 
 @Injectable()
@@ -75,6 +84,60 @@ export class ExpensesService {
       quantity,
       amount,
     });
+  }
+
+  async createMany(eventId: string, items: Record<string, unknown>[]) {
+    const dtos = await Promise.all(
+      items.map((item, index) => this.validateBatchItem(item, index)),
+    );
+    await this.ensureEventExists(eventId);
+
+    const supplierIds = [
+      ...new Set(dtos.map((dto) => dto.supplierId).filter(Boolean)),
+    ] as string[];
+    for (const supplierId of supplierIds) {
+      try {
+        await this.ensureSupplierExists(supplierId);
+      } catch (error) {
+        if (!(error instanceof NotFoundException)) throw error;
+        const index = dtos.findIndex((dto) => dto.supplierId === supplierId);
+        throw new BadRequestException(
+          `Item ${index + 1}: fornecedor ${supplierId} não encontrado.`,
+        );
+      }
+    }
+
+    const rows = dtos.map((dto, index) => {
+      const quantity = dto.quantity ?? 1;
+      try {
+        const amount = calculateExpenseAmount(quantity, dto.unitPrice);
+        return { ...dto, eventId, quantity, amount };
+      } catch (error) {
+        throw batchItemError(index, error);
+      }
+    });
+
+    return this.expensesRepository.transaction((tx) =>
+      this.expensesRepository.createMany(rows, tx),
+    );
+  }
+
+  private async validateBatchItem(
+    item: Record<string, unknown>,
+    index: number,
+  ): Promise<CreateExpenseDto> {
+    const dto = plainToInstance(CreateExpenseDto, item);
+    const [error] = await validate(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+    if (error) {
+      const [message] = Object.values(error.constraints ?? {});
+      throw new BadRequestException(
+        `Item ${index + 1}: ${message ?? 'despesa inválida.'}`,
+      );
+    }
+    return dto;
   }
 
   async update(eventId: string, id: string, dto: UpdateExpenseDto) {

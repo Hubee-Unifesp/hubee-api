@@ -126,6 +126,7 @@ const ORGANIZER_WRITE_ROUTES = [
   'PATCH /events/:eventId/tasks/:id',
   'DELETE /events/:eventId/tasks/:id',
   'POST /events/:eventId/expenses',
+  'POST /events/:eventId/expenses/batch',
   'GET /events/:eventId/expenses',
   'GET /events/:eventId/expenses/:id',
   'PATCH /events/:eventId/expenses/:id',
@@ -451,6 +452,13 @@ describe('Proteção de rotas (GOL-114)', () => {
 
   it('GET /events/:eventId/planning/summary exige write como as despesas (GOL-297)', () => {
     const label = 'GET /events/:eventId/planning/summary';
+    expect(organizerRoutes.map((r) => r.label)).toContain(label);
+    expect(ORGANIZER_WRITE_ROUTES).toContain(label);
+    expect(ORGANIZER_READ_ROUTES).not.toContain(label);
+  });
+
+  it('POST /events/:eventId/expenses/batch exige write como as despesas (GOL-305)', () => {
+    const label = 'POST /events/:eventId/expenses/batch';
     expect(organizerRoutes.map((r) => r.label)).toContain(label);
     expect(ORGANIZER_WRITE_ROUTES).toContain(label);
     expect(ORGANIZER_READ_ROUTES).not.toContain(label);

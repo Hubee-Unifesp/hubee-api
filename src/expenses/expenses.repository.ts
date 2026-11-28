@@ -1,9 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, getTableColumns, ilike } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, ilike, inArray } from 'drizzle-orm';
 import { DRIZZLE } from '../database/database.constants';
 import type {
   DbExecutor,
   DrizzleDatabase,
+  DrizzleTransaction,
 } from '../database/database.provider';
 import {
   ExpenseGroup,
@@ -25,6 +26,10 @@ const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
 @Injectable()
 export class ExpensesRepository {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDatabase) {}
+
+  transaction<T>(callback: (tx: DrizzleTransaction) => Promise<T>) {
+    return this.db.transaction(callback);
+  }
 
   private selectWithSupplier(executor: DbExecutor) {
     return executor
@@ -77,6 +82,22 @@ export class ExpensesRepository {
   ) {
     const [expense] = await executor.insert(expenses).values(data).returning();
     return (await this.findById(expense.id, executor))!;
+  }
+
+  async createMany(
+    data: (typeof expenses.$inferInsert)[],
+    executor: DbExecutor = this.db,
+  ) {
+    const inserted = await executor
+      .insert(expenses)
+      .values(data)
+      .returning({ id: expenses.id });
+    const ids = inserted.map(({ id }) => id);
+    const rows = await this.selectWithSupplier(executor).where(
+      inArray(expenses.id, ids),
+    );
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return ids.map((id) => byId.get(id)!);
   }
 
   async update(
