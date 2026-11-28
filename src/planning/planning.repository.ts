@@ -5,6 +5,7 @@ import type { DrizzleDatabase } from '../database/database.provider';
 import {
   addresses,
   events,
+  expenseInstallments,
   expenses,
   ticketTypes,
   venues,
@@ -13,6 +14,10 @@ import type {
   PlanningAiEventContext,
   PlanningAiExpenseContext,
 } from './ai/planning-ai.prompt';
+import type {
+  ReviewExpenseInput,
+  ReviewInstallmentInput,
+} from './ai/planning-review-facts';
 import type {
   PlanningExpenseInput,
   PlanningLotInput,
@@ -91,5 +96,38 @@ export class PlanningRepository {
         asc(expenses.category),
         asc(expenses.createdAt),
       );
+  }
+
+  /** Despesas com os campos usados nos fatos da análise com IA (GOL-307). */
+  async findReviewExpenses(eventId: string): Promise<ReviewExpenseInput[]> {
+    return this.db
+      .select({
+        id: expenses.id,
+        description: expenses.description,
+        group: expenses.group,
+        category: expenses.category,
+        amount: expenses.amount,
+        quoted: expenses.quoted,
+        paymentStatus: expenses.paymentStatus,
+        dueDate: expenses.dueDate,
+      })
+      .from(expenses)
+      .where(eq(expenses.eventId, eventId));
+  }
+
+  /** Parcelas das despesas do evento, para achar pagamentos vencidos. */
+  async findReviewInstallments(
+    eventId: string,
+  ): Promise<ReviewInstallmentInput[]> {
+    return this.db
+      .select({
+        expenseId: expenseInstallments.expenseId,
+        amount: expenseInstallments.amount,
+        dueDate: expenseInstallments.dueDate,
+        status: expenseInstallments.status,
+      })
+      .from(expenseInstallments)
+      .innerJoin(expenses, eq(expenses.id, expenseInstallments.expenseId))
+      .where(eq(expenses.eventId, eventId));
   }
 }

@@ -19,9 +19,33 @@ import {
   EXPENSE_SUGGESTIONS_SYSTEM_PROMPT,
   normalizeText,
 } from './planning-ai.prompt';
-import { EXPENSE_SUGGESTIONS_SCHEMA } from './planning-ai.schema';
+import {
+  EXPENSE_SUGGESTIONS_SCHEMA,
+  PLANNING_REVIEW_SCHEMA,
+} from './planning-ai.schema';
+import {
+  PlanningReviewResponseDto,
+  REVIEW_ACTION_TYPES,
+  REVIEW_SEVERITIES,
+  type ReviewActionType,
+  type ReviewInsightDto,
+  type ReviewSeverity,
+} from './dto/planning-review.dto';
+import {
+  calculatePlanningReviewFacts,
+  type PlanningReviewFacts,
+} from './planning-review-facts';
+import {
+  buildPlanningReviewPrompt,
+  formatPeople,
+  PLANNING_REVIEW_MAX_INSIGHTS,
+  PLANNING_REVIEW_SYSTEM_PROMPT,
+} from './planning-review.prompt';
 
 export const MAX_EXPENSE_SUGGESTIONS = 30;
+
+const INVALID_REVIEW_MESSAGE =
+  'Não foi possível analisar o planejamento com IA. Tente novamente em instantes.';
 
 const INVALID_SUGGESTIONS_MESSAGE =
   'Não foi possível gerar sugestões com IA. Tente novamente em instantes.';
@@ -116,6 +140,89 @@ function toSuggestion(item: PlainObject): ExpenseSuggestionDto | null {
   };
 }
 
+const SEVERITY_ORDER: Record<ReviewSeverity, number> = {
+  critical: 0,
+  warning: 1,
+  info: 2,
+};
+
+function toInsight(
+  item: PlainObject,
+  expenseIds: ReadonlySet<string>,
+): ReviewInsightDto | null {
+  const severity = REVIEW_SEVERITIES.includes(item.severity as ReviewSeverity)
+    ? (item.severity as ReviewSeverity)
+    : null;
+  const title = text(item.title, 120);
+  const detail = text(item.detail, 600);
+  if (!severity || !title || !detail) return null;
+  return { severity, title, detail, action: toAction(item.action, expenseIds) };
+}
+
+function toAction(
+  raw: unknown,
+  expenseIds: ReadonlySet<string>,
+): ReviewInsightDto['action'] {
+  if (!isPlainObject(raw)) return null;
+  const type = REVIEW_ACTION_TYPES.includes(raw.type as ReviewActionType)
+    ? (raw.type as ReviewActionType)
+    : null;
+  if (!type) return null;
+  const candidate =
+    typeof raw.expenseId === 'string' ? raw.expenseId.trim() : '';
+  const expenseId = expenseIds.has(candidate) ? candidate : null;
+  if (type === 'edit_expense' && !expenseId) return null;
+  return { type, expenseId: type === 'edit_expense' ? expenseId : null };
+}
+
+/** Alerta garantido pelo código quando o break-even passa do público esperado. */
+export function breakEvenInsight(
+  facts: PlanningReviewFacts,
+): ReviewInsightDto | null {
+  const { breakEven } = facts.result;
+  if (
+    !facts.breakEvenAboveExpectedAudience ||
+    breakEven === null ||
+    facts.expectedAudience === null
+  ) {
+    return null;
+  }
+  return {
+    severity: 'critical',
+    title: 'Ponto de equilíbrio acima do público esperado',
+    detail: `O evento precisa de ${formatPeople(breakEven)} pagantes para cobrir as despesas, e o público esperado é de ${formatPeople(facts.expectedAudience)}. Revise os lotes, os preços ou as despesas.`,
+    action: { type: 'edit_lots', expenseId: null },
+  };
+}
+
+/**
+ * Valida a saída da IA na análise: descarta alertas sem severidade, título ou
+ * detalhe, ações de tipo desconhecido e `expenseId` que não é do evento.
+ * Ordena por severidade, garante o alerta crítico de break-even e limita a 6.
+ */
+export function sanitizePlanningReview(
+  raw: unknown,
+  facts: PlanningReviewFacts,
+  expenseIds: ReadonlySet<string>,
+): ReviewInsightDto[] {
+  const items = isPlainObject(raw) ? raw.insights : undefined;
+  if (!Array.isArray(items)) {
+    throw new ServiceUnavailableException(INVALID_REVIEW_MESSAGE);
+  }
+
+  const insights = items
+    .map((item) => (isPlainObject(item) ? toInsight(item, expenseIds) : null))
+    .filter((item): item is ReviewInsightDto => item !== null)
+    .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+
+  const guaranteed = breakEvenInsight(facts);
+  if (guaranteed && !insights.some((item) => item.severity === 'critical')) {
+    insights.unshift(guaranteed);
+  }
+
+  return insights.slice(0, PLANNING_REVIEW_MAX_INSIGHTS);
+}
+
 @Injectable()
 export class PlanningAiService {
   private readonly logger = new Logger(PlanningAiService.name);
@@ -161,6 +268,55 @@ export class PlanningAiService {
 
     return toResponse(ExpenseSuggestionsResponseDto, {
       suggestions: result.suggestions,
+    });
+  }
+
+  async reviewPlanning(
+    eventId: string,
+    now: Date = new Date(),
+  ): Promise<PlanningReviewResponseDto> {
+    const event = await this.planningRepository.findAiEventContext(eventId);
+    if (!event) {
+      throw new NotFoundException(`Evento ${eventId} não encontrado`);
+    }
+    const [expenses, installments, lots] = await Promise.all([
+      this.planningRepository.findReviewExpenses(eventId),
+      this.planningRepository.findReviewInstallments(eventId),
+      this.planningRepository.findLots(eventId),
+    ]);
+
+    const facts = calculatePlanningReviewFacts({
+      startDate: event.startDate,
+      expectedAudience: event.expectedAudience,
+      expenses,
+      installments,
+      lots,
+      now,
+    });
+
+    const raw = await this.ai.generateStructured({
+      system: PLANNING_REVIEW_SYSTEM_PROMPT,
+      prompt: buildPlanningReviewPrompt(facts),
+      schema: PLANNING_REVIEW_SCHEMA,
+      maxTokens: 3000,
+      feature: 'planning-review',
+    });
+
+    let insights: ReviewInsightDto[];
+    try {
+      insights = sanitizePlanningReview(
+        raw,
+        facts,
+        new Set(expenses.map((expense) => expense.id)),
+      );
+    } catch (error) {
+      this.logger.error('Resposta da IA de análise do planejamento inválida');
+      throw error;
+    }
+
+    return toResponse(PlanningReviewResponseDto, {
+      insights,
+      generatedAt: now,
     });
   }
 }

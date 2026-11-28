@@ -138,6 +138,7 @@ const ORGANIZER_WRITE_ROUTES = [
   'DELETE /events/:eventId/expenses/:expenseId/installments/:id',
   'GET /events/:eventId/planning/summary',
   'POST /events/:eventId/planning/ai/expense-suggestions',
+  'POST /events/:eventId/planning/ai/review',
 ];
 
 /**
@@ -455,8 +456,10 @@ describe('Proteção de rotas (GOL-114)', () => {
     expect(ORGANIZER_READ_ROUTES).not.toContain(label);
   });
 
-  it('POST /events/:eventId/planning/ai/expense-suggestions exige write e tem limite de IA (GOL-304)', () => {
-    const label = 'POST /events/:eventId/planning/ai/expense-suggestions';
+  it.each([
+    'POST /events/:eventId/planning/ai/expense-suggestions',
+    'POST /events/:eventId/planning/ai/review',
+  ])('%s exige write como o planejamento (GOL-304, GOL-307)', (label) => {
     expect(organizerRoutes.map((r) => r.label)).toContain(label);
     expect(ORGANIZER_WRITE_ROUTES).toContain(label);
     expect(ORGANIZER_READ_ROUTES).not.toContain(label);

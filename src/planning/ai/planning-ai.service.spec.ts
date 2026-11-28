@@ -3,12 +3,18 @@ import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import type { AiService } from '../../ai/ai.service';
 import type { PlanningRepository } from '../planning.repository';
 import { buildExpenseSuggestionsPrompt } from './planning-ai.prompt';
-import { EXPENSE_SUGGESTIONS_SCHEMA } from './planning-ai.schema';
 import {
+  EXPENSE_SUGGESTIONS_SCHEMA,
+  PLANNING_REVIEW_SCHEMA,
+} from './planning-ai.schema';
+import {
+  breakEvenInsight,
   MAX_EXPENSE_SUGGESTIONS,
   PlanningAiService,
   sanitizeExpenseSuggestions,
+  sanitizePlanningReview,
 } from './planning-ai.service';
+import { calculatePlanningReviewFacts } from './planning-review-facts';
 
 const EVENT_ID = 'event-1';
 
@@ -211,5 +217,185 @@ describe('PlanningAiService', () => {
     await expect(service.suggestExpenses(EVENT_ID)).rejects.toThrow(
       ServiceUnavailableException,
     );
+  });
+});
+
+describe('análise do planejamento (GOL-307)', () => {
+  const NOW = new Date('2026-11-20T15:00:00Z');
+  const REVIEW_EXPENSES = [
+    {
+      id: 'd1',
+      description: 'Palco',
+      group: 'fixed' as const,
+      category: 'Estrutura',
+      amount: 9000,
+      quoted: false,
+      paymentStatus: 'pendente' as const,
+      dueDate: null,
+    },
+  ];
+  const LOTS = [
+    {
+      id: 'l1',
+      batch: '1º lote',
+      price: 40,
+      quantity: 200,
+      modality: 'inteira' as const,
+      salesStartDate: null,
+    },
+  ];
+  const insight = (overrides: Record<string, unknown> = {}) => ({
+    severity: 'warning',
+    title: 'Itens sem cotação',
+    detail: 'O palco ainda não foi cotado.',
+    action: { type: 'filter_not_quoted', expenseId: '' },
+    ...overrides,
+  });
+
+  const factsFor = (expectedAudience: number | null) =>
+    calculatePlanningReviewFacts({
+      startDate: EVENT.startDate,
+      expectedAudience,
+      expenses: REVIEW_EXPENSES,
+      installments: [],
+      lots: LOTS,
+      now: NOW,
+    });
+
+  describe('sanitizePlanningReview', () => {
+    const ids = new Set(['d1']);
+
+    it('descarta alertas inválidos, ordena por severidade e limita a 6', () => {
+      const insights = sanitizePlanningReview(
+        {
+          insights: [
+            insight({ severity: 'info', title: 'Info 1' }),
+            insight({ severity: 'urgente' }),
+            insight({ title: '' }),
+            insight({ severity: 'critical', title: 'Crítico' }),
+            ...Array.from({ length: 6 }, (_, index) =>
+              insight({ title: `Atenção ${index + 1}` }),
+            ),
+          ],
+        },
+        factsFor(300),
+        ids,
+      );
+
+      expect(insights).toHaveLength(6);
+      expect(insights[0].title).toBe('Crítico');
+      expect(insights.map((item) => item.severity)).not.toContain('info');
+    });
+
+    it('nunca devolve expenseId de fora do evento', () => {
+      const insights = sanitizePlanningReview(
+        {
+          insights: [
+            insight({ action: { type: 'edit_expense', expenseId: 'd1' } }),
+            insight({
+              title: 'Outro evento',
+              action: { type: 'edit_expense', expenseId: 'de-outro-evento' },
+            }),
+            insight({
+              title: 'Filtro',
+              action: { type: 'filter_to_pay', expenseId: 'de-outro-evento' },
+            }),
+            insight({ title: 'Ação inventada', action: { type: 'apagar' } }),
+          ],
+        },
+        factsFor(300),
+        ids,
+      );
+
+      expect(insights.map((item) => item.action)).toEqual([
+        { type: 'edit_expense', expenseId: 'd1' },
+        null,
+        { type: 'filter_to_pay', expenseId: null },
+        null,
+      ]);
+    });
+
+    it('garante um alerta crítico quando o break-even passa do público esperado', () => {
+      const facts = factsFor(100);
+      expect(facts.breakEvenAboveExpectedAudience).toBe(true);
+
+      const insights = sanitizePlanningReview(
+        { insights: [insight()] },
+        facts,
+        ids,
+      );
+
+      expect(insights[0]).toEqual({
+        severity: 'critical',
+        title: 'Ponto de equilíbrio acima do público esperado',
+        detail:
+          'O evento precisa de 225 pessoas pagantes para cobrir as despesas, e o público esperado é de 100 pessoas. Revise os lotes, os preços ou as despesas.',
+        action: { type: 'edit_lots', expenseId: null },
+      });
+      expect(breakEvenInsight(factsFor(300))).toBeNull();
+    });
+
+    it('lança 503 quando a resposta não tem a lista de alertas', () => {
+      expect(() =>
+        sanitizePlanningReview({ alertas: [] }, factsFor(300), ids),
+      ).toThrow(
+        'Não foi possível analisar o planejamento com IA. Tente novamente em instantes.',
+      );
+    });
+  });
+
+  describe('PlanningAiService.reviewPlanning', () => {
+    const generateStructured = jest.fn<AiService['generateStructured']>();
+    const repository = {
+      findAiEventContext: jest.fn<PlanningRepository['findAiEventContext']>(),
+      findLots: jest.fn<PlanningRepository['findLots']>(),
+      findReviewExpenses: jest.fn<PlanningRepository['findReviewExpenses']>(),
+      findReviewInstallments:
+        jest.fn<PlanningRepository['findReviewInstallments']>(),
+    };
+    const service = new PlanningAiService(
+      { generateStructured } as unknown as AiService,
+      repository as unknown as PlanningRepository,
+    );
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      repository.findAiEventContext.mockResolvedValue(EVENT);
+      repository.findLots.mockResolvedValue(LOTS);
+      repository.findReviewExpenses.mockResolvedValue(REVIEW_EXPENSES);
+      repository.findReviewInstallments.mockResolvedValue([]);
+    });
+
+    it('envia só os fatos calculados e devolve os alertas com generatedAt', async () => {
+      generateStructured.mockResolvedValue({ insights: [insight()] });
+
+      const result = await service.reviewPlanning(EVENT_ID, NOW);
+
+      expect(generateStructured).toHaveBeenCalledWith(
+        expect.objectContaining({
+          schema: PLANNING_REVIEW_SCHEMA,
+          feature: 'planning-review',
+          prompt: expect.stringContaining('"total": "R$ 9.000,00"'),
+        }),
+      );
+      expect(result.generatedAt).toEqual(NOW);
+      expect(result.insights).toEqual([
+        {
+          severity: 'warning',
+          title: 'Itens sem cotação',
+          detail: 'O palco ainda não foi cotado.',
+          action: { type: 'filter_not_quoted', expenseId: null },
+        },
+      ]);
+    });
+
+    it('responde 404 quando o evento não existe e não chama a IA', async () => {
+      repository.findAiEventContext.mockResolvedValue(undefined);
+
+      await expect(service.reviewPlanning(EVENT_ID, NOW)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(generateStructured).not.toHaveBeenCalled();
+    });
   });
 });
