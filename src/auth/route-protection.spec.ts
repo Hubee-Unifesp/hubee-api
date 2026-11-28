@@ -27,6 +27,7 @@ import { OrderController } from '../order/order.controller';
 import { OrganizationController } from '../organization/organization.controller';
 import { CheckoutController } from '../payment/checkout.controller';
 import { PaymentController } from '../payment/payment.controller';
+import { PlanningAiController } from '../planning/ai/planning-ai.controller';
 import { PlanningController } from '../planning/planning.controller';
 import { SuppliersController } from '../suppliers/suppliers.controller';
 import { TaskController } from '../task/task.controller';
@@ -51,6 +52,7 @@ const CONTROLLERS: Type[] = [
   ExpensesController,
   InstallmentsController,
   PlanningController,
+  PlanningAiController,
   TaskController,
   PaymentController,
   CheckoutController,
@@ -136,6 +138,7 @@ const ORGANIZER_WRITE_ROUTES = [
   'PATCH /events/:eventId/expenses/:expenseId/installments/:id',
   'DELETE /events/:eventId/expenses/:expenseId/installments/:id',
   'GET /events/:eventId/planning/summary',
+  'POST /events/:eventId/planning/ai/expense-suggestions',
 ];
 
 /**
