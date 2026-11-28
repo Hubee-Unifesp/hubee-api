@@ -22,3 +22,4 @@ export * from './organization.schema';
 export * from './expense.schema';
 export * from './payment.schema';
 export * from './notification.schema';
+export * from './expense-installment.schema';

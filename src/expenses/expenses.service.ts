@@ -9,6 +9,7 @@ import { CreateExpenseDto, MAX_EXPENSE_AMOUNT } from './dto/create-expense.dto';
 import { QueryExpenseDto } from './dto/query-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpensesRepository } from './expenses.repository';
+import { InstallmentsRepository } from './installments/installments.repository';
 
 /** Calcula o valor total da despesa (`quantity × unitPrice`) com 2 casas decimais. */
 export function calculateExpenseAmount(
@@ -31,6 +32,7 @@ export class ExpensesService {
     private readonly expensesRepository: ExpensesRepository,
     private readonly eventService: EventService,
     private readonly suppliersService: SuppliersService,
+    private readonly installmentsRepository: InstallmentsRepository,
   ) {}
 
   async findAll(eventId: string, query: QueryExpenseDto) {
@@ -90,9 +92,24 @@ export class ExpensesService {
           )
         : undefined;
 
-    return this.expensesRepository.update(id, {
-      ...dto,
-      ...(nextAmount !== undefined ? { amount: nextAmount } : {}),
+    if (nextAmount === undefined) {
+      return this.expensesRepository.update(id, dto);
+    }
+
+    return this.installmentsRepository.transaction(async (tx) => {
+      await this.installmentsRepository.lockExpense(id, tx);
+      const installmentsTotal =
+        await this.installmentsRepository.sumActiveAmount(id, tx);
+      if (Math.round(installmentsTotal * 100) > Math.round(nextAmount * 100)) {
+        throw new BadRequestException(
+          'O valor da despesa não pode ficar menor que a soma das parcelas cadastradas.',
+        );
+      }
+      return this.expensesRepository.update(
+        id,
+        { ...dto, amount: nextAmount },
+        tx,
+      );
     });
   }
 
@@ -105,7 +122,7 @@ export class ExpensesService {
    * A FK garante que o evento existe, mas só na hora do INSERT: sem esta
    * checagem prévia o erro do Postgres subiria como 500 em vez de 404.
    */
-  private async ensureEventExists(eventId: string): Promise<void> {
+  async ensureEventExists(eventId: string): Promise<void> {
     try {
       await this.eventService.findOne(eventId);
     } catch (error) {
