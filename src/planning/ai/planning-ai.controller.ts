@@ -20,6 +20,7 @@ import {
   ExpenseSuggestionsRequestDto,
   ExpenseSuggestionsResponseDto,
 } from './dto/expense-suggestions.dto';
+import { PlanningReviewResponseDto } from './dto/planning-review.dto';
 import { PlanningAiService } from './planning-ai.service';
 
 const errorSchema = { $ref: '#/components/schemas/ErrorResponse' };
@@ -53,5 +54,26 @@ export class PlanningAiController {
     @Body() dto: ExpenseSuggestionsRequestDto,
   ): Promise<ExpenseSuggestionsResponseDto> {
     return this.planningAi.suggestExpenses(eventId, dto.notes);
+  }
+
+  @AiRateLimited()
+  @OrgAccess('write', { from: 'event', param: 'eventId' })
+  @Post('review')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Analisa o planejamento do evento com IA',
+    description:
+      'Calcula no código os fatos do planejamento (resumo financeiro, prazo, itens sem cotação, pagamentos vencidos e maiores categorias) e pede à IA até 6 alertas com recomendações. Os números vêm sempre do cálculo da API. Nada é salvo.',
+  })
+  @ApiOkResponse({ type: PlanningReviewResponseDto })
+  @ApiServiceUnavailableResponse({
+    description:
+      'IA indisponível, sem chave configurada ou com resposta inválida.',
+    schema: errorSchema,
+  })
+  review(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+  ): Promise<PlanningReviewResponseDto> {
+    return this.planningAi.reviewPlanning(eventId);
   }
 }

@@ -342,4 +342,41 @@ describe('Resumo financeiro do planejamento (GOL-297, banco em memória)', () =>
     });
     expect(await repository.findExpenseItems(emptyEventOfA)).toEqual([]);
   });
+
+  it('lê despesas e parcelas do evento para os fatos da análise (GOL-307)', async () => {
+    const repository = app.get(PlanningRepository);
+
+    const expenses = await repository.findReviewExpenses(eventOfA);
+    expect(expenses).toHaveLength(6);
+    expect(expenses[0]).toEqual({
+      id: expect.any(String),
+      description: expect.any(String),
+      group: expect.any(String),
+      category: expect.any(String),
+      amount: expect.any(Number),
+      quoted: expect.any(Boolean),
+      paymentStatus: expect.any(String),
+      dueDate: null,
+    });
+
+    const staff = expenses.find((expense) => expense.category === 'Staff')!;
+    const db = app.get<ReturnType<typeof drizzle>>(DRIZZLE);
+    await db.insert(schema.expenseInstallments).values({
+      expenseId: staff.id,
+      amount: 500,
+      dueDate: new Date('2026-11-01T12:00:00Z'),
+    });
+
+    await expect(repository.findReviewInstallments(eventOfA)).resolves.toEqual([
+      {
+        expenseId: staff.id,
+        amount: 500,
+        dueDate: new Date('2026-11-01T12:00:00Z'),
+        status: 'pendente',
+      },
+    ]);
+    await expect(repository.findReviewInstallments(eventOfB)).resolves.toEqual(
+      [],
+    );
+  });
 });
