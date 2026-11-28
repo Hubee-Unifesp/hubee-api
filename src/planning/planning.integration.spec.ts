@@ -314,4 +314,32 @@ describe('Resumo financeiro do planejamento (GOL-297, banco em memória)', () =>
       scenarios: [],
     });
   });
+
+  it('monta o contexto da IA com local, cidade e as despesas cadastradas (GOL-304)', async () => {
+    const repository = app.get(PlanningRepository);
+
+    await expect(repository.findAiEventContext(eventOfA)).resolves.toEqual({
+      name: 'Codeniver',
+      category: null,
+      startDate: new Date('2026-12-01T20:00:00Z'),
+      endDate: new Date('2026-12-02T03:00:00Z'),
+      expectedAudience: 300,
+      venueName: 'Espaço',
+      venueCapacity: 1000,
+      city: 'São Paulo',
+      state: 'SP',
+    });
+    await expect(
+      repository.findAiEventContext('00000000-0000-4000-8000-000000000000'),
+    ).resolves.toBeUndefined();
+
+    const items = await repository.findExpenseItems(eventOfA);
+    expect(items).toHaveLength(6);
+    expect(items[0]).toEqual({
+      description: 'Estrutura 5000',
+      group: 'fixed',
+      category: 'Estrutura',
+    });
+    expect(await repository.findExpenseItems(emptyEventOfA)).toEqual([]);
+  });
 });
