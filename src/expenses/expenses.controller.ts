@@ -19,6 +19,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { CreateExpenseDto } from './dto/create-expense.dto';
+import { CreateExpensesBatchDto } from './dto/create-expenses-batch.dto';
 import { QueryExpenseDto } from './dto/query-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpensesService } from './expenses.service';
@@ -41,6 +42,20 @@ export class ExpensesController {
     return toResponse(
       ExpenseResponseDto,
       await this.expensesService.create(eventId, dto),
+    );
+  }
+
+  @OrgAccess('write', { from: 'event', param: 'eventId' })
+  @Post('batch')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiCreatedResponse({ type: ExpenseResponseDto, isArray: true })
+  async createMany(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() dto: CreateExpensesBatchDto,
+  ) {
+    return toResponse(
+      ExpenseResponseDto,
+      await this.expensesService.createMany(eventId, dto.items),
     );
   }
 

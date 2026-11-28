@@ -58,6 +58,8 @@ describe('ExpensesService', () => {
     create: jest.Mock<ExpensesRepository['create']>;
     update: jest.Mock<ExpensesRepository['update']>;
     delete: jest.Mock<ExpensesRepository['delete']>;
+    createMany: jest.Mock<ExpensesRepository['createMany']>;
+    transaction: jest.Mock<(callback: (tx: unknown) => unknown) => unknown>;
   };
   let eventService: { findOne: jest.Mock<EventService['findOne']> };
   let suppliersService: { findOne: jest.Mock<SuppliersService['findOne']> };
@@ -74,6 +76,10 @@ describe('ExpensesService', () => {
       create: jest.fn<ExpensesRepository['create']>(),
       update: jest.fn<ExpensesRepository['update']>(),
       delete: jest.fn<ExpensesRepository['delete']>(),
+      createMany: jest.fn<ExpensesRepository['createMany']>(),
+      transaction: jest.fn((callback: (tx: unknown) => unknown) =>
+        callback('tx'),
+      ),
     };
     eventService = {
       findOne: jest.fn<EventService['findOne']>().mockResolvedValue({
@@ -107,6 +113,92 @@ describe('ExpensesService', () => {
     }).compile();
 
     service = module.get(ExpensesService);
+  });
+
+  describe('createMany()', () => {
+    const item = (overrides: Record<string, unknown> = {}) => ({
+      description: 'Aluguel de som',
+      group: 'fixed',
+      category: 'Estrutura',
+      quantity: 2,
+      unitPrice: 750,
+      ...overrides,
+    });
+
+    it('calcula amount de cada item e grava tudo numa transação', async () => {
+      const rows = [makeExpense(), makeExpense({ id: 'expense-2' })];
+      expensesRepository.createMany.mockResolvedValue(rows);
+
+      const result = await service.createMany(EVENT_ID, [
+        item(),
+        item({ description: 'Gelo', quantity: undefined, unitPrice: 19.99 }),
+      ]);
+
+      expect(expensesRepository.transaction).toHaveBeenCalledTimes(1);
+      expect(expensesRepository.createMany).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({
+            eventId: EVENT_ID,
+            description: 'Aluguel de som',
+            quantity: 2,
+            amount: 1500,
+          }),
+          expect.objectContaining({
+            eventId: EVENT_ID,
+            description: 'Gelo',
+            quantity: 1,
+            amount: 19.99,
+          }),
+        ],
+        'tx',
+      );
+      expect(result).toEqual(rows);
+    });
+
+    it('indica o item inválido e não grava nada', async () => {
+      await expect(
+        service.createMany(EVENT_ID, [item(), item({ description: '' })]),
+      ).rejects.toThrow('Item 2: A descrição da despesa é obrigatória.');
+      expect(expensesRepository.createMany).not.toHaveBeenCalled();
+    });
+
+    it('rejeita campos fora do contrato, como amount', async () => {
+      await expect(
+        service.createMany(EVENT_ID, [item({ amount: 10 })]),
+      ).rejects.toThrow(BadRequestException);
+      expect(expensesRepository.createMany).not.toHaveBeenCalled();
+    });
+
+    it('indica o item cujo total estoura o limite', async () => {
+      await expect(
+        service.createMany(EVENT_ID, [
+          item(),
+          item(),
+          item({ quantity: 100_000, unitPrice: 200_000 }),
+        ]),
+      ).rejects.toThrow(
+        'Item 3: O valor total da despesa excede o limite permitido.',
+      );
+      expect(expensesRepository.createMany).not.toHaveBeenCalled();
+    });
+
+    it('responde 400 com o índice quando o fornecedor não existe', async () => {
+      suppliersService.findOne.mockRejectedValue(new NotFoundException());
+      const supplierId = '6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f';
+
+      await expect(
+        service.createMany(EVENT_ID, [item(), item({ supplierId })]),
+      ).rejects.toThrow(`Item 2: fornecedor ${supplierId} não encontrado.`);
+      expect(expensesRepository.createMany).not.toHaveBeenCalled();
+    });
+
+    it('lança NotFoundException quando o evento não existe', async () => {
+      eventService.findOne.mockRejectedValue(new NotFoundException());
+
+      await expect(service.createMany(EVENT_ID, [item()])).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 
   describe('findAll()', () => {
